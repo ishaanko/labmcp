@@ -1,26 +1,193 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* Semantic tokens. Raw values live on :root / .dark; Tailwind sees them through @theme inline. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: oklch(0.975 0.004 95);
+  --bg-wall: oklch(0.94 0.006 240);
+  --surface: oklch(1 0 0 / 0.72);
+  --surface-thin: oklch(1 0 0 / 0.55);
+  --surface-thick: oklch(1 0 0 / 0.86);
+  --surface-solid: oklch(0.995 0.002 95);
+  --edge: oklch(1 0 0 / 0.6);
+  --hairline: oklch(0.2 0.01 250 / 0.08);
+  --hairline-strong: oklch(0.2 0.01 250 / 0.16);
+
+  --ink: oklch(0.22 0.012 250);
+  --ink-2: oklch(0.45 0.012 250);
+  --ink-3: oklch(0.62 0.01 250);
+
+  /* Amber accent: agent presence in chrome, heat on the hotplate. Nothing else. */
+  --accent: oklch(0.78 0.16 70);
+  --accent-ink: oklch(0.52 0.14 62);
+  --accent-soft: oklch(0.78 0.16 70 / 0.14);
+  --accent-ring: oklch(0.78 0.16 70 / 0.55);
+
+  --ok: oklch(0.68 0.15 155);
+  --warn: oklch(0.75 0.16 60);
+  --danger: oklch(0.62 0.2 25);
+
+  /* Chemistry observation colors, shared with the 3D layer (toneMapped=false). */
+  --phenol-pink: #f26fb0;
+  --cu-blue: #3f8fd8;
+  --agcl-white: #f4f2ee;
+  --caco3-white: #ebe7dd;
+  --cuoh2-blue: #5a9be0;
+  --water: rgba(190, 214, 232, 0.35);
+
+  /* Bench colors, read by the scene via getComputedStyle on theme change. */
+  --bench-tile: #eceae4;
+  --bench-grout: #dcd9d1;
+  --bench-wall: #e4e7ec;
+}
+
+.dark {
+  --bg: oklch(0.2 0.008 250);
+  --bg-wall: oklch(0.24 0.01 250);
+  --surface: oklch(0.26 0.01 250 / 0.72);
+  --surface-thin: oklch(0.26 0.01 250 / 0.55);
+  --surface-thick: oklch(0.24 0.01 250 / 0.88);
+  --surface-solid: oklch(0.24 0.01 250);
+  --edge: oklch(1 0 0 / 0.08);
+  --hairline: oklch(1 0 0 / 0.08);
+  --hairline-strong: oklch(1 0 0 / 0.16);
+  --ink: oklch(0.95 0.005 95);
+  --ink-2: oklch(0.72 0.01 250);
+  --ink-3: oklch(0.56 0.01 250);
+  --accent: oklch(0.8 0.15 72);
+  --accent-ink: oklch(0.84 0.14 75);
+  --accent-soft: oklch(0.8 0.15 72 / 0.16);
+  --accent-ring: oklch(0.8 0.15 72 / 0.6);
+  --bench-tile: #2a2c31;
+  --bench-grout: #212327;
+  --bench-wall: #1c1e23;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-thin: var(--surface-thin);
+  --color-surface-thick: var(--surface-thick);
+  --color-surface-solid: var(--surface-solid);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ring: var(--accent-ring);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-phenol-pink: var(--phenol-pink);
+
+  --font-sans: -apple-system, "SF Pro Text", "Inter", "Segoe UI Variable", system-ui, sans-serif;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  /* Size-specific tracking: small text tracks out, large text tracks in. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-2xs--letter-spacing: 0.012em;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.05rem;
+  --text-xs--letter-spacing: 0.008em;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.15rem;
+  --text-sm--letter-spacing: 0.002em;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.3rem;
+  --text-base--letter-spacing: -0.004em;
+  --text-md: 1rem;
+  --text-md--line-height: 1.45rem;
+  --text-md--letter-spacing: -0.011em;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.5rem;
+  --text-lg--letter-spacing: -0.017em;
+  --text-xl: 1.75rem;
+  --text-xl--line-height: 1.95rem;
+  --text-xl--letter-spacing: -0.021em;
+  --text-readout: 1.5rem;
+  --text-readout--line-height: 1.6rem;
+  --text-readout--letter-spacing: -0.02em;
+
+  --spacing: 0.25rem;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+
+  /* Materials: shadow and edge together. Bigger surface reads thicker. */
+  --shadow-chip: 0 1px 2px oklch(0.2 0.01 250 / 0.06), 0 0 0 1px var(--hairline);
+  --shadow-popover: 0 8px 24px -8px oklch(0.2 0.01 250 / 0.18), 0 2px 6px oklch(0.2 0.01 250 / 0.06), 0 0 0 1px var(--hairline);
+  --shadow-panel: 0 16px 48px -16px oklch(0.2 0.01 250 / 0.22), 0 1px 0 0 var(--edge) inset, 0 0 0 1px var(--hairline);
+  --shadow-sheet: 0 24px 64px -20px oklch(0.2 0.01 250 / 0.32), 0 0 0 1px var(--hairline-strong);
+  --blur-thin: 12px;
+  --blur-regular: 20px;
+  --blur-thick: 28px;
+
+  /* Motion vocabulary. Every transition in the app uses one of these. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-hover: ease;
+  --dur-press: 100ms;
+  --dur-tick: 120ms;
+  --dur-fast: 160ms;
+  --dur-base: 200ms;
+  --dur-panel: 320ms;
+  --dur-pour: 600ms;
+  --dur-beat: 800ms;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.material {
+  background: var(--surface);
+  backdrop-filter: blur(var(--blur-regular)) saturate(160%);
+  box-shadow: var(--shadow-panel);
+  border-radius: var(--radius-lg);
+}
+.material-thin {
+  background: var(--surface-thin);
+  backdrop-filter: blur(var(--blur-thin)) saturate(160%);
+  box-shadow: var(--shadow-chip);
+  border-radius: var(--radius-md);
+}
+.material-thick {
+  background: var(--surface-thick);
+  backdrop-filter: blur(var(--blur-thick)) saturate(160%);
+  box-shadow: var(--shadow-sheet);
+  border-radius: var(--radius-lg);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .material,
+  .material-thin,
+  .material-thick {
+    background: var(--surface-solid);
+    backdrop-filter: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Pressable elements confirm the press instantly. */
+.pressable {
+  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-press) var(--ease-hover);
+}
+.pressable:active {
+  transform: scale(0.97);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
