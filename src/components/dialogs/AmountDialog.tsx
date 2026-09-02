@@ -14,7 +14,7 @@ import { round2 } from "@/lib/format";
 import { FAST_FLOW } from "@/lib/numberFlowTiming";
 import { useAnchorRect } from "./useAnchorRect";
 
-const REAGENT_PRESETS_ML = [1, 5, 10, 25, 50];
+const REAGENT_PRESETS_ML = [0.5, 1, 5, 10, 25, 50];
 const INDICATOR_PRESETS_DROPS = [1, 2, 3];
 const SOLID_PRESETS_G = [1, 2, 5, 10, 20];
 const SOLID_MIN_G = 0.5;
@@ -75,7 +75,7 @@ function buildTarget(dialog: AmountPendingDialog): AmountTarget {
       containerId: dialog.containerId,
       min: 0,
       max: Math.max(0.5, dialog.maxMl),
-      step: 0.5,
+      step: 0.1,
       initial: Math.min(dialog.defaultMl, dialog.maxMl),
       unit: "mL",
       presets: REAGENT_PRESETS_ML.filter((v) => v <= dialog.maxMl),

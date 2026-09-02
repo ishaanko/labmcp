@@ -38,7 +38,7 @@ export function scenarioObjective(id: ScenarioId): string {
     case "precipitation":
       return "Mix two solutions and make a solid appear.";
     case "neutralize":
-      return "Bring the beaker to pH 7.0 ± 0.1. Strong acid and base overshoot in tiny doses; acetic acid and ammonia settle near 7.";
+      return "Bring the beaker to pH 7.0 ± 0.1. Measure first, then add small doses; a weak acid and a weak base meet near 7.";
     case "dilution":
       return "Prepare 100 mL of 0.10 M sodium chloride from the 1.0 M stock.";
     case "solubility":
@@ -220,12 +220,15 @@ function loadPrecipitation(seed: number): LabState {
 
 function loadNeutralize(seed: number): LabState {
   const pickReagent = nextFloat(seedRng(seed));
-  const startReagentId = mintReagentId(pickReagent.value < 0.5 ? "hcl" : "naoh");
+  // A weak acid or base start keeps the pH curve buffered near 7, so the target is reachable by
+  // hand in 0.1 mL steps. Its weak counterpart (pKa 4.76 against pKb 4.76) lands on 7.00 at
+  // equivalence; a strong counterpart reaches 7 just short of equivalence.
+  const startReagentId = mintReagentId(pickReagent.value < 0.5 ? "acetic_acid" : "ammonia");
   const pickM = nextFloat(pickReagent.rng);
   const startM = round4(0.02 + 0.04 * pickM.value);
 
   const startDef = reagentDef(startReagentId);
-  if (!startDef || startDef.kind !== "solution") throw new Error("unreachable: hcl/naoh missing from registry");
+  if (!startDef || startDef.kind !== "solution") throw new Error("unreachable: acetic_acid/ammonia missing from registry");
 
   const beakerId = mintContainerId(1);
   const beaker = containerAt(beakerId, "beaker", "Beaker", CAPACITY_ML.beaker, { x: 0.5, y: 0.5 }, 50, stockToMoles(startDef, 50, startM), true);

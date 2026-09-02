@@ -95,9 +95,10 @@ describe("scenarioProgress: neutralize", () => {
     const attached = applyOk(state, { kind: "ATTACH_INSTRUMENT", instrumentId: mintInstrumentId(2), containerId: beakerId });
     expect(scenarioProgress(attached).complete).toBe(false);
 
-    // 50 mL beaker at secrets.startM, neutralized exactly with the opposite strong reagent at
-    // 0.1 M: equal moles of H+ and OH- pins the strong-acid/base charge balance to pH 7.0 exactly.
-    const counterReagent = mintReagentId(secrets.startReagent === "hcl" ? "naoh" : "hcl");
+    // 50 mL beaker at secrets.startM of a weak acid or base, neutralized exactly with its weak
+    // counterpart at 0.1 M: acetic acid (pKa 4.76) against ammonia (pKb 4.76) gives pH 7.00 at
+    // equivalence.
+    const counterReagent = mintReagentId(secrets.startReagent === "acetic_acid" ? "ammonia" : "acetic_acid");
     const counterMl = (secrets.startM * 50) / 0.1;
     const finalResult = applyCommand(attached, { kind: "ADD_REAGENT", containerId: beakerId, reagentId: counterReagent, volumeMl: counterMl, concentrationM: 0.1 }, "agent");
     if (!finalResult.ok) throw new Error("unreachable");

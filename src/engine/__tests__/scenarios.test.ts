@@ -96,7 +96,7 @@ describe("loadScenario", () => {
     const b = loadScenario("neutralize", 9);
     expect(a).toEqual(b);
     if (a.scenario.kind !== "neutralize") throw new Error("unreachable");
-    expect(["hcl", "naoh"]).toContain(a.scenario.secrets.startReagent);
+    expect(["acetic_acid", "ammonia"]).toContain(a.scenario.secrets.startReagent);
     expect(a.scenario.secrets.startM).toBeGreaterThanOrEqual(0.02);
     expect(a.scenario.secrets.startM).toBeLessThanOrEqual(0.06);
     const { beakerId } = a.scenario;
