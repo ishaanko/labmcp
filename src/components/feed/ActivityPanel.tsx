@@ -32,15 +32,15 @@ export function ActivityPanel() {
   const latest: FeedEntryData | undefined = feed[0];
 
   return (
-    <div className="pointer-events-none absolute left-3 top-14 bottom-14 w-[300px]">
+    <div className="pointer-events-none absolute top-0 left-0 bottom-14 w-[300px]">
       <AnimatePresence initial={false} mode="popLayout">
         {!open ? (
           <button
-            key="pill"
+            key="tab"
             type="button"
             onClick={toggleActivity}
             aria-label="Open activity panel"
-            className="material-thin pointer-events-auto relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-md"
+            className="material-thin pointer-events-auto relative -ml-3 flex h-8 items-center gap-1.5 rounded-l-none border-l-0 pr-2.5 pl-2 text-xs text-ink-2"
           >
             <AnimatePresence initial={false}>
               <motion.span
@@ -49,9 +49,10 @@ export function ActivityPanel() {
                 animate={{ opacity: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, filter: "blur(2px)" }}
                 transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-                className="absolute inset-0 flex items-center justify-center text-ink-2"
+                className="flex items-center gap-1.5"
               >
-                {latest ? <SourceIcon entry={latest} /> : <Cog size={15} />}
+                {latest ? <SourceIcon entry={latest} /> : <Cog size={13} />}
+                Activity
               </motion.span>
             </AnimatePresence>
           </button>
@@ -101,7 +102,7 @@ export function ActivityPanel() {
 
 function SourceIcon({ entry }: { entry: FeedEntryData }) {
   const Icon = PILL_ICON[entry.source];
-  return <Icon size={15} />;
+  return <Icon size={13} />;
 }
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {

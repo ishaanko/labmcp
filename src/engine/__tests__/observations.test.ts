@@ -42,7 +42,7 @@ const eventFixtures: ReadonlyArray<LabEvent> = [
     massG: 0.143,
     color: { r: 240, g: 240, b: 235, a: 1 },
     scale: "moderate",
-    description: "White precipitate formed (AgCl, 143.3 mg).",
+    description: "White precipitate: AgCl, 143 mg.",
   },
   { kind: "BUBBLES", containerId, species: rule.reactants[0]!.species, moles: 0.001, intensity: 0.5, durationS: 6 },
   { kind: "TEMPERATURE_CHANGE", containerId, fromC: 22, toC: 22.68, cause: "reaction" },
@@ -64,10 +64,59 @@ const eventFixtures: ReadonlyArray<LabEvent> = [
 ];
 
 describe("describeEvent", () => {
-  it.each(eventFixtures.map((event) => [event.kind, event] as const))("gives a non-empty sentence for %s", (_kind, event) => {
+  it.each(eventFixtures.map((event) => [event.kind, event] as const))("gives a non-empty sentence for %s (except a no-op TEMPERATURE_CHANGE)", (_kind, event) => {
     const text = describeEvent(event);
     expect(typeof text).toBe("string");
-    expect(text.length).toBeGreaterThan(0);
+    if (event.kind === "TEMPERATURE_CHANGE" && event.fromC.toFixed(1) === event.toC.toFixed(1)) {
+      expect(text).toBe("");
+    } else {
+      expect(text.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("shows a container's label with its id once, when a lookup is given", () => {
+    const text = describeEvent({ kind: "OBJECT_MOVED", objectId: containerId, position: { x: 0, y: 0 } }, (id) => `Flask A (${id})`);
+    expect(text).toBe("Moved Flask A (c_1).");
+  });
+
+  it("falls back to the raw id with no lookup", () => {
+    const text = describeEvent({ kind: "OBJECT_MOVED", objectId: containerId, position: { x: 0, y: 0 } });
+    expect(text).toBe(`Moved ${containerId}.`);
+  });
+
+  it("drops a TEMPERATURE_CHANGE that rounds to the same tenth of a degree", () => {
+    expect(describeEvent({ kind: "TEMPERATURE_CHANGE", containerId, fromC: 22.68, toC: 22.72, cause: "mixing" })).toBe("");
+  });
+
+  it("phrases neutralization by moles, not the raw net-ionic equation", () => {
+    const text = describeEvent({ kind: "REACTION", containerId, ruleId: rule.id, extentMol: 0.0005, limiting: rule.reactants[0]!.species, netIonic: rule.equations.netIonic });
+    expect(text).toBe("Neutralized 0.50 mmol H+.");
+  });
+
+  it("names the precipitate and rounds its mass to whole milligrams", () => {
+    const text = describeEvent({
+      kind: "PRECIPITATE_FORMED",
+      containerId,
+      species: rule.reactants[0]!.species,
+      moles: 0.001,
+      massG: 0.1433,
+      color: { r: 240, g: 240, b: 235, a: 1 },
+      scale: "moderate",
+      description: "White precipitate: silver chloride, 143 mg.",
+    });
+    expect(text).toBe("White precipitate: silver chloride, 143 mg.");
+  });
+
+  it("reads a color shift as just the resulting color, no arrow", () => {
+    const text = describeEvent({
+      kind: "COLOR_SHIFT",
+      containerId,
+      from: { r: 200, g: 225, b: 240, a: 0.12 },
+      to: { r: 236, g: 64, b: 160, a: 0.5 },
+      description: "colorless -> faint pink",
+      indicatorTransition: true,
+    });
+    expect(text).toBe("Faint pink.");
   });
 });
 

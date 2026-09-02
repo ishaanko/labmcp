@@ -46,6 +46,20 @@ export function radiusAt(profile: LatheProfile, y: number): number {
   return radiusAtPoints(profile.points, y);
 }
 
+/**
+ * Widest radius near the base (bottom 15% of the profile's height), for the contact-shadow
+ * disc under a vessel. Sampling near the base rather than at `y=0` matters for the Erlenmeyer:
+ * its widest point is its shoulder just above the floor, not the floor itself.
+ */
+export function footprintRadius(profile: LatheProfile): number {
+  const threshold = profile.capacityHeight * 0.15;
+  let r = 0;
+  for (const p of profile.points) {
+    if (p.y <= threshold) r = Math.max(r, p.r);
+  }
+  return r;
+}
+
 /** Builds a calibrated profile from raw lathe points and the vessel's nominal capacity. */
 export function makeProfile(points: ReadonlyArray<ProfilePoint>, capacityMl: number): LatheProfile {
   const last = points[points.length - 1];

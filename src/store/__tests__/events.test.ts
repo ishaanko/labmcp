@@ -29,7 +29,13 @@ describe("describeCommand", () => {
       { id: "c_2", kind: "container", label: "Beaker B" },
     ]);
     const line = describeCommand({ kind: "TRANSFER_LIQUID", fromId: "c_1" as never, toId: "c_2" as never, volumeMl: 25 }, l);
-    expect(line).toBe("Poured 25 mL Flask A -> Beaker B");
+    expect(line).toBe("Poured 25 mL from Flask A into Beaker B");
+  });
+
+  it("names the destination only for a dispense, no burette id", () => {
+    const l = lab([{ id: "c_2", kind: "container", label: "Flask A" }]);
+    const line = describeCommand({ kind: "DISPENSE", buretteId: "c_1" as never, toId: "c_2" as never, volumeMl: 0.5 }, l);
+    expect(line).toBe("Dispensed 0.5 mL into Flask A");
   });
 
   it("falls back to the raw id for an unknown container", () => {
@@ -60,6 +66,21 @@ describe("summarizeEvents", () => {
 
   it("has a fallback line for an empty batch", () => {
     expect(summarizeEvents(emptyPub, [])).toBe("Nothing changed.");
+  });
+
+  it("drops NO_REACTION once anything else in the batch changed", () => {
+    // Regression: dispensing NaOH past the endpoint into a salt solution fires no reaction rule,
+    // but the indicator's own COLOR_SHIFT means it was not a no-op.
+    const line = summarizeEvents(emptyPub, [
+      obs({ kind: "COLOR_SHIFT", indicatorTransition: true }),
+      obs({ kind: "NO_REACTION" }),
+    ]);
+    expect(line).toBe("desc:COLOR_SHIFT");
+  });
+
+  it("keeps NO_REACTION when it is the only thing that changed", () => {
+    const line = summarizeEvents(emptyPub, [obs({ kind: "LIQUID_ADDED", containerId: "c_1", newVolumeMl: 10 }), obs({ kind: "NO_REACTION" })]);
+    expect(line).toContain("desc:NO_REACTION");
   });
 });
 

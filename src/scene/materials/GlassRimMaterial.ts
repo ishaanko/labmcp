@@ -31,7 +31,7 @@ const fragmentShader = /* glsl */ `
     vec3 normal = normalize(vNormal);
     vec3 viewDir = normalize(vViewDir);
     float f = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
-    vec3 spec = vec3(pow(max(dot(reflect(-uLightDir, normal), viewDir), 0.0), 48.0)) * 0.6;
+    vec3 spec = vec3(pow(max(dot(reflect(-uLightDir, normal), viewDir), 0.0), 60.0)) * 0.85;
     vec3 col = mix(uTint, uRim, f) + spec;
     float a = uBaseAlpha + (uRimAlpha - uBaseAlpha) * f;
     gl_FragColor = vec4(col, a * uOpacity);
@@ -51,7 +51,7 @@ export interface GlassRimMaterialUniforms {
 export class GlassRimMaterial extends THREE.ShaderMaterial {
   declare uniforms: GlassRimMaterialUniforms;
 
-  constructor(baseAlpha = 0.06, rimAlpha = 0.55) {
+  constructor(baseAlpha = 0.08, rimAlpha = 0.68) {
     super({
       vertexShader,
       fragmentShader,
@@ -59,8 +59,8 @@ export class GlassRimMaterial extends THREE.ShaderMaterial {
       depthWrite: false,
       depthTest: true,
       uniforms: {
-        uTint: { value: new THREE.Color("#dfe8f0") },
-        uRim: { value: new THREE.Color("#ffffff") },
+        uTint: { value: new THREE.Color("#cfe0f2") },
+        uRim: { value: new THREE.Color("#eef6ff") },
         uLightDir: { value: new THREE.Vector3(0.3, 0.8, 0.4).normalize() },
         uBaseAlpha: { value: baseAlpha },
         uRimAlpha: { value: rimAlpha },

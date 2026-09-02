@@ -129,6 +129,11 @@ export function PHProbe({ id, position, attachedRim }: PHProbeProps) {
         <boxGeometry args={[0.5, 0.3, 0.2]} />
         <meshStandardMaterial color="#f4f2ee" roughness={0.5} />
       </mesh>
+      {/* Dark screen inset (C3.5: "small meter box with a dark screen"), on the meter's front face. */}
+      <mesh position={[METER_OFFSET.x, METER_OFFSET.y + 0.02, METER_OFFSET.z + 0.101]} raycast={() => null}>
+        <boxGeometry args={[0.36, 0.16, 0.006]} />
+        <meshStandardMaterial color="#14171b" roughness={0.3} />
+      </mesh>
       {/* Single hit volume for the whole assembly (C3.5): the only raycast target for drag/select. */}
       <mesh visible={false} userData={{ objectId: id }} position={[0, -0.05, 0]}>
         <cylinderGeometry args={[0.16, 0.16, 1.3, 12]} />

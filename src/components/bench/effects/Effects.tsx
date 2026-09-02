@@ -2,11 +2,24 @@
 
 import { useSyncExternalStore } from "react";
 import { useFrame } from "@react-three/fiber";
-import { assertNever } from "@/engine";
+import { assertNever, type Container, type Instrument } from "@/engine";
 import { listEffects, nowMs, pruneEffects, subscribeEffects, type Effect } from "@/scene/effectsStore";
+import { profileForContainerType } from "@/scene/profiles";
+import { useLabStore } from "@/store/labStore";
+import { gridToWorld } from "@/components/bench/Bench";
 import { Stream } from "./Stream";
 import { Drop } from "./Drop";
 import { Ripple } from "./Ripple";
+import { Precipitate } from "./Precipitate";
+import { Bubbles } from "./Bubbles";
+
+/** Mirrors `Objects.tsx`'s hotplate rest y (C3.2); duplicated rather than imported to avoid a
+ * cycle back through `Objects.tsx`, which mounts this component. */
+const HOTPLATE_TOP_Y = 0.12;
+
+function restsOnHotplate(container: Container, hotplates: ReadonlyArray<Instrument>): boolean {
+  return hotplates.some((h) => h.position.x === container.position.x && h.position.y === container.position.y);
+}
 
 function renderEffect(effect: Effect) {
   switch (effect.kind) {
@@ -23,15 +36,38 @@ function renderEffect(effect: Effect) {
 
 /**
  * Mounted once on the bench (C3.7): renders every active stream/drop/ripple from
- * `effectsStore`. Pruning expired effects runs inside `useFrame` against the store's plain
- * array, not React state; `useSyncExternalStore` only re-renders this component when the
- * store notifies (an effect spawned or expired), never on every frame's position update, which
- * each effect component drives itself via its own ref.
+ * `effectsStore`, plus one `Precipitate` and `Bubbles` instanced mesh per container. Pruning
+ * expired transient effects runs inside `useFrame` against the store's plain array, not React
+ * state; `useSyncExternalStore` only re-renders this component when the store notifies (an
+ * effect spawned or expired), never on every frame's position update, which each effect
+ * component drives itself via its own ref. `lab.objects` is read only for container membership
+ * and pose (which container exists, where, on a hotplate or not); the per-frame precipitate
+ * amount/settled and bubble intensity come straight from `visualStore` inside each child.
  */
 export function Effects() {
   const effects = useSyncExternalStore(subscribeEffects, listEffects, listEffects);
+  const objects = useLabStore((s) => s.lab.objects);
   useFrame(() => {
     pruneEffects(nowMs());
   });
-  return <group>{effects.map(renderEffect)}</group>;
+
+  const containers = objects.filter((o): o is Container => o.kind === "container");
+  const hotplates = objects.filter((o): o is Instrument => o.kind === "instrument" && o.type === "hotplate");
+
+  return (
+    <group>
+      {effects.map(renderEffect)}
+      {containers.map((container) => {
+        const [x, , z] = gridToWorld(container.position);
+        const origin: readonly [number, number, number] = [x, restsOnHotplate(container, hotplates) ? HOTPLATE_TOP_Y : 0, z];
+        const profile = profileForContainerType(container.type);
+        return (
+          <group key={container.id}>
+            <Precipitate containerId={container.id} profile={profile} origin={origin} />
+            <Bubbles containerId={container.id} profile={profile} origin={origin} />
+          </group>
+        );
+      })}
+    </group>
+  );
 }

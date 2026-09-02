@@ -1,10 +1,8 @@
 import { z } from "zod";
-import { constants, INDICATORS, publicView, REAGENTS } from "@/engine";
+import { constants, INDICATORS, REAGENTS } from "@/engine";
 
 const { CAPACITY_ML } = constants;
-import { renderNotebookMarkdown, rowKindFor, type NotebookRow } from "@/lib/notebook";
-import { safeObservationLine } from "@/lib/summary";
-import { round2 } from "@/lib/format";
+import { notebookRows, renderNotebookMarkdown } from "@/lib/notebook";
 import { errFromLabError, eventStrings, findBenchPhMeter, findContainer, ok, unknownObjectError } from "../runtime";
 import { ContainerIdSchema, EmptyInput } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
@@ -195,9 +193,9 @@ const getNotebook: ToolDef<{ last_n?: number }> = {
   name: "get_notebook",
   title: "Get notebook",
   description:
-    "Returns the lab notebook: an append-only, timestamped log of every measurement and observation, tagged with " +
-    "which actor (human or agent) caused it. Undo does not remove entries, it adds one. Optionally limit to the " +
-    "last N entries (1 to 200, default all).",
+    "Returns the lab notebook: an append-only, timestamped log with one entry per action, each tagged with the " +
+    "actor (human or agent) that caused it, containers named by label rather than id. Undo does not remove " +
+    "entries, it adds one. Optionally limit to the last N entries (1 to 200, default all).",
   input: z.object({ last_n: z.int().min(1).max(200).optional().describe("Only return the most recent N entries.") }).strict(),
   readOnly: true,
   examples: [
@@ -205,14 +203,8 @@ const getNotebook: ToolDef<{ last_n?: number }> = {
     { label: "Last 20 entries", input: { last_n: 20 } },
   ],
   handler: async (input, ctx) => {
-    const lab = ctx.getState().lab;
-    const pub = publicView(lab);
-    const all: NotebookRow[] = [];
-    for (const o of lab.observations) {
-      const text = safeObservationLine(pub, o.event);
-      if (text === null) continue;
-      all.push({ seq: o.seq, clockS: round2(o.clockS), actor: o.actor, kind: rowKindFor(o.event.kind), text });
-    }
+    // Same rows the Notebook panel shows: one per command, labels only, redacted by publicView.
+    const all = notebookRows(ctx.getState().lab);
     const entries = input.last_n ? all.slice(-input.last_n) : all;
     const markdown = renderNotebookMarkdown(entries);
     return ok(ctx.getState, { entries, markdown }, `Read ${entries.length} notebook entr${entries.length === 1 ? "y" : "ies"}.`, []);

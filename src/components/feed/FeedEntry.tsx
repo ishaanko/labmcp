@@ -1,11 +1,15 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Sparkles, Hand, Cog } from "lucide-react";
 import { clsx } from "clsx";
 import { motion } from "motion/react";
 import { assertNever } from "@/engine";
+import { useLabStore } from "@/store/labStore";
 import type { FeedEntry as FeedEntryData } from "@/store/types";
+
+/** Long enough that a one-line clamp would visibly cut it, so it earns a "more" toggle. */
+const LONG_TEXT_CHARS = 88;
 
 export interface FeedEntryProps {
   entry: FeedEntryData;
@@ -58,9 +62,20 @@ function Row({
   );
 }
 
+/** The target object's short label, e.g. "Flask" or "pH meter", for the tool call's title line. */
+function useTargetLabel(targetId: string | undefined): string | null {
+  return useLabStore((s) => {
+    if (!targetId) return null;
+    const obj = s.lab.objects.find((o) => o.id === targetId);
+    if (!obj) return null;
+    return obj.kind === "container" ? obj.label : obj.type.replace("_", " ");
+  });
+}
+
 function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_call" }> }) {
   const running = entry.status === "running";
   const collapsed = entry.readOnly && !running;
+  const targetLabel = useTargetLabel(entry.targetId);
 
   return (
     <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-ink-3" : "text-accent-ink"} />}>
@@ -70,11 +85,14 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
         </p>
       ) : (
         <>
-          <p className="font-mono text-2xs text-ink-2">{entry.tool}</p>
+          <p className="font-mono text-2xs text-ink-2">
+            {entry.tool}
+            {targetLabel ? <span className="text-ink-3"> → {targetLabel}</span> : null}
+          </p>
           {running ? (
             <p className="mt-0.5 text-ink-3">Running…</p>
           ) : entry.resultSummary ? (
-            <p className={clsx("mt-0.5", entry.ok === false ? "text-danger" : "text-ink")}>{entry.resultSummary}</p>
+            <SummaryLine text={entry.resultSummary} tone={entry.ok === false ? "text-danger" : "text-ink"} />
           ) : null}
         </>
       )}
@@ -86,8 +104,32 @@ function ActionRow({ entry }: { entry: Extract<FeedEntryData, { kind: "action" }
   return (
     <Row accent="human" icon={<Hand size={13} />}>
       <p className="text-ink">{entry.label}</p>
-      <p className={clsx("mt-0.5", entry.ok ? "text-ink-3" : "text-danger")}>{entry.observation}</p>
+      <SummaryLine text={entry.observation} tone={entry.ok ? "text-ink-3" : "text-danger"} />
     </Row>
+  );
+}
+
+/**
+ * One summary line under a feed entry's title (C2 item 4): clamped to a single line, with a
+ * "more" toggle for anything long enough to have been cut off.
+ */
+function SummaryLine({ text, tone }: { text: string; tone: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > LONG_TEXT_CHARS;
+
+  return (
+    <>
+      <p className={clsx("mt-0.5", tone, long && !expanded && "line-clamp-1")}>{text}</p>
+      {long ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-0.5 text-2xs text-ink-3 hover:text-ink-2 hover:underline"
+        >
+          {expanded ? "less" : "more"}
+        </button>
+      ) : null}
+    </>
   );
 }
 

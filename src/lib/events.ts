@@ -1,6 +1,7 @@
 import {
   assertNever,
   describeEvent,
+  publicView,
   titrationCurve,
   type Actor,
   type LabCommand,
@@ -11,7 +12,7 @@ import {
 } from "@/engine";
 import type { FeedEntry } from "@/store/types";
 import { fmtMl } from "./format";
-import { safeObservationLine } from "./summary";
+import { eventContainerHidden, mergeObservationLines, safeObservationLine } from "./summary";
 
 /**
  * Adapter between the engine's Observation/LabEvent shapes and the store, toasts, and feed.
@@ -69,11 +70,24 @@ export function emitAnimation(b: AnimationBatch): void {
 
 // ---------- labels ----------
 
-function labelFor(lab: LabState, id: string | null | undefined): string {
+const INSTRUMENT_NAMES: Record<string, string> = { ph_meter: "pH meter", thermometer: "Thermometer", hotplate: "Hotplate" };
+
+/** Display name for a bench object, e.g. "Flask A" or "pH meter". Never the raw id on its own. */
+export function labelFor(lab: LabState | PublicLabState, id: string | null | undefined): string {
   if (id === null || id === undefined) return "the bench";
   const obj = lab.objects.find((o) => o.id === id);
   if (!obj) return id;
-  return obj.kind === "container" ? obj.label : `${obj.type} ${obj.id}`;
+  return obj.kind === "container" ? obj.label : (INSTRUMENT_NAMES[obj.type] ?? obj.type.replace(/_/g, " "));
+}
+
+/** "Flask A (c_1)": the one place an id is allowed to show, for a sentence's first mention of it. */
+function labelWithId(lab: LabState | PublicLabState, id: string): string {
+  return `${labelFor(lab, id)} (${id})`;
+}
+
+/** Builds the `LabelLookup` `describeEvent` takes, bound to one lab snapshot. */
+export function labelLookup(lab: LabState | PublicLabState): (id: string) => string {
+  return (id) => labelWithId(lab, id);
 }
 
 // ---------- describeCommand ----------
@@ -90,11 +104,11 @@ export function describeCommand(command: LabCommand, lab: LabState): string {
         ? `Attached ${labelFor(lab, command.instrumentId)} to ${labelFor(lab, command.containerId)}`
         : `Detached ${labelFor(lab, command.instrumentId)}`;
     case "ADD_REAGENT":
-      return `Added ${fmtMl(command.volumeMl)} ${command.reagentId} to ${labelFor(lab, command.containerId)}`;
+      return `Added ${fmtMl(command.volumeMl)} ${lab.shelf.find((s) => s.reagentId === command.reagentId)?.label ?? command.reagentId} to ${labelFor(lab, command.containerId)}`;
     case "TRANSFER_LIQUID":
-      return `Poured ${fmtMl(command.volumeMl)} ${labelFor(lab, command.fromId)} -> ${labelFor(lab, command.toId)}`;
+      return `Poured ${fmtMl(command.volumeMl)} from ${labelFor(lab, command.fromId)} into ${labelFor(lab, command.toId)}`;
     case "DISPENSE":
-      return `Dispensed ${fmtMl(command.volumeMl)} ${labelFor(lab, command.buretteId)} -> ${labelFor(lab, command.toId)}`;
+      return `Dispensed ${fmtMl(command.volumeMl)} into ${labelFor(lab, command.toId)}`;
     case "STIR":
       return `Stirred ${labelFor(lab, command.containerId)}`;
     case "HEAT":
@@ -158,16 +172,12 @@ export function targetOfCommand(command: LabCommand): string | undefined {
 
 // ---------- summarizeEvents ----------
 
-/**
- * Joins redacted describeEvent lines into the one-line "observation" attached to feed entries and
- * tool results. Routed through the same safeObservationLine as lastObservations/get_notebook, so a
- * hidden container's pH or reaction chemistry never reaches this string either.
- */
+/** Adapts a dispatch's `Observation[]` batch (already one command's worth) to `mergeObservationLines`. */
 export function summarizeEvents(pub: PublicLabState, events: ReadonlyArray<Observation>): string {
-  const lines = events
-    .map((o) => safeObservationLine(pub, o.event))
-    .filter((line): line is string => line !== null && line.length > 0);
-  return lines.length > 0 ? lines.join(" ") : "Nothing changed.";
+  return mergeObservationLines(
+    pub,
+    events.map((o) => o.event),
+  );
 }
 
 // ---------- toasts ----------
@@ -212,6 +222,8 @@ function hasPriorEndpoint(lab: LabState, containerId: string, beforeSeq: number)
  * should pass both (`next`, and `() => void get().dispatch({ kind: "UNDO" }, "human")`) to get
  * the full C7 behaviour.
  */
+const CHANGE_KINDS: ReadonlySet<LabEvent["kind"]> = new Set(["PH_CHANGE", "COLOR_SHIFT", "REACTION", "PRECIPITATE_FORMED", "BUBBLES"]);
+
 export function eventsToToasts(
   events: ReadonlyArray<Observation>,
   _actor: Actor,
@@ -220,10 +232,20 @@ export function eventsToToasts(
 ): ReadonlyArray<ToastMessage> {
   const flaskId = next && next.scenario.kind === "titration" ? next.scenario.flaskId : null;
   const batchSeq = events.length > 0 ? Math.min(...events.map((o) => o.seq)) : 0;
+  const labels = next ? labelLookup(next) : undefined;
+  // Toasts are redacted like the feed: a hidden flask's neutralization moles are its answer key.
+  const pub = next ? publicView(next) : null;
+
+  // Same rules as the feed: "Mixed, no visible reaction." only when the batch reports nothing
+  // else, and a hidden container's redacted "A reaction occurred." adds nothing next to its pH move.
+  const somethingChanged = events.some((o) => CHANGE_KINDS.has(o.event.kind));
+  const hasReadout = events.some((o) => o.event.kind === "PH_CHANGE" || o.event.kind === "COLOR_SHIFT");
 
   const toasts: ToastMessage[] = [];
   for (const o of events) {
     const event = o.event;
+    if (event.kind === "NO_REACTION" && somethingChanged) continue;
+    if (event.kind === "REACTION" && hasReadout && pub && eventContainerHidden(pub, event)) continue;
 
     if (event.kind === "COLOR_SHIFT" && event.indicatorTransition && next && flaskId !== null && event.containerId === flaskId) {
       const curve = titrationCurve(next);
@@ -252,7 +274,8 @@ export function eventsToToasts(
 
     if (!NOTABLE_KINDS.has(event.kind)) continue;
     if (event.kind === "COLOR_SHIFT" && !event.indicatorTransition) continue;
-    toasts.push({ kind: toastKindFor(event), title: describeEvent(event) });
+    const title = pub ? safeObservationLine(pub, event, labels) : describeEvent(event, labels);
+    if (title) toasts.push({ kind: toastKindFor(event), title });
   }
   return toasts;
 }

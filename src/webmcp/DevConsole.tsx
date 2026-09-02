@@ -111,7 +111,7 @@ export function DevConsole(): React.JSX.Element | null {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex h-[520px] w-[420px] flex-col overflow-hidden rounded-lg border border-hairline bg-surface-thick text-xs font-mono text-ink shadow-xl backdrop-blur">
+    <div className="material-thick pointer-events-auto fixed bottom-4 right-4 z-50 flex h-[520px] w-[420px] flex-col overflow-hidden text-xs font-mono text-ink">
       <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
         <span className="font-semibold">WebMCP dev console</span>
         <button type="button" onClick={toggle} className="text-ink-3 hover:text-ink" aria-label="Close dev console">

@@ -85,9 +85,23 @@ export function Hotplate({ id, position, heatedContainerId }: HotplateProps) {
         <cylinderGeometry args={[0.42, 0.42, 0.02, 64]} />
         <meshStandardMaterial ref={plateMatRef} color="#2b2b2e" roughness={0.7} emissive="#ff5a1f" emissiveIntensity={0} />
       </mesh>
+      {/* Coil grooves (C3.5: "plate ring readable"), so the plate reads as a hotplate even cold. */}
+      <mesh position={[0, 0.141, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <ringGeometry args={[0.14, 0.165, 48]} />
+        <meshStandardMaterial color="#18181b" roughness={0.6} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh position={[0, 0.141, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <ringGeometry args={[0.27, 0.295, 48]} />
+        <meshStandardMaterial color="#18181b" roughness={0.6} side={THREE.DoubleSide} />
+      </mesh>
       <mesh ref={dialRef} position={[0.42, 0.15, 0.42]} raycast={() => null}>
         <cylinderGeometry args={[0.06, 0.06, 0.04, 16]} />
         <meshStandardMaterial color="#4a4d55" roughness={0.4} metalness={0.4} />
+        {/* Pointer notch, so the dial's rotation (C3.5) is legible rather than a blank knob. */}
+        <mesh position={[0, 0.021, -0.045]} raycast={() => null}>
+          <boxGeometry args={[0.01, 0.006, 0.03]} />
+          <meshStandardMaterial color="#e8eef4" roughness={0.3} toneMapped={false} />
+        </mesh>
       </mesh>
       <pointLight ref={lightRef} position={[0, 0.4, 0]} color="#ff7a3c" intensity={0} distance={2.5} />
       {/* Single hit volume for the whole plate (C3.5): the only raycast target for select. */}

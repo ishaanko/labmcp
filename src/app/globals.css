@@ -42,25 +42,27 @@
 }
 
 .dark {
-  --bg: oklch(0.2 0.008 250);
-  --bg-wall: oklch(0.24 0.01 250);
-  --surface: oklch(0.26 0.01 250 / 0.72);
-  --surface-thin: oklch(0.26 0.01 250 / 0.55);
-  --surface-thick: oklch(0.24 0.01 250 / 0.88);
-  --surface-solid: oklch(0.24 0.01 250);
-  --edge: oklch(1 0 0 / 0.08);
+  /* True black page, near-black opaque surfaces (no backdrop-filter: the canvas behind
+     repaints every frame, so a blurred surface would resample it at display refresh rate). */
+  --bg: #000000;
+  --bg-wall: oklch(0.05 0.005 250);
+  --surface: oklch(0.16 0.01 250 / 0.72);
+  --surface-thin: oklch(0.16 0.01 250 / 0.5);
+  --surface-thick: oklch(0.15 0.01 250 / 0.92);
+  --surface-solid: oklch(0.16 0.01 250);
+  --edge: oklch(1 0 0 / 0.06);
   --hairline: oklch(1 0 0 / 0.08);
-  --hairline-strong: oklch(1 0 0 / 0.16);
-  --ink: oklch(0.95 0.005 95);
-  --ink-2: oklch(0.72 0.01 250);
-  --ink-3: oklch(0.56 0.01 250);
+  --hairline-strong: oklch(1 0 0 / 0.12);
+  --ink: oklch(1 0 0);
+  --ink-2: oklch(1 0 0 / 0.7);
+  --ink-3: oklch(1 0 0 / 0.5);
   --accent: oklch(0.8 0.15 72);
   --accent-ink: oklch(0.84 0.14 75);
   --accent-soft: oklch(0.8 0.15 72 / 0.16);
   --accent-ring: oklch(0.8 0.15 72 / 0.6);
-  --bench-tile: #2a2c31;
-  --bench-grout: #212327;
-  --bench-wall: #1c1e23;
+  --bench-tile: #0b0b0c;
+  --bench-grout: #151517;
+  --bench-wall: #050506;
 }
 
 @theme inline {
@@ -157,31 +159,46 @@ body {
  * recomputes every time the content behind it changes. Blurring here would run the filter
  * at display refresh rate forever, so these surfaces use a solid background instead, the
  * same fallback the prefers-reduced-transparency media query already used.
+ *
+ * Panels read square-ish and flat: a hairline border carries the edge, not a drop shadow.
+ *
+ * These live in Tailwind's `components` layer (lower priority than `utilities`), so a caller
+ * can still override one property, e.g. `rounded-full` on a pill built from `.material-thin`.
+ * Unlayered CSS always beats layered CSS regardless of source order, so without this an
+ * un-layered rule here would silently win over every Tailwind utility with equal specificity.
  */
-.material {
-  background: var(--surface-solid);
-  box-shadow: var(--shadow-panel);
-  border-radius: var(--radius-lg);
-}
-.material-thin {
-  background: var(--surface-solid);
-  box-shadow: var(--shadow-chip);
-  border-radius: var(--radius-md);
-}
-.material-thick {
-  background: var(--surface-solid);
-  box-shadow: var(--shadow-sheet);
-  border-radius: var(--radius-lg);
-}
+@layer components {
+  .material {
+    background: var(--surface-solid);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+  }
+  .material-thin {
+    background: var(--surface-solid);
+    border: 1px solid var(--hairline);
+    border-radius: 8px;
+  }
+  .material-thick {
+    background: var(--surface-solid);
+    border: 1px solid var(--hairline-strong);
+    border-radius: 8px;
+  }
 
-/* Pressable elements confirm the press instantly. */
-.pressable {
-  transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-press) var(--ease-hover);
-}
-.pressable:active {
-  transform: scale(0.97);
-}
+  /* Top bar: a flat strip spanning the viewport, not a floating card. */
+  .topbar {
+    background: var(--surface-solid);
+    border-bottom: 1px solid var(--hairline);
+  }
 
-.tabular {
-  font-variant-numeric: tabular-nums;
+  /* Pressable elements confirm the press instantly. */
+  .pressable {
+    transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-press) var(--ease-hover);
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
 }

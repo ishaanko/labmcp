@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { dampValue, SMOOTH_TIME } from "@/scene/spring";
-import { heightForVolume, innerProfile, radiusAt, type LatheProfile } from "@/scene/profiles";
+import { footprintRadius, heightForVolume, innerProfile, radiusAt, type LatheProfile } from "@/scene/profiles";
 import { registerVessel, type VisualState } from "@/scene/visualStore";
+import { getContactShadowTexture } from "@/scene/textures";
 import "@/scene/materials/GlassRimMaterial";
 import "@/scene/materials/LiquidMaterial";
 import type { GlassRimMaterial } from "@/scene/materials/GlassRimMaterial";
@@ -32,6 +33,21 @@ function toLatheVectors(profile: LatheProfile): THREE.Vector2[] {
   return profile.points.map((p) => new THREE.Vector2(p.r, p.y));
 }
 
+/**
+ * Points for a pole-less variant of a profile: drops the `r=0` point, if the profile has one, so
+ * the resulting LatheGeometry has an open (uncapped) bottom instead of a fan of triangles meeting
+ * at a shared center vertex. That fan renders as a broken pinwheel on any side facing away from
+ * the camera at a shallow angle (`GlassRimMaterial`'s `BackSide` pass, and `LiquidMaterial`'s
+ * `DoubleSide` liquid body) under a software rasterizer — confirmed empirically: the artifact
+ * tracks exactly the passes and geometry that keep the pole, and disappears once it's dropped.
+ * Used for the glass back pass (whose own bottom cap the front pass, pole intact, already
+ * supplies) and the liquid body (whose meniscus/sediment discs already cover its center).
+ */
+function toPolelessLatheVectors(profile: LatheProfile): THREE.Vector2[] {
+  const points = profile.points[0]?.r === 0 ? profile.points.slice(1) : profile.points;
+  return points.map((p) => new THREE.Vector2(p.r, p.y));
+}
+
 export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, children }: VesselProps) {
   const groupRef = useRef<THREE.Group>(null);
   const liquidMatRef = useRef<LiquidMaterial>(null);
@@ -45,6 +61,8 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
   const fill = useRef({ v: 0 });
   // Reused every frame instead of allocating a THREE.Color per vessel per frame in `apply`.
   const liquidColor = useRef(new THREE.Color());
+  const meniscusColor = useRef(new THREE.Color());
+  const white = useRef(new THREE.Color(1, 1, 1));
 
   // Kept current for the `apply` callback below, which runs on a later animation frame, never
   // during this render.
@@ -54,20 +72,24 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
 
   const inner = useMemo(() => innerProfile(profile, wall), [profile, wall]);
   const glassGeometry = useMemo(() => new THREE.LatheGeometry(toLatheVectors(profile), SEGMENTS), [profile]);
-  const liquidGeometry = useMemo(() => new THREE.LatheGeometry(toLatheVectors(inner), SEGMENTS), [inner]);
+  const glassBackGeometry = useMemo(() => new THREE.LatheGeometry(toPolelessLatheVectors(profile), SEGMENTS), [profile]);
+  const liquidGeometry = useMemo(() => new THREE.LatheGeometry(toPolelessLatheVectors(inner), SEGMENTS), [inner]);
   const meniscusGeometry = useMemo(() => new THREE.CircleGeometry(1, SEGMENTS), []);
   const sedimentGeometry = useMemo(() => new THREE.CircleGeometry(1, 32), []);
   const hitHeight = profile.capacityHeight + 0.1;
   const hitRadius = radiusAt(profile, profile.capacityHeight) + 0.12;
+  const shadowTexture = useMemo(() => getContactShadowTexture(), []);
+  const shadowRadius = footprintRadius(profile) * 1.6 + 0.06;
 
   useEffect(() => {
     return () => {
       glassGeometry.dispose();
+      glassBackGeometry.dispose();
       liquidGeometry.dispose();
       meniscusGeometry.dispose();
       sedimentGeometry.dispose();
     };
-  }, [glassGeometry, liquidGeometry, meniscusGeometry, sedimentGeometry]);
+  }, [glassGeometry, glassBackGeometry, liquidGeometry, meniscusGeometry, sedimentGeometry]);
 
   useEffect(() => {
     return registerVessel(id, {
@@ -103,11 +125,14 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
           liquidMat.opacity = v.opacity;
         }
 
+        // The endpoint beat (C7): `colorShiftJob` lifts `meniscusBoost` to 1 for the 800ms tween,
+        // which brightens the meniscus disc toward white and firms up its alpha, then lets it fall.
+        const boost = v.meniscusBoost * 0.2;
         const meniscusMat = meniscusMatRef.current;
         if (meniscusMat) {
           meniscusMat.uniforms.uFill.value = fillY;
-          meniscusMat.uniforms.uColor.value.copy(color);
-          meniscusMat.uniforms.uAlpha.value = color01.a;
+          meniscusMat.uniforms.uColor.value.copy(meniscusColor.current.copy(color).lerp(white.current, boost));
+          meniscusMat.uniforms.uAlpha.value = color01.a + boost;
           meniscusMat.uniforms.uTime.value = elapsed;
           meniscusMat.uniforms.uStir.value = v.stirring;
           meniscusMat.opacity = v.opacity;
@@ -142,8 +167,14 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
 
   return (
     <group ref={groupRef} position={position} rotation={[0, rotationY, 0]}>
-      <mesh geometry={glassGeometry} renderOrder={5} raycast={() => null}>
-        <glassRimMaterial ref={glassBackMatRef} args={[0.03, 0.3]} side={THREE.BackSide} />
+      {/* Contact shadow (C3.4): a flat sprite on the bench under the vessel's footprint, so it
+          reads as sitting on the surface rather than floating. */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]} renderOrder={1} raycast={() => null}>
+        <circleGeometry args={[shadowRadius, 32]} />
+        <meshBasicMaterial map={shadowTexture} transparent depthWrite={false} toneMapped={false} />
+      </mesh>
+      <mesh geometry={glassBackGeometry} renderOrder={5} raycast={() => null}>
+        <glassRimMaterial ref={glassBackMatRef} args={[0.04, 0.4]} side={THREE.BackSide} />
       </mesh>
       <mesh geometry={liquidGeometry} renderOrder={10} raycast={() => null}>
         <liquidMaterial ref={liquidMatRef} args={[false]} />
@@ -161,7 +192,7 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
         <liquidMaterial ref={meniscusMatRef} args={[true]} />
       </mesh>
       <mesh geometry={glassGeometry} renderOrder={20} raycast={() => null}>
-        <glassRimMaterial ref={glassFrontMatRef} args={[0.06, 0.55]} side={THREE.FrontSide} />
+        <glassRimMaterial ref={glassFrontMatRef} args={[0.08, 0.68]} side={THREE.FrontSide} />
       </mesh>
       <mesh visible={false} userData={{ objectId: id }} position={[0, hitHeight / 2, 0]}>
         <cylinderGeometry args={[hitRadius, hitRadius, hitHeight, 16]} />

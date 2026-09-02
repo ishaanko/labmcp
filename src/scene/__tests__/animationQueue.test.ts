@@ -10,7 +10,7 @@ import {
   type Observation,
 } from "@/engine";
 import { useLabStore } from "@/store/labStore";
-import { targets, visualFor, visuals } from "../visualStore";
+import { colorTweens, targets, visualFor, visuals } from "../visualStore";
 import { clearEffects, isSourceActive, listEffects, nowMs } from "../effectsStore";
 import { cancelPoseJobs, clear, enqueue, tick } from "../animationQueue";
 
@@ -63,6 +63,27 @@ function addIndicator(): DispenseFixture {
   const applied = applyCommand(before, { kind: "ADD_INDICATOR", containerId: FLASK_ID, indicator: mintIndicatorId("phenolphthalein") }, "human");
   if (!applied.ok) throw new Error(`fixture command was rejected: ${applied.error.kind}`);
   return { before, after: applied.value.state, events: applied.value.events };
+}
+
+/** Adds phenolphthalein, then dispenses NaOH 0.5 mL at a time until the indicator crosses (C7 endpoint). */
+function endpointFixture(): DispenseFixture {
+  const withIndicator = applyCommand(
+    loadScenario("titration", 1),
+    { kind: "ADD_INDICATOR", containerId: FLASK_ID, indicator: mintIndicatorId("phenolphthalein") },
+    "human",
+  );
+  if (!withIndicator.ok) throw new Error(`fixture command was rejected: ${withIndicator.error.kind}`);
+
+  let state = withIndicator.value.state;
+  for (let i = 0; i < 100; i++) {
+    const before = state;
+    const applied = applyCommand(state, { kind: "DISPENSE", buretteId: BURETTE_ID, toId: FLASK_ID, volumeMl: 0.5 }, "agent");
+    if (!applied.ok) throw new Error(`fixture command was rejected: ${applied.error.kind}`);
+    state = applied.value.state;
+    const transitioned = applied.value.events.some((o) => o.event.kind === "COLOR_SHIFT" && o.event.indicatorTransition);
+    if (transitioned) return { before, after: state, events: applied.value.events };
+  }
+  throw new Error("fixture never reached the indicator transition");
 }
 
 /** A sandbox beaker fizzing CO2: bicarbonate first, then excess acid to fire the gas rule. */
@@ -151,6 +172,32 @@ describe("enqueue + tick", () => {
     expect(targets.get(beakerId)?.bubbleIntensity).toBeGreaterThan(0);
     tick(bubbles.durationS + 0.1);
     expect(targets.get(beakerId)?.bubbleIntensity).toBe(0);
+  });
+});
+
+describe("endpoint beat (C5 COLOR_SHIFT indicatorTransition, C7)", () => {
+  it("runs a timed color tween and lifts meniscusBoost, scheduled back to 0 at 800ms", () => {
+    const { before, after, events } = endpointFixture();
+    clear(before);
+    enqueue({ prev: before, next: after, events, actor: "agent", version: 1 });
+
+    expect(colorTweens.has(FLASK_ID)).toBe(true);
+    expect(colorTweens.get(FLASK_ID)?.durationMs).toBe(800);
+    expect(targets.get(FLASK_ID)?.meniscusBoost).toBe(1);
+
+    tick(0.9);
+    expect(targets.get(FLASK_ID)?.meniscusBoost).toBe(0);
+  });
+
+  it("shortens the beat to 150ms under reduced motion", () => {
+    const { before, after, events } = endpointFixture();
+    clear(before);
+    useLabStore.getState().setReducedMotion(true);
+    enqueue({ prev: before, next: after, events, actor: "agent", version: 1 });
+
+    expect(colorTweens.get(FLASK_ID)?.durationMs).toBe(150);
+    tick(0.2);
+    expect(targets.get(FLASK_ID)?.meniscusBoost).toBe(0);
   });
 });
 

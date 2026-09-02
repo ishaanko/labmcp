@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { applyCommand, describeError, loadScenario, publicView, type Actor, type LabCommand, type LabState } from "@/engine";
-import { describeCommand, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, summarizeEvents, targetOfCommand } from "@/lib/events";
+import { describeCommand, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, labelLookup, summarizeEvents, targetOfCommand } from "@/lib/events";
 import { feedId } from "@/lib/ids";
 import { enqueue } from "./commandQueue";
 import type { DispatchResult, FeedEntry, LabStore, UiState } from "./types";
@@ -63,7 +63,7 @@ export const useLabStore = create<LabStore>()(
         const res = applyCommand(prev, command, actor);
 
         if (!res.ok) {
-          const observation = describeError(res.error);
+          const observation = describeError(res.error, labelLookup(prev));
           if (actor === "human") {
             emitToast({ kind: "error", title: observation });
             get().pushFeed({

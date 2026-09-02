@@ -14,7 +14,11 @@ const vertexShader = /* glsl */ `
   varying float vRadius;
   void main() {
     vLocalPos = position;
-    vRadius = length(position.xz);
+    // The meniscus disc is a flat CircleGeometry, whose vertices live in its own local XY plane
+    // (three.js draws circles facing +Z, then the mesh's own transform rotates that to lie flat);
+    // \`position\` here is pre-transform, so the radial distance from center is length(xy), not
+    // length(xz) (which used only the x axis and read as a one-sided streak, not a ring).
+    vRadius = length(position.xy);
     vec3 pos = position;
     if (uMeniscus > 0.5) {
       float r = clamp(vRadius, 0.0, 1.0);
@@ -43,11 +47,13 @@ const fragmentShader = /* glsl */ `
     float darken = uMeniscus < 0.5 ? smoothstep(0.0, 0.15, uFill - vLocalPos.y) * 0.08 : 0.0;
     col *= (1.0 - darken);
 
-    float a = max(uAlpha, 0.32);
+    float a = max(uAlpha, 0.42);
     if (uMeniscus > 0.5) {
       a += 0.15;
-      float edge = smoothstep(0.94, 1.0, vRadius);
-      col = mix(col, vec3(1.0), edge * 0.3);
+      // A bright ring just inside the rim reads as the meniscus line (surface tension pulling
+      // the liquid up the glass), not just a flat disc.
+      float edge = smoothstep(0.88, 0.99, vRadius);
+      col = mix(col, vec3(1.0), edge * 0.4);
       float swirl = sin(atan(vLocalPos.y, vLocalPos.x) * 3.0 - vRadius * 7.0 + uTime * uStir * 6.0);
       col += swirl * 0.12 * uStir;
     }

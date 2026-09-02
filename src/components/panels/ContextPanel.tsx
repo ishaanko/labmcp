@@ -49,7 +49,7 @@ export function ContextPanel() {
   const key = panelKeyFor(selected?.id, scenarioKind === "titration");
 
   return (
-    <div className="material pointer-events-auto relative flex h-full w-[300px] max-[1100px]:w-[280px] flex-col overflow-hidden p-4">
+    <div className="material pointer-events-auto relative flex max-h-full w-[300px] max-[1100px]:w-[280px] flex-col overflow-y-auto p-4">
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={key}
@@ -57,7 +57,7 @@ export function ContextPanel() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.1, ease: [0.23, 1, 0.32, 1] } }}
           transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-          className="flex min-h-0 flex-1 flex-col"
+          className="flex flex-col"
         >
           <PanelContent />
         </motion.div>

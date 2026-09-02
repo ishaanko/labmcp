@@ -15,9 +15,10 @@ export function Shelf() {
   const { onIndicatorPointerDown } = useShelfDrag();
 
   return (
-    <div className="material-thin pointer-events-auto flex h-14 max-w-[860px] items-center gap-3 overflow-x-auto px-3 [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)]">
+    <div className="material-thin pointer-events-auto flex h-12 max-w-[980px] items-stretch px-1">
       <ReagentGhost />
-      <div className="flex items-center gap-1.5">
+      {/* Only the reagent strip scrolls (the sandbox shelf is wider than the dock); equipment stays put. */}
+      <div className="flex items-stretch divide-x divide-hairline overflow-x-auto [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-12px),transparent)]">
         {shelf.map((stock) => (
           <ReagentChip key={stock.reagentId} reagentId={stock.reagentId} label={stock.label} />
         ))}
@@ -26,15 +27,15 @@ export function Shelf() {
             key={indicatorId}
             type="button"
             onPointerDown={onIndicatorPointerDown(indicatorId)}
-            className="pressable flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-hairline bg-surface-thin px-2.5 text-xs text-ink-2 hover:bg-surface-thick"
+            className="pressable flex h-full shrink-0 items-center gap-1.5 px-2.5 text-xs text-ink-2 hover:bg-surface-thin hover:text-ink"
           >
-            <span className="h-2.5 w-2.5 rounded-full bg-phenol-pink" aria-hidden />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-phenol-pink" aria-hidden />
             {indicatorId}
           </button>
         ))}
       </div>
-      <div className="h-7 w-px shrink-0 bg-hairline-strong" aria-hidden />
-      <div className="flex items-center gap-0.5">
+      <div className="my-2 w-px shrink-0 bg-hairline-strong" aria-hidden />
+      <div className="flex items-center gap-0.5 px-1">
         {constants.EQUIPMENT_TYPES.map((type) => (
           <EquipmentButton key={type} equipmentType={type} />
         ))}

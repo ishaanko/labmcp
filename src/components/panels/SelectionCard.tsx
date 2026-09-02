@@ -5,7 +5,7 @@ import { emitToast } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
 import { selectContainers } from "@/store/selectors";
 import type { Instrument, PublicContainer } from "@/engine";
-import { constants } from "@/engine";
+import { constants, speciesDef } from "@/engine";
 import { Readout } from "@/components/ui/Readout";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
@@ -60,7 +60,7 @@ function ContainerCard({ container }: { container: PublicContainer }) {
       <div className="grid grid-cols-2 gap-3">
         <Readout label="Volume" value={container.volumeMl} unit="mL" digits={2} />
         <Readout label="Temperature" value={container.temperatureC} unit="°C" digits={1} />
-        <Readout label="pH" value={container.pH} digits={2} />
+        <Readout label="pH" value={container.pH} digits={2} emptyLabel="no probe" />
         <Readout label="Capacity" value={container.capacityMl} unit="mL" digits={0} />
       </div>
 
@@ -79,6 +79,25 @@ function ContainerCard({ container }: { container: PublicContainer }) {
           <p className="mt-1 text-sm text-ink-3">Hidden in this challenge</p>
         )}
       </div>
+
+      {container.solids.length > 0 ? (
+        <div>
+          <p className="text-2xs text-ink-3">Solids</p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {container.solids.map((solid) => (
+              <li key={solid.species} className="flex items-center gap-1.5 text-sm text-ink">
+                <span
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: `rgba(${solid.color.r}, ${solid.color.g}, ${solid.color.b}, ${solid.color.a})` }}
+                  aria-hidden
+                />
+                {speciesDef(solid.species).name}
+                <span className="text-ink-3">{solid.suspended > 0.5 ? "suspended" : "settled"}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {container.indicators.length > 0 ? (
         <div>

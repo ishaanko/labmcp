@@ -7,13 +7,15 @@ import { useLabStore } from "@/store/labStore";
 /**
  * Locked perspective camera (C3.1): no orbit, just a fixed position and a subtly parallaxing
  * look target. Dollied back from the design doc's literal (0.8, 6.2, 9.0) along the same
- * sightline, at `Bench.GRID_SCALE`, so the full usable grid (x -4.5..3.5, z -1.5..1.5) clears
- * both the top bar and the right panel, including the burette's ~2.9-unit stand. The x-offset
- * keeps the bench clear of the 300px right panel as the viewport resizes; the pointer parallax
- * is off while dragging, a popover is open, or reduced motion.
+ * sightline so the full usable grid (x -4.5..3.5, z -1.5..1.5) clears both the top bar and the
+ * right panel, including the burette's ~2.9-unit stand. `BASE_LOOKAT` sits left of the scenarios'
+ * occupied cells (titration/unknown_id both cluster around x -1.5..1.5) and high enough that the
+ * equipment fills roughly two-thirds of the usable vertical band instead of hugging the top bar.
+ * The x-offset keeps the bench clear of the 300px right panel as the viewport resizes; the
+ * pointer parallax is off while dragging, a popover is open, or reduced motion.
  */
 const BASE_POSITION = new THREE.Vector3(0.8, 7.9, 11.8);
-const BASE_LOOKAT = new THREE.Vector3(0.8, 0.45, -0.3);
+const BASE_LOOKAT = new THREE.Vector3(0.4, 0.75, -0.2);
 const PARALLAX_SMOOTH_TIME = 0.6;
 const MAX_YAW_RAD = (1.2 * Math.PI) / 180;
 const MAX_PITCH_RAD = (0.6 * Math.PI) / 180;

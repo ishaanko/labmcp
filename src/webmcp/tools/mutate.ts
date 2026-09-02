@@ -20,6 +20,15 @@ function reactionResult(events: ReadonlyArray<LabEvent>, container: PublicContai
   return container?.contents.kind === "visible" ? { occurred: true, id: fired.ruleId, netIonic: fired.netIonic } : { occurred: true };
 }
 
+/**
+ * `SlotSchema` speaks in whole columns/rows (0..8, 0..3) for the agent; the engine's grid cells
+ * are the half-integer centers in `GRID_BOUNDS` (-4.5..3.5, -1.5..1.5). Without this shift every
+ * explicit position clamped to the grid edge instead of landing where it was asked for.
+ */
+function slotToGrid(slot: { readonly col: number; readonly row: number }): { x: number; y: number } {
+  return { x: slot.col - 4.5, y: slot.row - 1.5 };
+}
+
 const AddContainerInput = z
   .object({
     type: EquipmentTypeSchema,
@@ -43,7 +52,7 @@ const addContainer: ToolDef<z.infer<typeof AddContainerInput>> = {
       {
         kind: "PLACE_OBJECT",
         objectType: input.type,
-        position: input.position ? { x: input.position.col, y: input.position.row } : undefined,
+        position: input.position ? slotToGrid(input.position) : undefined,
         label: input.label,
       },
       "agent",

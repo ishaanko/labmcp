@@ -1,24 +1,79 @@
 # ChemLab
 
-A virtual chemistry lab that a human and an AI agent share. The human drags, pours, and heats glassware on a 3D bench. The agent uses WebMCP tools (`transfer`, `dispense`, `measure_ph`, ...). Both act on one lab state, and every action animates in the same view.
+A virtual chemistry lab that a human and an AI agent share. The human drags, pours, and heats glassware on a 3D bench. The agent uses WebMCP tools such as `dispense`, `measure_ph`, and `transfer`. Both act on one lab state, and every action animates in the same view.
 
-Built for the OpenAI WebMCP Challenge (September 2026).
+Live: https://labmcp.vercel.app
 
-## Run
+Built for the OpenAI WebMCP Challenge, September 2026. MIT license.
+
+## Try it with an agent
+
+ChatGPT desktop app: open the live URL in the built-in browser. The page registers 24 tools on `document.modelContext` when it loads. Ask, for example:
+
+- "Help me find the acid concentration in the flask. Dispense the coarse part, then let me handle the endpoint."
+- "What just happened in the beaker?"
+- "Add 10 mL of water to Beaker 2 and tell me the new volume."
+
+Google Chrome: enable `chrome://flags/#enable-webmcp-testing`, relaunch, and use the Model Context Tool Inspector extension to list and invoke the tools.
+
+Any browser: add `?console=1` to the URL and press the backtick key. The console lists the registered tools, runs one with JSON input, or runs a script of several calls in sequence. Calls made from the console take the same path as calls from a real agent.
+
+## Scenarios
+
+- Titration (default). A flask holds an unknown strong acid, a burette holds 0.100 M NaOH, a pH meter waits in its holder. Attach the probe, add phenolphthalein, dispense to the endpoint, then reveal.
+- Sandbox. Empty bench, all reagents on the shelf. Mix salts, watch precipitates form, dilute, heat.
+- Unknown samples. Three unlabeled beakers. Identify each with as few tests as possible.
+
+## Tools
+
+Read-only tools set `readOnlyHint`. The lab is instrumented, not omniscient: `get_lab_state` reports what a person could see and never reports pH, moles, or concentrations. The agent attaches the pH meter and reads it like anyone else. In the titration and unknown scenarios, `inspect_contents` is denied for containers that hold an unknown sample until the human reveals the result.
+
+| Tool | Kind |
+| --- | --- |
+| `get_lab_state`, `list_reagents`, `list_equipment` | read |
+| `measure_ph`, `measure_temperature`, `measure_volume` | read, logged to the notebook |
+| `inspect_contents`, `calculate_moles`, `predict_supported_reactions` | read, permissioned |
+| `get_titration_data`, `get_notebook` | read |
+| `add_container`, `remove_container`, `add_reagent`, `add_indicator` | mutate |
+| `transfer`, `dispense`, `stir`, `heat`, `cool` | mutate |
+| `undo_last_action`, `reset_experiment`, `load_scenario`, `submit_conclusion` | mutate |
+
+Every tool returns a plain object: `ok`, an `observation` sentence, a structured `result`, and a compact redacted `state` so the agent can plan the next call without another round trip. Errors come back as `{ ok: false, error: { code, message, suggestions } }`, never as exceptions.
+
+## How WebMCP is wired
+
+- `src/webmcp/register.ts` registers every tool with `document.modelContext.registerTool` under one `AbortController`. When the browser has no native implementation it installs `@mcp-b/webmcp-polyfill` so the console still works.
+- `src/webmcp/tools/*.ts` define each tool with a zod input schema. `z.toJSONSchema` produces the `inputSchema`. Every field has a description.
+- `src/webmcp/runtime.ts` wraps each handler: validate input, write a feed entry, dispatch a `LabCommand` through the store, attach the redacted state, return.
+- The same `dispatch` serves mouse gestures. One queue serializes human and agent commands so the later one always sees the committed state.
+
+## Architecture
+
+```
+pointer/keyboard ──┐
+                   ├─> store.dispatch(command, actor) ─> engine.applyCommand ─> new LabState + events
+WebMCP execute ────┘                                          │
+                                                              ├─> animation queue ─> 3D scene (react-three-fiber)
+                                                              ├─> activity feed, notebook, toasts
+                                                              └─> tool result envelope
+```
+
+- `src/engine`: pure TypeScript. Reagent registry, curated reaction rules (neutralization, three precipitations, carbonate gas evolution), strong acid/base pH, indicator colors, undo snapshots, scenarios, and `publicView`, the single redaction point.
+- `src/store`: zustand store, command queue, ticker for heating and settling.
+- `src/scene` and `src/components/bench`: bench, glassware, liquid shader, per-vessel animation queue, effects.
+- `src/components`: chrome. Tailwind v4, base-ui, sonner, motion.
+
+## Develop
 
 ```bash
 pnpm install
-pnpm dev
+pnpm dev          # http://localhost:3000
+pnpm check        # typecheck, lint, unit tests
+pnpm build
 ```
 
-Open http://localhost:3000. Add `?console=1` to show the tool console in a browser without WebMCP.
+Tests cover conservation of matter, proportional transfer, neutralization stoichiometry, pH checkpoints along a titration, capacity rejection, atomic undo, tool schema validity, and that no tool response leaks a hidden identity.
 
-## Test
+## Limits
 
-```bash
-pnpm check   # typecheck, lint, unit tests
-```
-
-## Layout
-
-See `docs/plan.md` and `docs/design/`.
+This is a teaching model, not a simulator. It handles a small set of reactions well and treats everything else as inert mixing. Concentrations, colors, and temperatures are stylized. Nothing here is guidance for real laboratory work.

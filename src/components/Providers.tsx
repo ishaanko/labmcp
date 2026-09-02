@@ -28,7 +28,26 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <MotionConfig reducedMotion="user">
       {children}
-      <Toaster position="top-center" offset={56} visibleToasts={3} duration={3500} />
+      <Toaster
+        position="top-center"
+        offset={56}
+        visibleToasts={3}
+        duration={3500}
+        theme="dark"
+        icons={{ success: <></>, info: <></>, warning: <></>, error: <></> }}
+        toastOptions={{
+          unstyled: true,
+          classNames: {
+            toast: "material-thick pointer-events-auto flex w-full items-start gap-2 border-l-2 border-l-hairline-strong p-3 text-sm text-ink",
+            success: "!border-l-ok",
+            error: "!border-l-danger",
+            title: "text-ink font-medium",
+            description: "mt-0.5 truncate text-ink-3",
+            actionButton: "pressable ml-2 shrink-0 rounded-sm bg-accent px-2.5 py-1 text-xs font-medium text-white",
+            closeButton: "!border-hairline !bg-surface-solid !text-ink-3",
+          },
+        }}
+      />
     </MotionConfig>
   );
 }

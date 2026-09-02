@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { isSourceActive, nowMs } from "@/scene/effectsStore";
 import { BURETTE_PROFILE } from "@/scene/profiles";
 import { dampValue, SMOOTH_TIME } from "@/scene/spring";
+import { makeGraduationTexture } from "@/scene/textures";
 import { Vessel } from "./Vessel";
 import { BuretteStand } from "./BuretteStand";
 
@@ -35,6 +36,9 @@ export function Burette({ id, position }: BuretteProps) {
   const lifted: readonly [number, number, number] = [x, y + TIP_LIFT, z];
   const leverRef = useRef<THREE.Group>(null);
   const angle = useRef({ v: 0 });
+  // 50 divisions (1 mL major ticks) on a 50 mL burette (C3.5).
+  const graduationTexture = useMemo(() => makeGraduationTexture(50), []);
+  useEffect(() => () => graduationTexture.dispose(), [graduationTexture]);
 
   useFrame((_, dt) => {
     const target = isSourceActive(id, nowMs()) ? LEVER_MAX_RAD : 0;
@@ -45,6 +49,20 @@ export function Burette({ id, position }: BuretteProps) {
   return (
     <group>
       <Vessel id={id} profile={BURETTE_PROFILE} wall={0.01} position={lifted}>
+        {/* Graduation marks (C3.4): an alpha-mapped cylinder just outside the glass, past the
+            front glass pass's renderOrder 20 so the ticks sit visibly on top. */}
+        <mesh position={[0, BURETTE_PROFILE.capacityHeight / 2, 0]} renderOrder={21} raycast={() => null}>
+          <cylinderGeometry args={[0.088, 0.088, BURETTE_PROFILE.capacityHeight, 32, 1, true]} />
+          <meshBasicMaterial
+            color="#2c2e33"
+            alphaMap={graduationTexture}
+            transparent
+            opacity={0.6}
+            depthWrite={false}
+            side={THREE.DoubleSide}
+            toneMapped={false}
+          />
+        </mesh>
         <mesh position={[0, -0.09, 0]} raycast={() => null}>
           <cylinderGeometry args={[0.005, 0.04, 0.18, 16]} />
           <meshStandardMaterial color="#dfe8f0" roughness={0.2} transparent opacity={0.5} />

@@ -12,7 +12,12 @@ import { Thermometer } from "@/components/glassware/Thermometer";
 import { Hotplate } from "@/components/glassware/Hotplate";
 import { Effects } from "./effects/Effects";
 
-const HOTPLATE_TOP_Y = 0.12;
+export const HOTPLATE_TOP_Y = 0.12;
+
+/** Whether a container sits on a hotplate cell, for its rest y (C3.2) and for `Effects`' origins. */
+export function isOnHotplate(container: Container, hotplates: ReadonlyArray<Instrument>): boolean {
+  return hotplates.some((h) => h.position.x === container.position.x && h.position.y === container.position.y);
+}
 
 /** Rim pose for an attached probe/thermometer (C3.5): at the rim, tilted inward, near the liquid top. */
 function attachRimPose(container: Container, mirror: boolean): RimPose {
@@ -91,10 +96,7 @@ export function Objects() {
 
   return (
     <group>
-      {containers.map((container) => {
-        const restsOnHotplate = hotplates.some((h) => h.position.x === container.position.x && h.position.y === container.position.y);
-        return renderContainer(container, restsOnHotplate);
-      })}
+      {containers.map((container) => renderContainer(container, isOnHotplate(container, hotplates)))}
       {instruments.map((instrument) => renderInstrument(instrument, containers))}
       <Effects />
     </group>

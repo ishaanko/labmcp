@@ -23,12 +23,12 @@ export function ReagentChip({ reagentId, label }: ReagentChipProps) {
       type="button"
       onPointerDown={onReagentPointerDown(reagentId)}
       className={clsx(
-        "pressable flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-hairline bg-surface-thin px-2.5 text-xs text-ink-2 hover:bg-surface-thick",
+        "pressable flex h-full shrink-0 items-center gap-1.5 px-2.5 text-xs text-ink-2 hover:bg-surface-thin hover:text-ink",
         dragging && "opacity-40",
       )}
     >
       <span
-        className="h-2.5 w-2.5 rounded-full"
+        className="h-1.5 w-1.5 shrink-0 rounded-full"
         style={{ background: REAGENT_TINT[reagentId] ?? REAGENT_DEFAULT_TINT }}
         aria-hidden
       />

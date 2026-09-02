@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { animate } from "motion/react";
-import { Zap } from "lucide-react";
 import { clsx } from "clsx";
 import { useLabStore } from "@/store/labStore";
 
@@ -12,7 +11,7 @@ const PROVIDER_LABEL: Record<"native" | "polyfill" | "none", string> = {
   none: "offline",
 };
 
-/** WebMCP status pill. Scales once, 300ms, on every agent tool call (C6). */
+/** WebMCP status: a dot plus "N tools · native" text. Scales once, 300ms, on every agent tool call (C6). */
 export function WebMcpPill() {
   const webmcp = useLabStore((s) => s.ui.webmcp);
   const lastAgentCallId = useLabStore((s) => {
@@ -30,14 +29,11 @@ export function WebMcpPill() {
   }, [lastAgentCallId]);
 
   return (
-    <span
-      ref={ref}
-      className={clsx(
-        "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium leading-none",
-        webmcp.provider === "none" ? "border-hairline bg-surface-thin text-warn" : "border-hairline bg-surface-thin text-ok",
-      )}
-    >
-      <Zap size={12} />
+    <span ref={ref} className="inline-flex h-7 items-center gap-1.5 text-xs text-ink-2">
+      <span
+        className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", webmcp.provider === "none" ? "bg-warn" : "bg-ok")}
+        aria-hidden
+      />
       {webmcp.toolCount} tools · {PROVIDER_LABEL[webmcp.provider]}
     </span>
   );

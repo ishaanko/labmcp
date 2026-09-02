@@ -109,9 +109,10 @@ function loadTitration(seed: number): LabState {
   const flaskId = mintContainerId(1);
   const buretteId = mintContainerId(2);
   // Bench cells follow the C3.2 titration layout: burette stand at the back, flask in front of it,
-  // probe holder to the right. Column -4.5 is outside the locked camera's frame.
-  const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask, { x: -2.5, y: -0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
-  const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette, { x: -2.5, y: -1.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
+  // probe holder to the right. Column -1.5 keeps the cluster centered in `CameraRig.BASE_LOOKAT`'s
+  // frame rather than pinned to the grid's far-left edge.
+  const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask, { x: -1.5, y: -0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
+  const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette, { x: -1.5, y: -1.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
   const phMeter: Instrument = { kind: "instrument", id: mintInstrumentId(3), type: "ph_meter", position: { x: 0.5, y: -1.5 }, attachedTo: null, lastReading: null };
 
   // No naoh entry here: the only titrant path is the burette (via dispense), so every base
@@ -150,10 +151,11 @@ function loadTitration(seed: number): LabState {
 }
 
 const UNKNOWN_LABELS: ReadonlyArray<string> = ["A", "B", "C"];
+// Centered in `CameraRig.BASE_LOOKAT`'s frame, with the pH meter one cell further right.
 const UNKNOWN_POSITIONS: ReadonlyArray<{ readonly x: number; readonly y: number }> = [
-  { x: -2.5, y: -1.5 },
   { x: -1.5, y: -1.5 },
   { x: -0.5, y: -1.5 },
+  { x: 0.5, y: -1.5 },
 ];
 const UNKNOWN_ARCHETYPES: ReadonlyArray<string> = ["hcl", "naoh", "nacl", "na2co3", "cacl2"];
 const UNKNOWN_SHOWN_REAGENTS: ReadonlyArray<string> = ["water", "hcl", "naoh", "nacl", "agno3", "cacl2", "na2co3"];

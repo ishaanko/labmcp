@@ -1,5 +1,6 @@
 import type { LabError, LabState, LabObject } from "@/engine";
 import { assertNever, describeError } from "@/engine";
+import { labelLookup } from "@/lib/events";
 import type { ToolErrorCode } from "./types";
 
 export interface MappedError {
@@ -24,7 +25,7 @@ function idsSuggestion(lab: LabState, types?: ReadonlyArray<LabObject["type"]>):
  * current lab so the agent can self-correct without another round trip.
  */
 export function mapLabError(error: LabError, lab: LabState): MappedError {
-  const message = describeError(error);
+  const message = describeError(error, labelLookup(lab));
   switch (error.kind) {
     case "UNKNOWN_OBJECT":
       return { code: "OBJECT_NOT_FOUND", message, suggestions: [idsSuggestion(lab), "Call get_lab_state to refresh known ids."] };

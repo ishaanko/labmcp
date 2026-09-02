@@ -13,9 +13,10 @@ import { useLabStore } from "@/store/labStore";
 import { gridToWorld } from "@/components/bench/Bench";
 import { buretteTipWorld } from "@/components/glassware/Burette";
 import { heightForVolume, profileForContainerType } from "./profiles";
-import { defaultVisual, dropVisual, setTarget, targets, visualFor, visuals, type PrecipitateVisual, type Rgba01 } from "./visualStore";
+import { colorTweens, defaultVisual, dropVisual, setTarget, targets, visualFor, visuals, type PrecipitateVisual, type Rgba01 } from "./visualStore";
 import { rgbaToHex, rgbaToRgba01 } from "./textures";
 import { bubblesJob } from "./jobs/bubbles";
+import { colorShiftJob } from "./jobs/colorShift";
 import { drainJob } from "./jobs/drain";
 import { pourJob } from "./jobs/pour";
 import { precipitateJob } from "./jobs/precipitate";
@@ -109,9 +110,12 @@ export function cancelPoseJobs(objectId: string): void {
   setTarget(objectId, { pose: null });
 }
 
+/** How long the ring holds at peak before decaying; long enough to register next to the marker. */
+const RING_HOLD_MS = 450;
+
 function pulseAgentRing(id: string | undefined): void {
   if (!id) return;
-  ringPulses.set(id, { fallAtMs: elapsedMs + 220 });
+  ringPulses.set(id, { fallAtMs: elapsedMs + RING_HOLD_MS });
   setTarget(id, { agentRing: 0.9 });
 }
 
@@ -199,6 +203,7 @@ export function clear(lab: LabState): void {
   ringPulses.clear();
   visuals.clear();
   targets.clear();
+  colorTweens.clear();
   for (const obj of lab.objects) {
     if (obj.kind !== "container") continue;
     const v = defaultVisual();
@@ -207,17 +212,9 @@ export function clear(lab: LabState): void {
     v.temperatureC = obj.temperatureC;
     v.precipitate = solidsToVisual(obj.solids);
     visuals.set(obj.id, v);
-    targets.set(obj.id, {
-      displayedVolumeMl: v.displayedVolumeMl,
-      displayedColor: v.displayedColor,
-      temperatureC: v.temperatureC,
-      precipitate: v.precipitate,
-      bubbleIntensity: 0,
-      stirring: 0,
-      opacity: 1,
-      pose: null,
-      agentRing: 0,
-    });
+    // `v` (a fresh `defaultVisual()`) already carries every `VisualTarget` field; copy rather
+    // than alias it so the driver's damp never mutates the target it is chasing.
+    targets.set(obj.id, { ...v });
   }
 }
 
@@ -311,10 +308,16 @@ function handleEvent(event: LabEvent, prev: LabState, next: LabState, reducedMot
     case "CONTENTS_INSPECTED":
     case "REACTION":
       return;
-    case "COLOR_SHIFT":
-      setTarget(event.containerId, { displayedColor: rgbaToRgba01(event.to) });
+    case "COLOR_SHIFT": {
+      const to = rgbaToRgba01(event.to);
+      if (event.indicatorTransition) {
+        colorShiftJob(schedule, event.containerId, visualFor(event.containerId).displayedColor, to, reducedMotion);
+      } else {
+        setTarget(event.containerId, { displayedColor: to });
+      }
       touched.add(event.containerId);
       return;
+    }
     case "PRECIPITATE_FORMED":
       precipitateJob(event.containerId, rgbaToHex(event.color), PRECIPITATE_AMOUNT[event.scale] ?? 0.4, reducedMotion);
       touched.add(event.containerId);

@@ -1,23 +1,38 @@
 "use client";
 
-import { Undo2, RotateCcw } from "lucide-react";
+import { useMemo } from "react";
+import { Undo2, RotateCcw, TerminalSquare } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
 import { Button } from "@/components/ui/Button";
 import { ScenarioMenu } from "./ScenarioMenu";
 import { ObjectiveChip } from "./ObjectiveChip";
 import { WebMcpPill } from "./WebMcpPill";
 
-/** 44px top bar, always visible: scenario, objective, undo/reset, WebMCP status. */
+/** True when `?console=1` is on the URL. False during SSR, where there is no URL to read. */
+function consoleParamPresent(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("console") === "1";
+}
+
+/** Flat 40px top strip, edge to edge: wordmark + scenario, objective text, undo/reset, WebMCP status. */
 export function TopBar() {
   const historyLength = useLabStore((s) => s.lab.history.length);
   const dispatch = useLabStore((s) => s.dispatch);
   const openDialog = useLabStore((s) => s.openDialog);
+  const toggleDevConsole = useLabStore((s) => s.toggleDevConsole);
+  const consoleEnabled = useMemo(() => consoleParamPresent(), []);
 
   return (
-    <div className="material-thin pointer-events-auto flex h-11 items-center gap-2 px-3">
+    <div className="topbar pointer-events-auto flex h-10 w-full items-center gap-2 px-3">
       <ScenarioMenu />
       <ObjectiveChip />
       <div className="flex-1" />
+      {consoleEnabled ? (
+        <Button variant="ghost" size="sm" onClick={toggleDevConsole} aria-label="Toggle dev console">
+          <TerminalSquare size={14} />
+          Console
+        </Button>
+      ) : null}
       <Button
         variant="ghost"
         size="sm"

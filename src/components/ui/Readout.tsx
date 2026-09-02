@@ -8,6 +8,8 @@ export interface ReadoutProps {
   label: string;
   size?: "sm" | "lg";
   className?: string;
+  /** Shown in place of the dash when `value` is null (default "–"), e.g. "no probe". */
+  emptyLabel?: string;
 }
 
 /** The app's NumberFlow timings (C7), shared by every readout so no digit spins for 900ms. */
@@ -15,12 +17,12 @@ export const TRANSFORM_TIMING: EffectTiming = { duration: 200, easing: "cubic-be
 export const SPIN_TIMING: EffectTiming = { duration: 250, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
 
 /** Numeric readout with the C7 NumberFlow timings. `value === null` renders a dash (no probe, no pH). */
-export function Readout({ value, unit, digits = 2, label, size = "sm", className }: ReadoutProps) {
+export function Readout({ value, unit, digits = 2, label, size = "sm", className, emptyLabel = "–" }: ReadoutProps) {
   return (
     <div className={clsx("flex flex-col gap-0.5", className)}>
       <span className="text-2xs text-ink-3">{label}</span>
       {value === null ? (
-        <span className={clsx("tabular text-ink-3", size === "lg" ? "text-readout" : "text-md")}>–</span>
+        <span className={clsx("tabular text-ink-3", size === "lg" ? "text-readout" : "text-md")}>{emptyLabel}</span>
       ) : (
         <NumberFlow
           value={Number(value.toFixed(digits))}

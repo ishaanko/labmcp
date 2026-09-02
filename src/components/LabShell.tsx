@@ -27,11 +27,13 @@ export function LabShell() {
     <div className="relative h-full w-full overflow-hidden bg-bg">
       <LabCanvas />
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col p-3">
-        <TopBar />
-        <div className="pointer-events-none relative min-h-0 flex-1">
+      <div className="pointer-events-none absolute inset-0 flex flex-col">
+        <div className="pointer-events-auto">
+          <TopBar />
+        </div>
+        <div className="pointer-events-none relative min-h-0 flex-1 p-3">
           <ActivityPanel />
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch">
+          <div className="pointer-events-none absolute top-0 right-0 bottom-14 flex flex-col items-end">
             <ContextPanel />
           </div>
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-1 pr-[300px] max-[1100px]:pr-[280px]">

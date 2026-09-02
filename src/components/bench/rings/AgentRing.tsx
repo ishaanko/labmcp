@@ -5,16 +5,28 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useLabStore } from "@/store/labStore";
 import { visuals } from "@/scene/visualStore";
-import { gridToWorld } from "@/components/bench/Bench";
+import { GRID_SCALE, gridToWorld } from "@/components/bench/Bench";
+import { footprintRadius, profileForContainerType } from "@/scene/profiles";
 import { resolveCssColor } from "@/scene/textures";
 
-const RING_Y = 0.011;
+const RING_Y = 0.012;
+/** Gap between the glass and the ring's inner edge, world units. */
+const RING_GAP = 0.05;
+/** Band width as a fraction of the inner radius (about 0.07 world units on a beaker). */
+const RING_BAND = 0.16;
 
-/** Position for whichever object id `visuals` currently holds, container or instrument. */
-function positionOf(id: string): readonly [number, number] | null {
+interface RingTarget {
+  readonly position: readonly [number, number];
+  /** Base radius of the vessel (or a fixed size for instruments) the ring hugs. */
+  readonly radius: number;
+}
+
+/** Position and footprint for whichever object id `visuals` currently holds, container or instrument. */
+function targetOf(id: string): RingTarget | null {
   const obj = useLabStore.getState().lab.objects.find((o) => o.id === id);
   if (!obj) return null;
-  return [obj.position.x, obj.position.y];
+  const radius = obj.kind === "container" ? footprintRadius(profileForContainerType(obj.type)) * GRID_SCALE : 0.3;
+  return { position: [obj.position.x, obj.position.y], radius };
 }
 
 /**
@@ -48,20 +60,23 @@ export function AgentRing() {
       return;
     }
 
-    const grid = positionOf(activeId);
-    if (!grid) {
+    const target = targetOf(activeId);
+    if (!target) {
       mesh.visible = false;
       return;
     }
-    const [x, , z] = gridToWorld({ x: grid[0], y: grid[1] });
+    const [x, , z] = gridToWorld({ x: target.position[0], y: target.position[1] });
     mesh.position.set(x, RING_Y, z);
+    // Unit ring geometry scaled to the vessel's footprint, so a burette gets a tight ring and a
+    // beaker a wide one without rebuilding geometry.
+    mesh.scale.setScalar(target.radius + RING_GAP);
     mesh.visible = true;
     mat.opacity = activeValue;
   });
 
   return (
-    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={2} raycast={() => null} visible={false}>
-      <ringGeometry args={[0.46, 0.52, 64]} />
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={3} raycast={() => null} visible={false}>
+      <ringGeometry args={[1, 1 + RING_BAND, 64]} />
       <meshBasicMaterial ref={matRef} color={color} transparent opacity={0} toneMapped={false} depthWrite={false} blending={THREE.AdditiveBlending} />
     </mesh>
   );

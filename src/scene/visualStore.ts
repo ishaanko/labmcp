@@ -38,6 +38,8 @@ export interface VisualState {
   pose: { x: number; y: number; z: number; tiltRad: number } | null;
   /** 0..1 amber bench ring under the vessel (agent presence). */
   agentRing: number;
+  /** 0..1 extra meniscus brightness during the indicator endpoint beat (C5, C7). */
+  meniscusBoost: number;
 }
 
 export type VisualTarget = Pick<
@@ -51,6 +53,7 @@ export type VisualTarget = Pick<
   | "opacity"
   | "pose"
   | "agentRing"
+  | "meniscusBoost"
 >;
 
 export function defaultVisual(): VisualState {
@@ -64,11 +67,27 @@ export function defaultVisual(): VisualState {
     opacity: 1,
     pose: null,
     agentRing: 0,
+    meniscusBoost: 0,
   };
 }
 
 export const visuals = new Map<string, VisualState>();
 export const targets = new Map<string, VisualTarget>();
+
+/** An in-flight timed color tween (C5 `COLOR_SHIFT` indicator endpoint), keyed by vessel id. */
+export interface ColorTween {
+  readonly from: Rgba01;
+  readonly to: Rgba01;
+  readonly startMs: number;
+  readonly durationMs: number;
+}
+
+/**
+ * Overrides the driver's usual exponential color damp with a timed ease-in-out tween for the
+ * one long beat in the app (C7 endpoint). Set by `jobs/colorShift.ts`, read and cleared by
+ * `VisualDriver`.
+ */
+export const colorTweens = new Map<string, ColorTween>();
 
 export function visualFor(id: string): VisualState {
   let v = visuals.get(id);
@@ -88,6 +107,7 @@ export function dropVisual(id: string): void {
   visuals.delete(id);
   targets.delete(id);
   vesselRefs.delete(id);
+  colorTweens.delete(id);
 }
 
 /** Refs a vessel component hands to the driver so it can write per-frame values without React. */

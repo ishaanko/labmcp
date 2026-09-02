@@ -32,6 +32,17 @@ function targetSuffix(drag: GhostDrag, containerLabel: string | null): string | 
   return drag.overId ? `→ ${containerLabel ?? drag.overId}` : null;
 }
 
+/** A ghost on its way out: fading where it landed, or springing back to its shelf chip. */
+interface GhostExit {
+  readonly ghost: GhostDrag;
+  /** Where the ghost is drawn while the exit runs (the release point). */
+  readonly at: XY;
+  /** Where the spring takes it (the shelf chip); same as `at` for a landed drop. */
+  readonly to: XY;
+  readonly landed: boolean;
+  readonly flicked: boolean;
+}
+
 const GHOST_W = 132;
 const GHOST_H = 32;
 
@@ -49,8 +60,9 @@ export function ReagentGhost() {
   const ref = useRef<HTMLDivElement>(null);
   const prevDrag = useRef<GhostDrag | null>(null);
   const returnControls = useRef<ReturnType<typeof animate> | null>(null);
-  const [returning, setReturning] = useState<{ ghost: GhostDrag; to: XY } | null>(null);
+  const [returning, setReturning] = useState<GhostExit | null>(null);
 
+  // Phase 1: when the drag ends, decide how the ghost leaves (fade in place or spring home).
   useEffect(() => {
     if (isGhostDrag(drag)) {
       prevDrag.current = drag;
@@ -62,37 +74,32 @@ export function ReagentGhost() {
     if (!last) return;
     const outcome = takeDragOutcome();
     if (!outcome) return;
+    setReturning({ ghost: last, at: last.pointer, to: outcome.landed ? last.pointer : outcome.origin, landed: outcome.landed, flicked: outcome.flicked });
+  }, [drag]);
 
-    if (outcome.landed) {
-      // A landed drop fades the ghost out in place, rather than the instant unmount below.
-      setReturning({ ghost: last, to: last.pointer });
-      const el = ref.current;
-      if (!el) return;
-      const controls = animate(el, { opacity: 0 }, { duration: 0.12, ease: [0.23, 1, 0.32, 1] });
-      returnControls.current = controls;
-      void controls.finished.then(() => setReturning(null));
-      return;
-    }
-
-    setReturning({ ghost: last, to: outcome.origin });
+  // Phase 2: run the exit once the ghost is mounted for it. Split from phase 1 because on the
+  // render where `drag` goes null the element is not in the DOM yet (nothing to animate), and a
+  // ghost whose exit never starts stays stuck on screen.
+  useEffect(() => {
     const el = ref.current;
-    if (!el) return;
-    const controls = animate(
-      el,
-      { transform: `translate3d(${outcome.origin.x - GHOST_W / 2}px, ${outcome.origin.y - GHOST_H / 2}px, 0) scale(1)` },
-      outcome.flicked
-        ? { type: "spring", visualDuration: 0.4, bounce: 0.2 }
-        : { type: "spring", visualDuration: 0.22, bounce: 0 },
-    );
+    if (!returning || !el) return;
+    const controls = returning.landed
+      ? animate(el, { opacity: 0 }, { duration: 0.12, ease: [0.23, 1, 0.32, 1] })
+      : animate(
+          el,
+          { transform: `translate3d(${returning.to.x - GHOST_W / 2}px, ${returning.to.y - GHOST_H / 2}px, 0) scale(1)` },
+          returning.flicked ? { type: "spring", visualDuration: 0.4, bounce: 0.2 } : { type: "spring", visualDuration: 0.22, bounce: 0 },
+        );
     returnControls.current = controls;
     void controls.finished.then(() => setReturning(null));
-  }, [drag]);
+    return () => controls.stop();
+  }, [returning]);
 
   const live = isGhostDrag(drag) ? drag : null;
   const active = live ?? returning?.ghost ?? null;
   if (!active || typeof document === "undefined") return null;
 
-  const pointer = live ? live.pointer : (returning?.to ?? { x: 0, y: 0 });
+  const pointer = live ? live.pointer : (returning?.at ?? { x: 0, y: 0 });
   const overContainer = active.kind !== "equipment" && active.overId ? objects.find((o) => o.id === active.overId) : undefined;
   const containerLabel = overContainer && overContainer.kind === "container" ? overContainer.label : null;
 

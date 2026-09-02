@@ -2,6 +2,7 @@ import { COLOR_EVENT_THRESHOLD, EPS_MOL, MIXING_TEMP_EVENT_C, PH_EVENT_THRESHOLD
 import { colorDistance, describeColor, deriveColor, indicatorBand } from "./color";
 import { derivePh } from "./ph";
 import { computeGasEffect, precipitateScale, type FiredReaction } from "./reactions";
+import { reagentDef } from "./reagents";
 import { speciesDef } from "./species";
 import type { Container, InstrumentReading, LabCommand, LabError, LabEvent, Rgba, ThermalState } from "./types";
 import { assertNever } from "./types";
@@ -79,6 +80,9 @@ function colorWord(rgb: Rgba): string {
 
 const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** mg with no decimal: precise enough for a lab-notebook line, never "143.0 mg". */
+const fmtMg = (massG: number): string => `${Math.round(massG * 1000)} mg`;
+
 /**
  * Events produced directly by fired reactions: REACTION per rule, PRECIPITATE_FORMED/BUBBLES for
  * rules with a visual effect, and one aggregate TEMPERATURE_CHANGE('reaction') for the total ΔT.
@@ -114,7 +118,7 @@ export function eventsForFired(container: Container, fired: ReadonlyArray<FiredR
           massG,
           color,
           scale: precipitateScale(massG),
-          description: `${capitalize(colorWord(color))} precipitate formed (${def.name}, ${(massG * 1000).toFixed(1)} mg).`,
+          description: `${capitalize(colorWord(color))} precipitate: ${def.name}, ${fmtMg(massG)}.`,
         });
       }
     } else if (visual.kind === "bubbles") {
@@ -168,83 +172,115 @@ function describeThermal(thermal: ThermalState): string {
 
 const commandLabel = (command: LabCommand): string => command.kind.toLowerCase().replace(/_/g, " ");
 
-/** One plain sentence per event kind. Used by the activity feed, toasts, and notebook. */
-export function describeEvent(event: LabEvent): string {
+/**
+ * Resolves an object id to display text for a sentence, e.g. "Flask A (c_1)". Supplied by the
+ * caller (`lib/events.ts`'s `labelFor`, or the store's redacted equivalent) so the engine itself
+ * never depends on `LabState`/`PublicLabState` shapes; falls back to the bare id when omitted.
+ */
+export type LabelLookup = (id: string) => string;
+
+const labelOf = (id: string, labels?: LabelLookup): string => (labels ? labels(id) : id);
+
+/** "Silver nitrate", not "agno3": prose names reagents the way the shelf does. */
+const reagentLabel = (id: Parameters<typeof reagentDef>[0]): string => reagentDef(id)?.label ?? id;
+
+/**
+ * One plain sentence per event kind, for the activity feed, toasts, and notebook.
+ *
+ * Kinds that only ever fire alongside a preceding command sentence in the same batch (PH_CHANGE,
+ * COLOR_SHIFT, TEMPERATURE_CHANGE from a reaction/mixing, NO_REACTION, REACTION, PRECIPITATE_FORMED,
+ * BUBBLES) read as short trailing clauses and never repeat the container name; `lib/events.ts`'s
+ * `mergeCommandObservation` is what strings a command's clauses into one line. Kinds that can stand
+ * on their own (placing/removing objects, dispensing, measuring, a TICK's ambient TEMPERATURE_CHANGE)
+ * name their subject once via `labels`, id included, since nothing else in the sentence will.
+ */
+export function describeEvent(event: LabEvent, labels?: LabelLookup): string {
   switch (event.kind) {
     case "OBJECT_PLACED":
-      return `Placed ${event.objectType.replace(/_/g, " ")} (${event.objectId}) on the bench.`;
+      return `Added ${labelOf(event.objectId, labels)} to the bench.`;
     case "OBJECT_REMOVED":
-      return `Removed ${event.objectId} from the bench.`;
+      return `Removed ${labelOf(event.objectId, labels)}.`;
     case "OBJECT_MOVED":
-      return `Moved ${event.objectId}.`;
+      return `Moved ${labelOf(event.objectId, labels)}.`;
     case "INSTRUMENT_ATTACHED":
       return event.containerId
-        ? `Attached ${event.instrumentId} to ${event.containerId}.`
-        : `Detached ${event.instrumentId}.`;
+        ? `Attached ${labelOf(event.instrumentId, labels)} to ${labelOf(event.containerId, labels)}.`
+        : `Detached ${labelOf(event.instrumentId, labels)}.`;
     case "LIQUID_ADDED":
-      return `Added ${event.volumeMl.toFixed(1)} mL of ${event.reagentId} to ${event.containerId} (now ${event.newVolumeMl.toFixed(1)} mL).`;
+      return `Added ${event.volumeMl.toFixed(1)} mL ${reagentLabel(event.reagentId)} to ${labelOf(event.containerId, labels)}.`;
     case "LIQUID_TRANSFERRED":
-      return `Transferred ${event.volumeMl.toFixed(1)} mL from ${event.fromId} to ${event.toId}.`;
+      return `Poured ${event.volumeMl.toFixed(1)} mL from ${labelOf(event.fromId, labels)} into ${labelOf(event.toId, labels)}.`;
     case "INDICATOR_ADDED":
-      return `Added ${event.drops} drop(s) of ${event.indicator} to ${event.containerId}.`;
+      return `Added ${event.drops} drop${event.drops === 1 ? "" : "s"} of ${event.indicator} to ${labelOf(event.containerId, labels)}.`;
     case "STIR_STARTED":
-      return `Stirring ${event.containerId} for ${event.durationS.toFixed(0)} s.`;
+      return `Stirred ${labelOf(event.containerId, labels)} for ${event.durationS.toFixed(0)} s.`;
     case "THERMAL_SET":
-      return `${event.containerId} ${describeThermal(event.thermal)}.`;
+      return `${labelOf(event.containerId, labels)} ${describeThermal(event.thermal)}.`;
     case "MEASUREMENT":
-      return `Measured ${event.containerId}: ${describeReading(event.reading)}.`;
+      return `Measured ${labelOf(event.containerId, labels)}: ${describeReading(event.reading)}.`;
     case "CONTENTS_INSPECTED":
-      return `Inspected contents of ${event.containerId} (${event.volumeMl.toFixed(1)} mL).`;
+      return `Inspected ${labelOf(event.containerId, labels)}: ${event.volumeMl.toFixed(1)} mL.`;
     case "REACTION":
-      return `Reaction in ${event.containerId}: ${event.netIonic} (${(event.extentMol * 1000).toFixed(3)} mmol, limited by ${event.limiting}).`;
+      return event.ruleId === "neutralization"
+        ? `Neutralized ${(event.extentMol * 1000).toFixed(2)} mmol H+.`
+        : `Reacted: ${event.netIonic}.`;
     case "COLOR_SHIFT":
-      return `${event.containerId} color shifted: ${event.description}.`;
+      return `${capitalize(event.description.split("-> ").pop() ?? event.description)}.`;
     case "PRECIPITATE_FORMED":
       return event.description;
     case "BUBBLES":
-      return `Bubbling in ${event.containerId}: ${event.species} released (${(event.moles * 1000).toFixed(3)} mmol).`;
-    case "TEMPERATURE_CHANGE":
-      return `${event.containerId} temperature changed from ${event.fromC.toFixed(1)} °C to ${event.toC.toFixed(1)} °C (${event.cause}).`;
+      return `Bubbling: ${event.species} released, ${(event.moles * 1000).toFixed(2)} mmol.`;
+    case "TEMPERATURE_CHANGE": {
+      if (event.fromC.toFixed(1) === event.toC.toFixed(1)) return "";
+      const verb = event.toC > event.fromC ? "warmed" : "cooled";
+      return event.cause === "thermal"
+        ? `${labelOf(event.containerId, labels)} ${verb} to ${event.toC.toFixed(1)} °C.`
+        : `${capitalize(verb)} to ${event.toC.toFixed(1)} °C.`;
+    }
     case "PH_CHANGE":
-      return `${event.containerId} pH changed from ${event.from.toFixed(2)} to ${event.to.toFixed(2)}.`;
+      return `pH ${event.from.toFixed(2)} to ${event.to.toFixed(2)}.`;
     case "NO_REACTION":
       return event.description;
     case "SOLIDS_SETTLED":
-      return `Solids in ${event.containerId} have settled.`;
+      return `Solids in ${labelOf(event.containerId, labels)} settled.`;
     case "DISPOSED":
-      return `Disposed of ${event.volumeMl.toFixed(1)} mL from ${event.containerId}.`;
+      return `Disposed of ${event.volumeMl.toFixed(1)} mL from ${labelOf(event.containerId, labels)}.`;
     case "UNDONE":
       return `Undid: ${commandLabel(event.undoneCommand)}.`;
     case "RESET":
       return "Lab reset.";
     case "SCENARIO_LOADED":
-      return `Loaded scenario "${event.scenarioId}" (seed ${event.seed}).`;
+      return `Loaded scenario "${event.scenarioId}".`;
     case "SCENARIO_REVEALED":
       return `Scenario "${event.scenarioId}" revealed.`;
     case "OVERFLOW_REJECTED":
-      return `Rejected: ${event.attemptedMl.toFixed(1)} mL would overflow ${event.containerId} (max addable ${event.maxAddableMl.toFixed(1)} mL).`;
+      return `Rejected: ${event.attemptedMl.toFixed(1)} mL would overflow ${labelOf(event.containerId, labels)}. Max addable: ${event.maxAddableMl.toFixed(1)} mL.`;
     case "COMMAND_REJECTED":
-      return `Rejected: ${describeError(event.error)}`;
+      return `Rejected: ${describeError(event.error, labels)}`;
     default:
       return assertNever(event);
   }
 }
 
-/** Exhaustive human-readable message for a rejected command, with a suggestion where one is available. */
-export function describeError(error: LabError): string {
+/**
+ * Exhaustive human-readable message for a rejected command, with a suggestion where one is
+ * available. `labels` is omitted for UNKNOWN_OBJECT on purpose: the id is exactly what didn't
+ * resolve to anything, so there is no label to show instead.
+ */
+export function describeError(error: LabError, labels?: LabelLookup): string {
   switch (error.kind) {
     case "UNKNOWN_OBJECT":
       return `No object "${error.id}" on the bench. Re-read the lab state and try again.`;
     case "WRONG_OBJECT_TYPE":
-      return `${error.id} is the wrong type; expected one of: ${error.expected.join(", ")}.`;
+      return `${labelOf(error.id, labels)} is the wrong type; expected one of: ${error.expected.join(", ")}.`;
     case "OVER_CAPACITY":
-      return `${error.containerId} holds ${error.currentMl.toFixed(1)}/${error.capacityMl.toFixed(1)} mL; adding ${error.attemptedMl.toFixed(1)} mL would overflow it. You can add up to ${error.maxAddableMl.toFixed(1)} mL.`;
+      return `${labelOf(error.containerId, labels)} holds ${error.currentMl.toFixed(1)}/${error.capacityMl.toFixed(1)} mL; adding ${error.attemptedMl.toFixed(1)} mL would overflow it. You can add up to ${error.maxAddableMl.toFixed(1)} mL.`;
     case "INSUFFICIENT_VOLUME":
       return `Only ${error.availableMl.toFixed(1)} mL available, but ${error.requestedMl.toFixed(1)} mL was requested.`;
     case "INVALID_AMOUNT":
       return `Invalid value for ${error.field}: ${error.value} (${error.reason.replace(/_/g, " ")}).`;
     case "SAME_CONTAINER":
-      return `Source and destination are the same container (${error.containerId}).`;
+      return `Source and destination are the same container (${labelOf(error.containerId, labels)}).`;
     case "UNSUPPORTED_REAGENT":
       return error.suggestions.length > 0
         ? `Unknown reagent "${error.requested}". Did you mean: ${error.suggestions.join(", ")}?`
@@ -258,7 +294,7 @@ export function describeError(error: LabError): string {
     case "STOCK_DEPLETED":
       return `${error.reagentId} is nearly out (${error.remainingMl.toFixed(1)} mL left on the shelf).`;
     case "NO_INSTRUMENT":
-      return `${error.containerId} needs a ${error.needed.replace(/_/g, " ")} attached. ${error.hint}`;
+      return `${labelOf(error.containerId, labels)} needs a ${error.needed.replace(/_/g, " ")} attached. ${error.hint}`;
     case "INVALID_TEMPERATURE":
       return `Target ${error.requestedC} °C is outside the supported range ${error.minC}-${error.maxC} °C.`;
     case "RESTRICTED_BY_CHALLENGE":
