@@ -22,6 +22,13 @@ const VIEW_DISTANCE = 10.5;
 const cameraPos = BASE_LOOKAT.clone().addScaledVector(VIEW_DIR, VIEW_DISTANCE);
 export const CAMERA_BASE_POSITION: readonly [number, number, number] = [cameraPos.x, cameraPos.y, cameraPos.z];
 const PARALLAX_SMOOTH_TIME = 0.6;
+/**
+ * The activity panel (300px, left) covers the flask when open, so the view slides right and
+ * dollies out a little while it is open. Damped so opening the panel reads as one movement.
+ */
+const ACTIVITY_SHIFT_X = -0.55;
+const ACTIVITY_EXTRA_DISTANCE = 1.3;
+const PANEL_SMOOTH_TIME = 0.35;
 const MAX_YAW_RAD = (1.2 * Math.PI) / 180;
 const MAX_PITCH_RAD = (0.6 * Math.PI) / 180;
 
@@ -30,7 +37,9 @@ export function CameraRig() {
   const dragging = useLabStore((s) => s.ui.drag !== null);
   const dialogOpen = useLabStore((s) => s.ui.dialog !== null);
   const reducedMotion = useLabStore((s) => s.ui.reducedMotion);
+  const activityOpen = useLabStore((s) => s.ui.activityOpen);
   const yaw = useRef({ v: 0 });
+  const panel = useRef({ shift: 0, extra: 0 });
   const pitch = useRef({ v: 0 });
   const target = useRef(new THREE.Vector3());
 
@@ -46,8 +55,12 @@ export function CameraRig() {
     const targetPitch = parallaxAllowed ? state.pointer.y * MAX_PITCH_RAD : 0;
     damp(yaw.current, "v", targetYaw, PARALLAX_SMOOTH_TIME, dt);
     damp(pitch.current, "v", targetPitch, PARALLAX_SMOOTH_TIME, dt);
+    const panelSmooth = reducedMotion ? 0.05 : PANEL_SMOOTH_TIME;
+    damp(panel.current, "shift", activityOpen ? ACTIVITY_SHIFT_X : 0, panelSmooth, dt);
+    damp(panel.current, "extra", activityOpen ? ACTIVITY_EXTRA_DISTANCE : 0, panelSmooth, dt);
 
-    target.current.set(BASE_LOOKAT.x + xOffset, BASE_LOOKAT.y, BASE_LOOKAT.z);
+    target.current.set(BASE_LOOKAT.x + xOffset + panel.current.shift, BASE_LOOKAT.y, BASE_LOOKAT.z);
+    camera.position.copy(target.current).addScaledVector(VIEW_DIR, VIEW_DISTANCE + panel.current.extra);
     const distance = camera.position.distanceTo(target.current);
     target.current.x += Math.tan(yaw.current.v) * distance;
     target.current.y += Math.tan(pitch.current.v) * distance;
