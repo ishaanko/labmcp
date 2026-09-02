@@ -23,7 +23,7 @@ export function ResetDialog() {
     <Base.Root open={open} onOpenChange={(v) => !v && close()}>
       <Base.Portal>
         <Base.Backdrop className="fixed inset-0 z-40 bg-ink/20 transition-opacity duration-150 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0" />
-        <Base.Popup className="material-thick fixed top-1/2 left-1/2 z-50 w-80 -translate-x-1/2 -translate-y-1/2 p-4 transition-[opacity,transform] duration-150 data-[starting-style]:scale-96 data-[starting-style]:opacity-0 data-[ending-style]:scale-96 data-[ending-style]:opacity-0">
+        <Base.Popup className="material-thick fixed top-1/2 left-1/2 z-50 w-80 -translate-x-1/2 -translate-y-1/2 p-4 transition-[opacity,scale] duration-[160ms] ease-out data-[ending-style]:duration-[120ms] data-[starting-style]:scale-96 data-[starting-style]:opacity-0 data-[ending-style]:scale-96 data-[ending-style]:opacity-0">
           <Base.Title className="text-md font-semibold text-ink">Reset the lab?</Base.Title>
           <Base.Description className="mt-1 text-sm text-ink-2">
             This reloads the current scenario from its starting state. This cannot be undone.

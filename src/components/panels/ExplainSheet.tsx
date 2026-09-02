@@ -28,8 +28,9 @@ function buildRows(analyteMl: number, titrantM: number, usedMl: number): Readonl
 
 /**
  * Right sheet (C7): the worked titration arithmetic. Opens/closes via `ui.explainOpen`, no
- * scrim, transform-only 320ms `--ease-drawer` slide. Before reveal the concentration is labelled
- * as a curve estimate; after reveal it adds the true value and the tolerance verdict.
+ * scrim, transform-only 320ms `--ease-drawer` slide in (240ms out), crossfading instead under
+ * reduced motion. Before reveal the concentration is labelled as a curve estimate; after reveal
+ * it adds the true value and the tolerance verdict.
  */
 export function ExplainSheet() {
   const open = useLabStore((s) => s.ui.explainOpen);
@@ -37,6 +38,7 @@ export function ExplainSheet() {
   const titration = useLabStore(selectTitration);
   const pub = useLabStore(selectPublic);
   const lab = useLabStore((s) => s.lab);
+  const reduceMotion = useLabStore((s) => s.ui.reducedMotion);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -72,9 +74,13 @@ export function ExplainSheet() {
       {open ? (
         <motion.div
           key="explain-sheet"
-          initial={{ transform: `translateX(${SHEET_WIDTH}px)` }}
-          animate={{ transform: "translateX(0px)" }}
-          exit={{ transform: `translateX(${SHEET_WIDTH}px)` }}
+          initial={reduceMotion ? { opacity: 0 } : { transform: `translateX(${SHEET_WIDTH}px)` }}
+          animate={reduceMotion ? { opacity: 1 } : { transform: "translateX(0px)" }}
+          exit={
+            reduceMotion
+              ? { opacity: 0, transition: { duration: 0.15 } }
+              : { transform: `translateX(${SHEET_WIDTH}px)`, transition: { duration: 0.24, ease: [0.32, 0.72, 0, 1] } }
+          }
           transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
           className="material-thick pointer-events-auto fixed top-0 right-0 z-30 flex h-full flex-col gap-4 p-5"
           style={{ width: SHEET_WIDTH }}

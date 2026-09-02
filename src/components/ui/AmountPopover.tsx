@@ -12,6 +12,7 @@ import { ChipButton } from "./Chip";
 import { setTarget } from "@/scene/visualStore";
 import { round2 } from "@/lib/format";
 import { REAGENT_DEFAULT_TINT, REAGENT_TINT } from "@/components/shelf/ReagentChip";
+import { SPIN_TIMING, TRANSFORM_TIMING } from "./Readout";
 
 const REAGENT_PRESETS_ML = [1, 5, 10, 25, 50];
 const INDICATOR_PRESETS_DROPS = [1, 2, 3];
@@ -101,7 +102,7 @@ export function AmountPopover() {
           sideOffset={12}
         >
           <Base.Popup
-            className="material-thick origin-[var(--transform-origin)] w-64 p-3 text-sm text-ink transition-[opacity,transform] duration-150 [--ease-out] data-[starting-style]:scale-96 data-[starting-style]:opacity-0 data-[ending-style]:scale-96 data-[ending-style]:opacity-0"
+            className="material-thick origin-[var(--transform-origin)] w-64 p-3 text-sm text-ink transition-[opacity,scale] duration-[160ms] ease-out data-[ending-style]:duration-[120ms] data-[starting-style]:scale-96 data-[starting-style]:opacity-0 data-[ending-style]:scale-96 data-[ending-style]:opacity-0"
           >
             {dialog ? <AmountPopoverContent key={`${dialog.containerId}:${dialog.kind === "add_reagent" ? dialog.reagentId : dialog.indicatorId}`} /> : null}
           </Base.Popup>
@@ -183,6 +184,8 @@ function AmountPopoverContent() {
           value={value}
           format={{ minimumFractionDigits: target.step < 1 ? 1 : 0, maximumFractionDigits: target.step < 1 ? 1 : 0 }}
           suffix={` ${target.unit}`}
+          transformTiming={TRANSFORM_TIMING}
+          spinTiming={SPIN_TIMING}
           className="tabular w-20 shrink-0 text-right text-ink"
         />
       </div>

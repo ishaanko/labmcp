@@ -6,8 +6,8 @@ import { speciesDef } from "./species";
 import type { Container, InstrumentReading, LabCommand, LabError, LabEvent, Rgba, ThermalState } from "./types";
 import { assertNever } from "./types";
 
-/** Same threshold advanceTime uses for thermal TEMPERATURE_CHANGE events. */
-const TEMP_CHANGE_EVENT_C = 1e-3;
+/** Below this, a reaction's own heat is rounding noise: it would print as "X.X to X.X". */
+const TEMP_CHANGE_EVENT_C = 0.05;
 
 const totalMoles = (container: Container): number =>
   Object.values(container.species).reduce<number>((sum, v) => sum + (v ?? 0), 0);

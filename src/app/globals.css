@@ -152,32 +152,26 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * The bench canvas repaints continuously (frameloop="always"), and a backdrop-filter
+ * recomputes every time the content behind it changes. Blurring here would run the filter
+ * at display refresh rate forever, so these surfaces use a solid background instead, the
+ * same fallback the prefers-reduced-transparency media query already used.
+ */
 .material {
-  background: var(--surface);
-  backdrop-filter: blur(var(--blur-regular)) saturate(160%);
+  background: var(--surface-solid);
   box-shadow: var(--shadow-panel);
   border-radius: var(--radius-lg);
 }
 .material-thin {
-  background: var(--surface-thin);
-  backdrop-filter: blur(var(--blur-thin)) saturate(160%);
+  background: var(--surface-solid);
   box-shadow: var(--shadow-chip);
   border-radius: var(--radius-md);
 }
 .material-thick {
-  background: var(--surface-thick);
-  backdrop-filter: blur(var(--blur-thick)) saturate(160%);
+  background: var(--surface-solid);
   box-shadow: var(--shadow-sheet);
   border-radius: var(--radius-lg);
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  .material,
-  .material-thin,
-  .material-thick {
-    background: var(--surface-solid);
-    backdrop-filter: none;
-  }
 }
 
 /* Pressable elements confirm the press instantly. */

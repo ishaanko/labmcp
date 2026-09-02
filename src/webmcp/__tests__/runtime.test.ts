@@ -159,4 +159,22 @@ describe("runTool", () => {
     const response = await runTool(def)({}, { signal: new AbortController().signal });
     expect(() => JSON.stringify(response)).not.toThrow();
   });
+
+  it("runs with no options argument, matching how the WebMCP polyfill calls execute", async () => {
+    fakeStore.lab = emptyLab();
+    feedEntries.length = 0;
+
+    const def: ToolDef<{ x: number }> = {
+      name: "double",
+      description: "doubles x",
+      input: z.object({ x: z.number() }).strict(),
+      readOnly: true,
+      handler: async (input, ctx) => ok(ctx.getState, { y: input.x * 2 }, "doubled", []),
+    };
+
+    const response = await runTool(def)({ x: 3 });
+
+    expect(response).toMatchObject({ ok: true });
+    expect(feedEntries[0]).toMatchObject({ status: "done", ok: true, tool: "double" });
+  });
 });

@@ -22,7 +22,7 @@ export function Dialog({ open, onOpenChange, title, description, children, class
         <Base.Popup
           className={clsx(
             "material-thick fixed top-1/2 left-1/2 z-50 w-80 -translate-x-1/2 -translate-y-1/2 p-4",
-            "transition-[opacity,transform] duration-150",
+            "transition-[opacity,scale] duration-[160ms] ease-out data-[ending-style]:duration-[120ms]",
             "data-[starting-style]:scale-96 data-[starting-style]:opacity-0",
             "data-[ending-style]:scale-96 data-[ending-style]:opacity-0",
             className,

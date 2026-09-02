@@ -10,6 +10,7 @@ import { FeedEntry } from "./FeedEntry";
 import { Notebook } from "./Notebook";
 
 const SPRING_PANEL = { type: "spring", visualDuration: 0.4, bounce: 0 } as const;
+const PANEL_EXIT = { transform: "translateX(-24px)", opacity: 0, transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } } as const;
 const PILL_ICON = { agent: Sparkles, human: Hand, system: Cog } as const;
 
 /** Collapsible left panel: 44px pill closed, 300px with Activity/Notebook tabs open (C2). */
@@ -32,63 +33,68 @@ export function ActivityPanel() {
 
   return (
     <div className="pointer-events-none absolute left-3 top-14 bottom-14 w-[300px]">
-      {!open ? (
-        <button
-          type="button"
-          onClick={toggleActivity}
-          aria-label="Open activity panel"
-          className="material-thin pointer-events-auto flex h-11 w-11 items-center justify-center overflow-hidden rounded-md"
-        >
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.span
-              key={latest?.id ?? "empty"}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="flex items-center justify-center text-ink-2"
-            >
-              {latest ? <SourceIcon entry={latest} /> : <Cog size={15} />}
-            </motion.span>
-          </AnimatePresence>
-        </button>
-      ) : (
-        <motion.div
-          initial={{ x: -24, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={SPRING_PANEL}
-          className="material pointer-events-auto flex h-full w-[300px] flex-col overflow-hidden"
-        >
-          <div className="flex h-11 shrink-0 items-center gap-1 border-b border-hairline px-2">
-            <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
-              Activity
-            </TabButton>
-            <TabButton active={tab === "notebook"} onClick={() => setTab("notebook")}>
-              Notebook
-            </TabButton>
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={toggleActivity}
-              aria-label="Collapse activity panel"
-              className="pressable h-7 w-7 rounded-xs text-ink-3 hover:bg-surface-thin hover:text-ink"
-            >
-              ⟨
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {tab === "activity" ? (
-              <ul className="flex flex-col gap-0.5">
-                {feed.map((entry) => (
-                  <FeedEntry key={entry.id} entry={entry} />
-                ))}
-              </ul>
-            ) : (
-              <Notebook />
-            )}
-          </div>
-        </motion.div>
-      )}
+      <AnimatePresence initial={false} mode="popLayout">
+        {!open ? (
+          <button
+            key="pill"
+            type="button"
+            onClick={toggleActivity}
+            aria-label="Open activity panel"
+            className="material-thin pointer-events-auto relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-md"
+          >
+            <AnimatePresence initial={false}>
+              <motion.span
+                key={latest?.source ?? "empty"}
+                initial={{ opacity: 0, filter: "blur(2px)" }}
+                animate={{ opacity: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, filter: "blur(2px)" }}
+                transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
+                className="absolute inset-0 flex items-center justify-center text-ink-2"
+              >
+                {latest ? <SourceIcon entry={latest} /> : <Cog size={15} />}
+              </motion.span>
+            </AnimatePresence>
+          </button>
+        ) : (
+          <motion.div
+            key="panel"
+            initial={{ transform: "translateX(-24px)", opacity: 0 }}
+            animate={{ transform: "translateX(0px)", opacity: 1 }}
+            exit={PANEL_EXIT}
+            transition={SPRING_PANEL}
+            className="material pointer-events-auto flex h-full w-[300px] flex-col overflow-hidden"
+          >
+            <div className="flex h-11 shrink-0 items-center gap-1 border-b border-hairline px-2">
+              <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
+                Activity
+              </TabButton>
+              <TabButton active={tab === "notebook"} onClick={() => setTab("notebook")}>
+                Notebook
+              </TabButton>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={toggleActivity}
+                aria-label="Collapse activity panel"
+                className="pressable h-7 w-7 rounded-xs text-ink-3 hover:bg-surface-thin hover:text-ink"
+              >
+                ⟨
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {tab === "activity" ? (
+                <ul className="flex flex-col gap-0.5">
+                  {feed.map((entry) => (
+                    <FeedEntry key={entry.id} entry={entry} />
+                  ))}
+                </ul>
+              ) : (
+                <Notebook />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

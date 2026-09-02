@@ -14,8 +14,9 @@ export interface FeedEntryProps {
 /**
  * One row in the activity feed (C6 item 3). Agent calls carry an amber left rule and
  * Sparkles; human actions a neutral rule and Hand. Read-only agent calls collapse to one
- * grey line. New rows enter with a 200ms height+opacity transition (handled by the caller's
- * AnimatePresence, this component only renders the row's own content).
+ * grey line. Agent rows enter with a 200ms opacity+transform fade; human rows (one per D-key
+ * dispense, far more frequent) render immediately, since a per-row FLIP would run a main-thread
+ * layout pass over up to 300 rows every keystroke.
  */
 export function FeedEntry({ entry }: FeedEntryProps) {
   switch (entry.kind) {
@@ -43,10 +44,9 @@ function Row({
 }) {
   return (
     <motion.li
-      layout="position"
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.2 }}
+      initial={accent === "agent" ? { opacity: 0, transform: "translateY(-4px)" } : false}
+      animate={{ opacity: 1, transform: "translateY(0px)" }}
+      transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
       className={clsx(
         "flex gap-2 border-l-2 py-1.5 pl-2.5 text-sm",
         accent === "agent" ? "border-accent" : accent === "human" ? "border-ink-3" : "border-transparent",

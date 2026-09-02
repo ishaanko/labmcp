@@ -7,6 +7,8 @@ import { setToastSink } from "@/lib/events";
 import { observe } from "@/components/ui/toasts";
 import { useTheme } from "@/hooks/useTheme";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { useLabStore } from "@/store/labStore";
+import { startTicker } from "@/store/ticker";
 
 /**
  * Client-only wiring: theme, reduced-motion, the toast sink the store dispatches through,
@@ -20,6 +22,8 @@ export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
     setToastSink(observe);
   }, []);
+
+  useEffect(() => startTicker(useLabStore), []);
 
   return (
     <MotionConfig reducedMotion="user">

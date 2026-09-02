@@ -4,7 +4,8 @@ import { useCallback, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { isIndicatorIdShape, isReagentId, type EquipmentType } from "@/engine";
 import { groundPointAt, pickObjectAt } from "@/scene/sceneRefs";
-import { worldToGrid } from "@/components/bench/Bench";
+import { GRID_BOUNDS, worldToGrid } from "@/components/bench/Bench";
+import { cellKey, nearestFreeCell } from "@/scene/picking";
 import { useLabStore } from "@/store/labStore";
 import type { XY } from "@/store/types";
 
@@ -43,6 +44,15 @@ function containerHasLiquid(id: string): boolean {
 function isContainer(id: string): boolean {
   const obj = useLabStore.getState().lab.objects.find((o) => o.id === id);
   return obj !== undefined && obj.kind === "container";
+}
+
+/** Occupied grid cells (containers only; an instrument does not block a drop), for snapping a new drop. */
+function occupiedCells(): ReadonlySet<string> {
+  const set = new Set<string>();
+  for (const o of useLabStore.getState().lab.objects) {
+    if (o.kind === "container") set.add(cellKey({ x: o.position.x, y: o.position.y }));
+  }
+  return set;
 }
 
 /** `min(stock remaining ?? Infinity, capacity - volume)` (C4.3/C4.4). */
@@ -103,7 +113,7 @@ export function useShelfDrag(): ShelfDragHandlers {
         const pointer: XY = { x, y };
         if (candidate.kind === "equipment") {
           const ground = groundPointAt(x, y);
-          const cell = ground ? worldToGrid(ground.x, ground.z) : null;
+          const cell = ground ? nearestFreeCell(occupiedCells(), worldToGrid(ground.x, ground.z), GRID_BOUNDS) : null;
           setDrag({ kind: "equipment", equipmentType: candidate.equipmentType, pointer, cell });
           return;
         }

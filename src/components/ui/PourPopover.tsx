@@ -10,6 +10,7 @@ import { Slider } from "./Slider";
 import { ChipButton } from "./Chip";
 import { setTarget } from "@/scene/visualStore";
 import { round2 } from "@/lib/format";
+import { SPIN_TIMING, TRANSFORM_TIMING } from "./Readout";
 
 /**
  * Pour prompt (C4.4) for a `transfer` dialog: vessel-on-vessel drops from the glassware-drag
@@ -25,7 +26,7 @@ export function PourPopover() {
     <Base.Root open={dialog !== null} onOpenChange={(open) => !open && openDialog(null)}>
       <Base.Portal>
         <Base.Positioner anchor={rect ? { getBoundingClientRect: () => rect } : null} side="top" align="center" sideOffset={12}>
-          <Base.Popup className="material-thick origin-[var(--transform-origin)] w-64 p-3 text-sm text-ink transition-[opacity,transform] duration-150 [--ease-out] data-[starting-style]:scale-96 data-[starting-style]:opacity-0 data-[ending-style]:scale-96 data-[ending-style]:opacity-0">
+          <Base.Popup className="material-thick origin-[var(--transform-origin)] w-64 p-3 text-sm text-ink transition-[opacity,scale] duration-[160ms] ease-out data-[ending-style]:duration-[120ms] data-[starting-style]:scale-96 data-[starting-style]:opacity-0 data-[ending-style]:scale-96 data-[ending-style]:opacity-0">
             {dialog ? <PourPopoverContent key={`${dialog.sourceId}:${dialog.destinationId}`} sourceId={dialog.sourceId} destinationId={dialog.destinationId} maxMl={dialog.maxMl} /> : null}
           </Base.Popup>
         </Base.Positioner>
@@ -93,7 +94,14 @@ function PourPopoverContent({ sourceId, destinationId, maxMl }: PourPopoverConte
 
       <div className="flex items-center gap-3">
         <Slider value={value} min={0} max={max} step={0.5} onChange={onChange} aria-label="Pour amount" />
-        <NumberFlow value={value} format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }} suffix=" mL" className="tabular w-20 shrink-0 text-right text-ink" />
+        <NumberFlow
+          value={value}
+          format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }}
+          suffix=" mL"
+          transformTiming={TRANSFORM_TIMING}
+          spinTiming={SPIN_TIMING}
+          className="tabular w-20 shrink-0 text-right text-ink"
+        />
       </div>
 
       <div className="flex justify-end gap-2 pt-1">

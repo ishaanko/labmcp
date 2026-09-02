@@ -25,7 +25,8 @@ export function WebMcpPill() {
   useEffect(() => {
     if (!lastAgentCallId || lastAgentCallId === seen.current || !ref.current) return;
     seen.current = lastAgentCallId;
-    void animate(ref.current, { scale: [1, 1.04, 1] }, { duration: 0.3, ease: "easeOut" });
+    if (useLabStore.getState().ui.reducedMotion) return;
+    void animate(ref.current, { transform: ["scale(1)", "scale(1.04)", "scale(1)"] }, { duration: 0.3, ease: [0.23, 1, 0.32, 1] });
   }, [lastAgentCallId]);
 
   return (

@@ -39,7 +39,8 @@ const GHOST_H = 32;
  * The floating chip that follows the pointer during a shelf drag (C4.3). Position is written
  * as a raw `translate3d()` transform string every render (never through motion's `x`/`y`
  * props), since `ui.drag.pointer` already arrives rAF-throttled from `useShelfDrag`. Only the
- * unsuccessful-release return trip is a real spring, run imperatively with `motion`'s `animate`.
+ * unsuccessful-release return trip is a real spring; a landed drop instead fades the ghost out
+ * in place over 120ms. Both run imperatively with `motion`'s `animate`.
  */
 export function ReagentGhost() {
   const drag = useLabStore((s) => s.ui.drag);
@@ -60,7 +61,19 @@ export function ReagentGhost() {
     prevDrag.current = null;
     if (!last) return;
     const outcome = takeDragOutcome();
-    if (!outcome || outcome.landed) return;
+    if (!outcome) return;
+
+    if (outcome.landed) {
+      // A landed drop fades the ghost out in place, rather than the instant unmount below.
+      setReturning({ ghost: last, to: last.pointer });
+      const el = ref.current;
+      if (!el) return;
+      const controls = animate(el, { opacity: 0 }, { duration: 0.12, ease: [0.23, 1, 0.32, 1] });
+      returnControls.current = controls;
+      void controls.finished.then(() => setReturning(null));
+      return;
+    }
+
     setReturning({ ghost: last, to: outcome.origin });
     const el = ref.current;
     if (!el) return;
@@ -68,8 +81,8 @@ export function ReagentGhost() {
       el,
       { transform: `translate3d(${outcome.origin.x - GHOST_W / 2}px, ${outcome.origin.y - GHOST_H / 2}px, 0) scale(1)` },
       outcome.flicked
-        ? { type: "spring", bounce: 0.2, duration: 0.4 }
-        : { type: "spring", bounce: 0, duration: 0.22 },
+        ? { type: "spring", visualDuration: 0.4, bounce: 0.2 }
+        : { type: "spring", visualDuration: 0.22, bounce: 0 },
     );
     returnControls.current = controls;
     void controls.finished.then(() => setReturning(null));

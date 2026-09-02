@@ -17,7 +17,7 @@ export function Tooltip({ label, children }: TooltipProps) {
         <Base.Trigger render={children} />
         <Base.Portal>
           <Base.Positioner side="top" sideOffset={6}>
-            <Base.Popup className="material-thin px-2 py-1 text-2xs text-ink-2 transition-opacity duration-150 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0">
+            <Base.Popup className="material-thin px-2 py-1 text-2xs text-ink-2 transition-[opacity,translate] duration-150 ease-out data-[starting-style]:opacity-0 data-[starting-style]:translate-y-0.5 data-[ending-style]:opacity-0">
               {label}
             </Base.Popup>
           </Base.Positioner>

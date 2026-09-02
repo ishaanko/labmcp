@@ -5,6 +5,7 @@ import NumberFlow from "@number-flow/react";
 import * as THREE from "three";
 import { useLabStore } from "@/store/labStore";
 import { selectContainer } from "@/store/selectors";
+import { SPIN_TIMING, TRANSFORM_TIMING } from "@/components/ui/Readout";
 
 export interface LabelsProps {
   readonly kind: "ph" | "temperature";
@@ -57,6 +58,8 @@ export function Labels({ kind, containerId, anchorRef, offset }: LabelsProps) {
             value={Number(value.toFixed(2))}
             format={{ minimumFractionDigits: 2, maximumFractionDigits: 2 }}
             suffix={kind === "temperature" ? " °C" : undefined}
+            transformTiming={TRANSFORM_TIMING}
+            spinTiming={SPIN_TIMING}
           />
         )}
         {kind === "ph" ? <span className="ml-1 text-ink-3">pH</span> : null}

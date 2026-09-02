@@ -10,8 +10,9 @@ export interface ReadoutProps {
   className?: string;
 }
 
-const TRANSFORM_TIMING: EffectTiming = { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
-const SPIN_TIMING: EffectTiming = { duration: 250, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
+/** The app's NumberFlow timings (C7), shared by every readout so no digit spins for 900ms. */
+export const TRANSFORM_TIMING: EffectTiming = { duration: 200, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
+export const SPIN_TIMING: EffectTiming = { duration: 250, easing: "cubic-bezier(0.23, 1, 0.32, 1)" };
 
 /** Numeric readout with the C7 NumberFlow timings. `value === null` renders a dash (no probe, no pH). */
 export function Readout({ value, unit, digits = 2, label, size = "sm", className }: ReadoutProps) {

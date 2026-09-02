@@ -65,8 +65,9 @@ export function errFromLabError(getState: () => LabStore, error: LabError): Tool
  * handler becomes an ENGINE_ERROR envelope so the agent always gets a response back.
  */
 export function runTool(def: AnyToolDef) {
-  return async (rawInput: unknown, options: { signal: AbortSignal }): Promise<ToolResponse> => {
+  return async (rawInput: unknown, options?: { signal?: AbortSignal }): Promise<ToolResponse> => {
     const getState = () => useLabStore.getState();
+    const signal = options?.signal ?? new AbortController().signal;
     const startedAt = Date.now();
     const entryId = getState().pushFeed({
       id: feedId(),
@@ -98,7 +99,7 @@ export function runTool(def: AnyToolDef) {
       return response;
     };
 
-    if (options.signal.aborted) {
+    if (signal.aborted) {
       return finish(err(getState, "ABORTED", `${def.name} was aborted before it started.`), undefined);
     }
 
@@ -115,7 +116,7 @@ export function runTool(def: AnyToolDef) {
       const response = await def.handler(parsed.data, {
         getState,
         dispatch: (command, actor) => getState().dispatch(command, actor),
-        signal: options.signal,
+        signal,
       });
       return finish(response, targetId);
     } catch {

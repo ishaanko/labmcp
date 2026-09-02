@@ -26,8 +26,8 @@ export function Menu<V extends string>({ trigger, options, onSelect }: MenuProps
         <Base.Positioner side="bottom" align="start" sideOffset={6}>
           <Base.Popup
             className={clsx(
-              "material-thick min-w-40 p-1 text-sm text-ink",
-              "transition-[opacity,transform] duration-150",
+              "material-thick min-w-40 origin-[var(--transform-origin)] p-1 text-sm text-ink",
+              "transition-[opacity,scale] duration-[160ms] ease-out data-[ending-style]:duration-[120ms]",
               "data-[starting-style]:scale-96 data-[starting-style]:opacity-0",
               "data-[ending-style]:scale-96 data-[ending-style]:opacity-0",
             )}

@@ -26,7 +26,7 @@ export function Popover({ trigger, children, side = "bottom", align = "start", c
           <Base.Popup
             className={clsx(
               "material-thick origin-[var(--transform-origin)] p-3 text-sm text-ink",
-              "transition-[opacity,transform] duration-150 [--ease-out]",
+              "transition-[opacity,scale] duration-[160ms] ease-out data-[ending-style]:duration-[120ms]",
               "data-[starting-style]:scale-96 data-[starting-style]:opacity-0",
               "data-[ending-style]:scale-96 data-[ending-style]:opacity-0",
               className,

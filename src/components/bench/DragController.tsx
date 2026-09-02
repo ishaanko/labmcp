@@ -87,12 +87,17 @@ function dragStateFor(candidate: Candidate, pointer: XY, overId: string | null):
     : { kind: "instrument", id: candidate.object.id, pointer, overId };
 }
 
+/** A pause this long (or longer) before release means the pointer already stopped: land under it, don't extrapolate. */
+const FLICK_STALE_MS = 80;
+
 /** Decays a short velocity history forward (C4.2 "project with decel 0.99") to a landing point. */
-function projectLanding(samples: ReadonlyArray<Sample>): { x: number; z: number } {
+function projectLanding(samples: ReadonlyArray<Sample>, releaseT: number): { x: number; z: number } {
   const last = samples[samples.length - 1];
   const first = samples[0];
   if (!last) return { x: 0, z: 0 };
-  if (!first || samples.length < 2 || last.t === first.t) return { x: last.x, z: last.z };
+  if (!first || samples.length < 2 || last.t === first.t || releaseT - last.t >= FLICK_STALE_MS) {
+    return { x: last.x, z: last.z };
+  }
   const dtS = (last.t - first.t) / 1000;
   let vx = (last.x - first.x) / dtS;
   let vz = (last.z - first.z) / dtS;
@@ -205,6 +210,7 @@ export function DragController() {
     const finishDrag = (phase: Extract<DragPhase, { kind: "dragging" }>, releaseClient: XY): void => {
       const store = useLabStore.getState();
       const id = phase.candidate.object.id;
+      const releaseT = performance.now();
       const targetContainer = containerUnder(pickObjectAt(releaseClient.x, releaseClient.y, id));
       store.setDrag(null);
 
@@ -215,7 +221,7 @@ export function DragController() {
           setTarget(id, { pose: null });
           return;
         }
-        const landing = projectLanding(phase.samples);
+        const landing = projectLanding(phase.samples, releaseT);
         const rawGrid = worldToGrid(landing.x, landing.z);
         const freeCell = nearestFreeCell(occupancyExcluding(id), rawGrid, GRID_BOUNDS);
         if (instrument.attachedTo) void store.dispatch({ kind: "ATTACH_INSTRUMENT", instrumentId: instrument.id, containerId: null }, "human");
@@ -234,7 +240,7 @@ export function DragController() {
         return;
       }
 
-      const landing = projectLanding(phase.samples);
+      const landing = projectLanding(phase.samples, releaseT);
       const rawGrid = worldToGrid(landing.x, landing.z);
       const freeCell = nearestFreeCell(occupancyExcluding(id), rawGrid, GRID_BOUNDS);
       void store.dispatch({ kind: "MOVE_OBJECT", objectId: id, position: freeCell }, "human");

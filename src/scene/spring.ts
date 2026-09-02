@@ -45,24 +45,3 @@ export function dampValue<K extends string>(
 ): void {
   damp(current, key, target, smoothTime, clampDt(dt));
 }
-
-export interface SpringDropState {
-  readonly position: number;
-  readonly velocity: number;
-}
-
-/**
- * One step of the glassware-landing spring (C1 `spring.drop`): k 400, c 32, m 1, which is a
- * damping ratio of 0.8 (c / (2*sqrt(k*m))). Used by the drag phase for the release bounce;
- * kept here since it is a spring, not a target-chase damp.
- */
-export function stepSpringDrop(state: SpringDropState, target: number, dt: number): SpringDropState {
-  const k = 400;
-  const c = 32;
-  const m = 1;
-  const dtc = clampDt(dt);
-  const accel = (-k * (state.position - target) - c * state.velocity) / m;
-  const velocity = state.velocity + accel * dtc;
-  const position = state.position + velocity * dtc;
-  return { position, velocity };
-}
