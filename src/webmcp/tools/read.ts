@@ -3,7 +3,7 @@ import { constants, INDICATORS, REAGENTS } from "@/engine";
 
 const { CAPACITY_ML } = constants;
 import { notebookRows, renderNotebookMarkdown } from "@/lib/notebook";
-import { errFromLabError, eventStrings, findBenchPhMeter, findContainer, ok, unknownObjectError } from "../runtime";
+import { errFromLabError, eventStrings, findBenchInstrument, findContainer, ok, unknownObjectError } from "../runtime";
 import { ContainerIdSchema, EmptyInput } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
 
@@ -98,7 +98,7 @@ const measurePh: ToolDef<{ container_id: string }> = {
     const container = findContainer(lab, input.container_id);
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
 
-    const meter = findBenchPhMeter(lab);
+    const meter = findBenchInstrument(lab, "ph_meter");
     if (!meter) {
       return errFromLabError(ctx.getState, {
         kind: "NO_INSTRUMENT",
@@ -125,17 +125,34 @@ const measureTemperature: ToolDef<{ container_id: string }> = {
   name: "measure_temperature",
   title: "Measure temperature",
   description:
-    "Measures the temperature (°C) of a container's contents. Requires a thermometer attached to the container or " +
-    "on the bench; fails with INSTRUMENT_MISSING otherwise. Also reports whether the container is currently " +
-    "heating, cooling, or idle.",
+    "Measures the temperature (°C) of a container's contents using a thermometer. A thermometer already on the " +
+    "bench is moved to this container automatically; if none exists, this fails with INSTRUMENT_MISSING, so call " +
+    "add_container with type 'thermometer' first. Also reports whether the container is currently heating, " +
+    "cooling, or idle.",
   input: z.object({ container_id: ContainerIdSchema }).strict(),
   readOnly: true,
   targetId: (i) => i.container_id,
   examples: [{ label: "Measure temperature of c_1", input: { container_id: "c_1" } }],
   handler: async (input, ctx) => {
-    const container = findContainer(ctx.getState().lab, input.container_id);
+    const lab = ctx.getState().lab;
+    const container = findContainer(lab, input.container_id);
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
-    const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "temperature" }, "agent");
+
+    const thermometer = findBenchInstrument(lab, "thermometer");
+    if (!thermometer) {
+      return errFromLabError(ctx.getState, {
+        kind: "NO_INSTRUMENT",
+        containerId: container.id,
+        needed: "thermometer",
+        hint: "add_container({ type: 'thermometer' }) to place one on the bench.",
+      });
+    }
+    if (thermometer.attachedTo !== container.id) {
+      const attached = await ctx.dispatch({ kind: "ATTACH_INSTRUMENT", instrumentId: thermometer.id, containerId: container.id }, "agent");
+      if (!attached.ok) return errFromLabError(ctx.getState, attached.error);
+    }
+
+    const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "temperature", instrumentId: thermometer.id }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     const updated = findContainer(ctx.getState().lab, input.container_id) ?? container;
     return ok(ctx.getState, { containerId: container.id, temperatureC: updated.temperatureC, thermal: updated.thermal.kind }, dr.observation, eventStrings(ctx.getState, dr));

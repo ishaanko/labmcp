@@ -83,16 +83,38 @@ function useTargetLabel(targetId: string | undefined): string | null {
   });
 }
 
-/** "dispense" -> "dispense", "add_reagent" -> "add reagent": the tool name as a verb phrase. */
-function verbFor(tool: string): string {
-  return tool.replace(/_/g, " ");
+/** Human-facing title per tool: a fixed string for tools without a target, else built from the target's short label. */
+const TOOL_TITLE: Readonly<Record<string, string | ((target: string) => string)>> = {
+  dispense: (t) => `Dispense into ${t}`,
+  measure_ph: (t) => `Measure pH of ${t}`,
+  measure_temperature: (t) => `Measure temperature of ${t}`,
+  measure_volume: (t) => `Measure volume of ${t}`,
+  add_indicator: (t) => `Add indicator to ${t}`,
+  add_reagent: (t) => `Add reagent to ${t}`,
+  transfer: (t) => `Transfer into ${t}`,
+  stir: (t) => `Stir ${t}`,
+  heat: (t) => `Heat ${t}`,
+  cool: (t) => `Cool ${t}`,
+  inspect_contents: (t) => `Inspect ${t}`,
+  add_container: "Add container",
+  get_lab_state: "Read lab state",
+  load_scenario: "Load scenario",
+};
+
+/** Title for a tool call row; unmapped tools (or a mapped one whose target is gone) fall back to the tool name as a phrase. */
+function titleFor(tool: string, target: string | null): string {
+  const mapped = TOOL_TITLE[tool];
+  if (typeof mapped === "string") return mapped;
+  if (mapped && target) return mapped(target);
+  const phrase = tool.replace(/_/g, " ").replace(/\bph\b/, "pH");
+  return target ? `${phrase}: ${target}` : phrase;
 }
 
 function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_call" }> }) {
   const running = entry.status === "running";
   const collapsed = entry.readOnly && !running;
   const targetLabel = useTargetLabel(entry.targetId);
-  const title = targetLabel ? `${verbFor(entry.tool)} to ${targetLabel}` : verbFor(entry.tool);
+  const title = titleFor(entry.tool, targetLabel);
 
   return (
     <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-ink-3" : "text-accent-ink"} />}>
@@ -102,11 +124,11 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
         </p>
       ) : (
         <>
-          <p className="text-ink-2">{title}</p>
+          <p className="text-ink">{title}</p>
           {running ? (
             <p className="mt-0.5 text-ink-3">Running…</p>
           ) : entry.resultSummary ? (
-            <SummaryLine text={stripRawIds(entry.resultSummary)} tone={entry.ok === false ? "text-danger" : "text-ink"} />
+            <SummaryLine text={stripRawIds(entry.resultSummary)} tone={entry.ok === false ? "text-danger" : "text-ink-2"} />
           ) : null}
         </>
       )}

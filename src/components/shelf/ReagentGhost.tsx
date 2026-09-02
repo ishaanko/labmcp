@@ -43,7 +43,8 @@ interface GhostExit {
   readonly motion: GhostExitMotion;
 }
 
-const GHOST_W = 132;
+/** Wide enough for "Phenolphthalein → Flask" without truncation. */
+const GHOST_W = 188;
 const GHOST_H = 32;
 
 /**

@@ -32,7 +32,8 @@ function selectedContainer(): Container | undefined {
  * Global bench shortcuts (C4.8): Cmd/Ctrl+Z undo, D dispense from the first burette, Esc
  * close/deselect, Delete/Backspace dispose the selection (with an undo toast), S stir it, R
  * opens the reset confirmation. Ignored while an input/textarea/contenteditable has focus so
- * typing in a dialog never triggers one.
+ * typing in a dialog never triggers one, and a held key does not auto-repeat D/S/R/Delete: a 1 s
+ * hold would otherwise dispense 30 mL.
  */
 export function useKeyboard(): void {
   useEffect(() => {
@@ -46,6 +47,7 @@ export function useKeyboard(): void {
         return;
       }
 
+      if (e.repeat) return;
       switch (e.key) {
         case "d":
         case "D": {

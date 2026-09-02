@@ -8,6 +8,13 @@ import type { AnyToolDef } from "./types";
 /** Every registered tool, keyed by name. Read by the DevConsole for the local fallback path. */
 export const toolRegistry = new Map<string, AnyToolDef>();
 
+/** Set once this module installs the polyfill on Document.prototype; a StrictMode remount would otherwise read it as native. */
+let polyfillInstalled = false;
+
+function isPolyfill(modelContext: unknown): boolean {
+  return typeof modelContext === "object" && modelContext !== null && "__isWebMCPPolyfill" in modelContext && modelContext.__isWebMCPPolyfill === true;
+}
+
 /**
  * Registers the ChemLab tool catalog with `document.modelContext`, polyfilling it first when the
  * browser has no native support. Returns an unregister function; call it on unmount (StrictMode's
@@ -16,9 +23,13 @@ export const toolRegistry = new Map<string, AnyToolDef>();
 export function registerLabTools(): () => void {
   if (typeof document === "undefined") return () => {};
 
-  const native = "modelContext" in document && document.modelContext !== undefined;
-  if (!native) initializeWebMCPPolyfill();
+  const present = "modelContext" in document && document.modelContext !== undefined;
+  if (!present) {
+    initializeWebMCPPolyfill();
+    polyfillInstalled = true;
+  }
   if (!document.modelContext) return () => {};
+  const native = present && !polyfillInstalled && !isPolyfill(document.modelContext);
 
   const ac = new AbortController();
   const modelContext = document.modelContext;

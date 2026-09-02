@@ -13,12 +13,17 @@ import { useLabStore } from "@/store/labStore";
  * two-thirds of the usable vertical band (below the 40px top bar, above the 60px dock) with the
  * cluster, at objects reading about 1.6x their original on-screen size. The x-offset keeps the
  * bench clear of the 300px right panel as the viewport resizes; the pointer parallax is off while
- * dragging, a popover is open, or reduced motion.
+ * dragging, a popover is open, or reduced motion. Without a burette on the bench (sandbox,
+ * unknown sample) the tallest object is a 0.95 beaker, so the look-at drops and the camera
+ * dollies in (`LOW_LOOKAT_Y`, `LOW_VIEW_DISTANCE`) instead of framing an empty wall.
  */
 const BASE_LOOKAT = new THREE.Vector3(0.5, 1.15, 0.0);
 /** Unit direction from `BASE_LOOKAT` back to the camera, along the original design sightline. */
 const VIEW_DIR = new THREE.Vector3(0.4, 7.15, 12.0).normalize();
 const VIEW_DISTANCE = 10.5;
+const LOW_LOOKAT_Y = 0.55;
+const LOW_VIEW_DISTANCE = 8.6;
+const FRAMING_SMOOTH_TIME = 0.5;
 const cameraPos = BASE_LOOKAT.clone().addScaledVector(VIEW_DIR, VIEW_DISTANCE);
 export const CAMERA_BASE_POSITION: readonly [number, number, number] = [cameraPos.x, cameraPos.y, cameraPos.z];
 const PARALLAX_SMOOTH_TIME = 0.6;
@@ -38,8 +43,10 @@ export function CameraRig() {
   const dialogOpen = useLabStore((s) => s.ui.dialog !== null);
   const reducedMotion = useLabStore((s) => s.ui.reducedMotion);
   const activityOpen = useLabStore((s) => s.ui.activityOpen);
+  const hasTallObject = useLabStore((s) => s.lab.objects.some((o) => o.kind === "container" && o.type === "burette"));
   const yaw = useRef({ v: 0 });
   const panel = useRef({ shift: 0, extra: 0 });
+  const framing = useRef({ lookY: BASE_LOOKAT.y, distance: VIEW_DISTANCE });
   const pitch = useRef({ v: 0 });
   const target = useRef(new THREE.Vector3());
 
@@ -58,9 +65,12 @@ export function CameraRig() {
     const panelSmooth = reducedMotion ? 0.05 : PANEL_SMOOTH_TIME;
     damp(panel.current, "shift", activityOpen ? ACTIVITY_SHIFT_X : 0, panelSmooth, dt);
     damp(panel.current, "extra", activityOpen ? ACTIVITY_EXTRA_DISTANCE : 0, panelSmooth, dt);
+    const framingSmooth = reducedMotion ? 0.05 : FRAMING_SMOOTH_TIME;
+    damp(framing.current, "lookY", hasTallObject ? BASE_LOOKAT.y : LOW_LOOKAT_Y, framingSmooth, dt);
+    damp(framing.current, "distance", hasTallObject ? VIEW_DISTANCE : LOW_VIEW_DISTANCE, framingSmooth, dt);
 
-    target.current.set(BASE_LOOKAT.x + xOffset + panel.current.shift, BASE_LOOKAT.y, BASE_LOOKAT.z);
-    camera.position.copy(target.current).addScaledVector(VIEW_DIR, VIEW_DISTANCE + panel.current.extra);
+    target.current.set(BASE_LOOKAT.x + xOffset + panel.current.shift, framing.current.lookY, BASE_LOOKAT.z);
+    camera.position.copy(target.current).addScaledVector(VIEW_DIR, framing.current.distance + panel.current.extra);
     const distance = camera.position.distanceTo(target.current);
     target.current.x += Math.tan(yaw.current.v) * distance;
     target.current.y += Math.tan(pitch.current.v) * distance;

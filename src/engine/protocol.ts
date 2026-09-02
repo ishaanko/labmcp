@@ -144,7 +144,7 @@ export type LabCommand =
   | { readonly kind: "ADD_INDICATOR"; readonly containerId: ContainerId; readonly indicator: IndicatorId; readonly drops?: number }
   | { readonly kind: "MEASURE"; readonly containerId: ContainerId; readonly quantity: Measurable; readonly instrumentId?: InstrumentId }
   | { readonly kind: "DISPOSE"; readonly containerId: ContainerId }
-  /** Human drag release. Not undoable, triggers no reactions. */
+  /** Human drag release. Undoable, triggers no reactions. */
   | { readonly kind: "MOVE_OBJECT"; readonly objectId: ObjectId; readonly position: Vec2 }
   | { readonly kind: "TICK"; readonly dtS: number }
   | { readonly kind: "UNDO" }

@@ -46,6 +46,7 @@ const UNDOABLE_KINDS: ReadonlySet<LabCommand["kind"]> = new Set([
   "COOL",
   "ADD_INDICATOR",
   "DISPOSE",
+  "MOVE_OBJECT",
 ]);
 
 // ---------- commit: reactions, observations, seq/history stamping ----------

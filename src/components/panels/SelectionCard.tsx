@@ -129,7 +129,7 @@ function ContainerCard({ container }: { container: PublicContainer }) {
           <Waves size={13} />
           Stir
         </Button>
-        <Button size="sm" variant="danger" onClick={dispose}>
+        <Button size="sm" variant="ghost" className="text-danger" onClick={dispose}>
           <Trash2 size={13} />
           Dispose
         </Button>

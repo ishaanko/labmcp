@@ -14,6 +14,8 @@ const RING_Y = 0.012;
 const RING_GAP = 0.05;
 /** Band width as a fraction of the inner radius (about 0.07 world units on a beaker). */
 const RING_BAND = 0.16;
+/** Opacity floor while a tool call is in flight, so the ring stays on between rapid calls. */
+const BUSY_OPACITY = 0.6;
 
 interface RingTarget {
   x: number;
@@ -25,8 +27,9 @@ interface RingTarget {
 /**
  * Amber additive bench ring under whichever vessel the agent last acted on (C6 item 1). Driven
  * entirely by `visualStore.visuals[id].agentRing`, which `animationQueue.ts` pulses to 0.9 and
- * decays back to 0 on every agent-attributed event; this component only ever reads it and never
- * writes React state, so it costs nothing beyond one small mesh.
+ * decays back to 0 on every agent-attributed event, and held at `BUSY_OPACITY` while
+ * `agentBusy`; this component only ever reads them and never writes React state, so it costs
+ * nothing beyond one small mesh.
  */
 export function AgentRing() {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -51,12 +54,14 @@ export function AgentRing() {
       }
     }
 
+    const store = useLabStore.getState();
+    if (activeId && store.agentBusy) activeValue = Math.max(activeValue, BUSY_OPACITY);
     if (!activeId || activeValue <= 0.001) {
       mesh.visible = false;
       return;
     }
 
-    const obj = useLabStore.getState().lab.objects.find((o) => o.id === activeId);
+    const obj = store.lab.objects.find((o) => o.id === activeId);
     if (!obj) {
       mesh.visible = false;
       return;

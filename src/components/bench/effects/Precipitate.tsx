@@ -3,7 +3,7 @@
 import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { radiusAt, type LatheProfile } from "@/scene/profiles";
+import { heightForVolume, radiusAt, type LatheProfile } from "@/scene/profiles";
 import { hashId, makeRng } from "@/scene/rng";
 import { easeOutCubic } from "@/scene/spring";
 import { visualFor } from "@/scene/visualStore";
@@ -23,7 +23,8 @@ const DUMMY = new THREE.Object3D();
 interface ParticleSeed {
   readonly x: number;
   readonly z: number;
-  readonly spawnY: number;
+  /** Spawn height as a fraction of the live liquid height, so the cloud scales with volume. */
+  readonly spawnT: number;
   readonly floorJitter: number;
   /** Staggers when each particle reaches the floor, so settling reads as a drift, not a snap. */
   readonly phase: number;
@@ -32,7 +33,7 @@ interface ParticleSeed {
   readonly tint: number;
 }
 
-/** Rejection-samples a point inside the vessel's footprint at `y` (C3.7). */
+/** Rejection-samples a point inside the vessel's footprint at height `y` (C3.7). */
 function sampleDisc(profile: LatheProfile, y: number, rng: () => number): readonly [number, number] {
   const r = radiusAt(profile, y) * 0.8;
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -47,12 +48,11 @@ function makeSeeds(profile: LatheProfile, containerId: string): ParticleSeed[] {
   const rng = makeRng(hashId(containerId));
   const seeds: ParticleSeed[] = [];
   for (let i = 0; i < MAX_PARTICLES; i++) {
-    const spawnY = profile.capacityHeight * (0.15 + rng() * 0.65);
-    const [x, z] = sampleDisc(profile, spawnY, rng);
+    const [x, z] = sampleDisc(profile, profile.capacityHeight * 0.3, rng);
     seeds.push({
       x,
       z,
-      spawnY,
+      spawnT: 0.15 + rng() * 0.8,
       floorJitter: rng() * 0.01,
       phase: rng(),
       euler: new THREE.Euler(rng() * Math.PI, rng() * Math.PI, rng() * Math.PI),
@@ -92,6 +92,7 @@ export function Precipitate({ containerId, profile, origin }: PrecipitateProps) 
       return;
     }
 
+    const liquidY = heightForVolume(profile, visualFor(containerId).displayedVolumeMl);
     const active = Math.min(MAX_PARTICLES, Math.round(precipitate.amount * MAX_PARTICLES));
     mesh.count = active;
     if (active === 0) {
@@ -119,7 +120,8 @@ export function Precipitate({ containerId, profile, origin }: PrecipitateProps) 
       const t = Math.max(0, Math.min(1, precipitate.settled * 1.15 - seed.phase * 0.15));
       const eased = easeOutCubic(t);
       const floorY = FLOOR_Y + seed.floorJitter;
-      const y = seed.spawnY + (floorY - seed.spawnY) * eased;
+      const spawnY = liquidY * seed.spawnT;
+      const y = spawnY + (floorY - spawnY) * eased;
       DUMMY.position.set(seed.x, y, seed.z);
       DUMMY.rotation.copy(seed.euler);
       DUMMY.scale.setScalar(1);

@@ -149,7 +149,10 @@ describe("enqueue + tick", () => {
     enqueue({ prev: before, next: after, events, actor: "agent", version: 1 });
 
     expect(targets.get("c_1")?.agentRing).toBeCloseTo(0.9, 5);
-    for (let i = 0; i < 30; i++) tick(1 / 60);
+    // Still held at 1 s (RING_HOLD_MS is 1.6 s), gone by 2 s.
+    for (let i = 0; i < 60; i++) tick(1 / 60);
+    expect(targets.get("c_1")?.agentRing).toBeCloseTo(0.9, 5);
+    for (let i = 0; i < 60; i++) tick(1 / 60);
     expect(targets.get("c_1")?.agentRing).toBe(0);
   });
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { clsx } from "clsx";
-import { checkTitrationAnswer, estimateEquivalenceMl, scenarioObjective, titrationSolution } from "@/engine";
+import { checkTitrationAnswer, estimateEquivalenceMl, titrationSolution } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectObjectiveSteps, selectPublic, selectTitration, type ObjectiveStep } from "@/store/selectors";
 import { Button } from "@/components/ui/Button";
@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/Button";
 const CHECK_PATH_LENGTH = 20;
 
 /**
- * Right-panel titration guide (C7): goal sentence, 4-step checklist, and the reveal moment.
- * Shown when nothing is selected in the titration scenario.
+ * Right-panel titration guide (C7): 4-step checklist and the reveal moment. Shown when nothing
+ * is selected in the titration scenario; the goal sentence itself lives in `ObjectiveChip`.
  */
 export function ObjectiveCard() {
   const steps = useLabStore(selectObjectiveSteps);
@@ -37,10 +37,7 @@ export function ObjectiveCard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-md font-semibold text-ink">Objective</h2>
-        <p className="mt-1 text-sm text-ink-2">{scenarioObjective("titration")}</p>
-      </div>
+      <h2 className="text-md font-semibold text-ink">Objective</h2>
 
       <ul className="flex flex-col gap-2">
         {steps.map((step) => (

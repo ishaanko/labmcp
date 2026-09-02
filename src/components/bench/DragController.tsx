@@ -8,7 +8,7 @@ import { useLabStore } from "@/store/labStore";
 import { containerInFrontOf } from "@/store/selectors";
 import type { DragState, XY } from "@/store/types";
 import { cancelPoseJobs } from "@/scene/animationQueue";
-import { bumpFrame, groundPointAt, pickObjectAt } from "@/scene/sceneRefs";
+import { bumpFrame, groundPointAt, pickObjectAt, pickObjectsAt } from "@/scene/sceneRefs";
 import { setTarget, visualFor } from "@/scene/visualStore";
 import { cellKey, nearestFreeCell, rubberbandClamp, type GridCell } from "@/scene/picking";
 import { GRID_BOUNDS, gridToWorld, worldToGrid } from "./Bench";
@@ -63,9 +63,13 @@ function candidateFor(id: string | null): Candidate | null {
   return obj.kind === "container" ? { kind: "container", object: obj } : { kind: "instrument", object: obj };
 }
 
-function containerUnder(id: string | null): Container | undefined {
-  const obj = objectAt(id);
-  return obj && obj.kind === "container" ? obj : undefined;
+/** The nearest container among the hit ids, skipping an attached probe in front of it. */
+function containerUnder(ids: ReadonlyArray<string>): Container | undefined {
+  for (const id of ids) {
+    const obj = objectAt(id);
+    if (obj && obj.kind === "container") return obj;
+  }
+  return undefined;
 }
 
 function frontOfBurette(burette: Container): Container | undefined {
@@ -211,7 +215,7 @@ export function DragController() {
       const store = useLabStore.getState();
       const id = phase.candidate.object.id;
       const releaseT = performance.now();
-      const targetContainer = containerUnder(pickObjectAt(releaseClient.x, releaseClient.y, id));
+      const targetContainer = containerUnder(pickObjectsAt(releaseClient.x, releaseClient.y, id));
       store.setDrag(null);
 
       if (phase.candidate.kind === "instrument") {
@@ -231,7 +235,13 @@ export function DragController() {
       }
 
       const container = phase.candidate.object;
-      if (targetContainer && container.volumeMl > 0) {
+      if (targetContainer) {
+        if (container.volumeMl <= 0) {
+          // Nothing to pour: back to where it came from, with a reason, instead of a silent hop to some free cell.
+          emitToast({ kind: "info", title: `Nothing to pour: ${container.label} is empty.` });
+          settlePoseTo(id, container.position);
+          return;
+        }
         setTarget(id, { pose: null });
         // Open after the `click` that ends this gesture has dispatched: it lands on the canvas,
         // outside the popup, and would otherwise dismiss the popover in the same tick.
@@ -281,7 +291,7 @@ export function DragController() {
       // `useFrame` (the position tracking below stays there since it writes only `visualStore`).
       if (phase.kind === "dragging" && e.pointerId === phase.pointerId) {
         const id = phase.candidate.object.id;
-        const hoverTarget = containerUnder(pickObjectAt(e.clientX, e.clientY, id));
+        const hoverTarget = containerUnder(pickObjectsAt(e.clientX, e.clientY, id));
         const hoverId = hoverTarget ? hoverTarget.id : null;
         if (hoverId !== phase.hoverId) {
           phase.hoverId = hoverId;

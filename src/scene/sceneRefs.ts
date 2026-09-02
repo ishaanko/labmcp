@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { isInstrumentId } from "@/engine";
 import { raycastGroundPlane } from "./picking";
 
 /**
@@ -54,19 +55,30 @@ function objectIdOf(object: THREE.Object3D): string | null {
 /**
  * Raycasts from a client pointer position against every mesh in the scene carrying
  * `userData.objectId` (the invisible hit volumes in `Vessel.tsx` and the instrument groups),
- * returning the closest one. `excludeId` skips a specific object (typically the one already
- * being dragged, which would otherwise always win since it tracks the pointer 1:1).
+ * returning the hit ids nearest first, deduped. `excludeId` skips a specific object (typically
+ * the one already being dragged, which would otherwise always win since it tracks the pointer 1:1).
  */
-export function pickObjectAt(clientX: number, clientY: number, excludeId?: string): string | null {
-  if (!refs) return null;
+export function pickObjectsAt(clientX: number, clientY: number, excludeId?: string): ReadonlyArray<string> {
+  if (!refs) return [];
   const ndc = clientToNdc(clientX, clientY, refs.domElement);
   raycaster.setFromCamera(ndc, refs.camera);
-  const hits = raycaster.intersectObjects(refs.scene.children, true);
-  for (const hit of hits) {
+  const ids: string[] = [];
+  for (const hit of raycaster.intersectObjects(refs.scene.children, true)) {
     const id = objectIdOf(hit.object);
-    if (id && id !== excludeId) return id;
+    if (id && id !== excludeId && !ids.includes(id)) ids.push(id);
   }
-  return null;
+  return ids;
+}
+
+/**
+ * The object the pointer means: an instrument if the ray touches one, else the nearest hit.
+ * A probe's hit volume is a slim rod that a beaker's or flask's volume easily covers (probe
+ * holder behind the spare beaker, probe attached to the flask), and a pointer on the rod is a
+ * deliberate aim at it.
+ */
+export function pickObjectAt(clientX: number, clientY: number, excludeId?: string): string | null {
+  const ids = pickObjectsAt(clientX, clientY, excludeId);
+  return ids.find(isInstrumentId) ?? ids[0] ?? null;
 }
 
 export interface WorldPoint {

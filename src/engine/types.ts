@@ -363,7 +363,7 @@ export interface PublicLabState {
 export interface Applied {
   readonly state: LabState;
   readonly events: ReadonlyArray<Observation>;
-  /** null for commands that do not enter history (TICK, MEASURE, MOVE_OBJECT, UNDO, RESET, LOAD_SCENARIO, REVEAL). */
+  /** null for commands that do not enter history (TICK, MEASURE, UNDO, RESET, LOAD_SCENARIO, REVEAL). */
   readonly historyEntry: HistoryEntry | null;
 }
 

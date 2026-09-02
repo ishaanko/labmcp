@@ -12,7 +12,7 @@ import { gridToWorld } from "@/components/bench/Bench";
 import { profileForContainerType } from "@/scene/profiles";
 import { clampDt, easeOutCubic } from "@/scene/spring";
 
-const LINGER_MS = 1200;
+const LINGER_MS = 2400;
 const ENTER_MS = 120;
 const EXIT_MS = 160;
 
@@ -27,7 +27,7 @@ function markerAnchor(id: string): readonly [number, number, number] | null {
 
 /**
  * One HTML marker over the vessel the agent's last tool call acted on (C6 item 2): verb +
- * argument, entering 120ms, lingering 1200ms after the call, then a 160ms exit, moving between
+ * argument, entering 120ms, lingering 2400ms after the call, then a 160ms exit, moving between
  * vessels with a spring. `target` (from the store) drives whether it renders at all and what it
  * says; position and fade are refs, written straight to the DOM node in `useFrame`, never
  * through `setState`, so a burst of calls never triggers a React render mid-frame.

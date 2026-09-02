@@ -110,8 +110,8 @@ export function cancelPoseJobs(objectId: string): void {
   setTarget(objectId, { pose: null });
 }
 
-/** How long the ring holds at peak before decaying; long enough to register next to the marker. */
-const RING_HOLD_MS = 450;
+/** How long the ring holds at peak before decaying; long enough to register in a screen recording. */
+const RING_HOLD_MS = 1600;
 
 function pulseAgentRing(id: string | undefined): void {
   if (!id) return;

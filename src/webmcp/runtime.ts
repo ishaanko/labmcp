@@ -1,4 +1,4 @@
-import type { Container, Instrument, LabError, LabState } from "@/engine";
+import type { Container, Instrument, InstrumentType, LabError, LabState } from "@/engine";
 import { parseContainerId, publicView } from "@/engine";
 import { feedId } from "@/lib/ids";
 import { safeObservationLine, summarizeLab, visibleObservationEvents } from "@/lib/summary";
@@ -37,9 +37,9 @@ export function findInstrument(lab: LabState, raw: string): Instrument | undefin
   return lab.objects.find((o): o is Instrument => o.kind === "instrument" && o.id === raw);
 }
 
-/** The first ph_meter on the bench, regardless of what it is currently attached to. */
-export function findBenchPhMeter(lab: LabState): Instrument | undefined {
-  return lab.objects.find((o): o is Instrument => o.kind === "instrument" && o.type === "ph_meter");
+/** The first instrument of `type` on the bench, regardless of what it is currently attached to. */
+export function findBenchInstrument(lab: LabState, type: InstrumentType): Instrument | undefined {
+  return lab.objects.find((o): o is Instrument => o.kind === "instrument" && o.type === type);
 }
 
 /** Builds a successful tool envelope. `state` is snapshotted from `getState()` at call time. */
@@ -94,6 +94,7 @@ export function runTool(def: AnyToolDef) {
         patch.resultSummary = response.observation;
       } else {
         patch.errorCode = response.error.code;
+        patch.resultSummary = response.error.message;
       }
       s.patchFeed(entryId, patch);
       s.setAgentBusy(false);
