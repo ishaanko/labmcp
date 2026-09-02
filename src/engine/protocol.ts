@@ -74,6 +74,17 @@ export type LabEvent =
   | { readonly kind: "PH_CHANGE"; readonly containerId: ContainerId; readonly from: number; readonly to: number }
   | { readonly kind: "NO_REACTION"; readonly containerId: ContainerId; readonly description: string }
   | { readonly kind: "SOLIDS_SETTLED"; readonly containerId: ContainerId }
+  /** A solid reagent dissolved or crystallized after an addition or a temperature change. */
+  | {
+      readonly kind: "SOLUBILITY_CHANGE";
+      readonly containerId: ContainerId;
+      readonly species: SpeciesId;
+      readonly dissolvedG: number;
+      readonly undissolvedG: number;
+      readonly temperatureC: number;
+    }
+  /** The scenario's objective was met for the first time. */
+  | { readonly kind: "OBJECTIVE_COMPLETE"; readonly scenarioId: ScenarioId; readonly detail: string }
   | { readonly kind: "DISPOSED"; readonly containerId: ContainerId; readonly volumeMl: number }
   | {
       readonly kind: "UNDONE";
@@ -133,8 +144,11 @@ export type LabCommand =
       readonly kind: "ADD_REAGENT";
       readonly containerId: ContainerId;
       readonly reagentId: ReagentId;
+      /** mL of a liquid stock; must be 0 for a solid reagent. */
       readonly volumeMl: number;
       readonly concentrationM?: number;
+      /** Grams of a solid reagent; required for reagents of kind "solid", rejected for liquids. */
+      readonly massG?: number;
     }
   | { readonly kind: "TRANSFER_LIQUID"; readonly fromId: ContainerId; readonly toId: ContainerId; readonly volumeMl: number }
   | { readonly kind: "DISPENSE"; readonly buretteId: ContainerId; readonly toId: ContainerId; readonly volumeMl: number }

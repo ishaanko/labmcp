@@ -188,11 +188,27 @@ export type ReagentDef =
       readonly id: ReagentId;
       readonly label: string;
       readonly formula: string;
-      readonly role: "acid" | "base" | "salt" | "carbonate";
+      readonly role: ReagentRole;
       readonly ions: ReadonlyArray<IonYield>;
       readonly defaultM: number;
       readonly maxM: number;
+    }
+  | {
+      /** A dry solid added by mass. Dissolves up to its solubility at the container temperature. */
+      readonly kind: "solid";
+      readonly id: ReagentId;
+      readonly label: string;
+      readonly formula: string;
+      readonly role: ReagentRole;
+      readonly ions: ReadonlyArray<IonYield>;
+      readonly molarMass: number;
+      /** The undissolved form, a species of kind "solid". */
+      readonly solidSpecies: SpeciesId;
+      /** Solubility curve as [temperature °C, grams per 100 mL water], ascending in temperature. */
+      readonly solubilityG100ml: ReadonlyArray<readonly [number, number]>;
     };
+
+export type ReagentRole = "acid" | "base" | "salt" | "carbonate" | "weak_acid" | "weak_base";
 
 /** Which color-response curve an indicator follows; color.ts switches on this instead of the id. */
 export type IndicatorKind = "phenolphthalein" | "universal" | "litmus";
@@ -238,7 +254,7 @@ export type { PrecipitateScale, LabEvent, LabError, Measurable, LabCommand } fro
 
 // ---------- scenarios ----------
 
-export type ScenarioId = "sandbox" | "titration" | "unknown_id";
+export type ScenarioId = "sandbox" | "titration" | "unknown_id" | "precipitation" | "neutralize" | "dilution" | "solubility";
 
 export interface VisibilityPolicy {
   readonly inspectContents: "full" | "non_unknown_only" | "none";
@@ -280,7 +296,58 @@ export type ScenarioState =
       /** Keyed by shelfId. Stripped by publicView. */
       readonly secrets: Readonly<Record<string, StockRecipe>>;
       readonly revealed: boolean;
+    }
+  | {
+      /** Mix two soluble salts and watch a solid form. */
+      readonly kind: "precipitation";
+      readonly seed: number;
+      readonly visibility: VisibilityPolicy;
+      readonly beakerId: ContainerId;
+      readonly revealed: boolean;
+    }
+  | {
+      /** Bring the beaker to targetPh within tolerance, measured with the pH meter. */
+      readonly kind: "neutralize";
+      readonly seed: number;
+      readonly visibility: VisibilityPolicy;
+      readonly beakerId: ContainerId;
+      readonly targetPh: number;
+      readonly tolerance: number;
+      readonly secrets: { readonly startReagent: ReagentId; readonly startM: number };
+      readonly revealed: boolean;
+    }
+  | {
+      /** Prepare targetMl of targetM solute from the stockM shelf stock and water, in any container. */
+      readonly kind: "dilution";
+      readonly seed: number;
+      readonly visibility: VisibilityPolicy;
+      readonly reagentId: ReagentId;
+      readonly stockM: number;
+      readonly targetMl: number;
+      readonly targetM: number;
+      readonly toleranceMl: number;
+      readonly toleranceM: number;
+      readonly revealed: boolean;
+    }
+  | {
+      /** Dissolve a solid, then heat and cool to see solubility change. */
+      readonly kind: "solubility";
+      readonly seed: number;
+      readonly visibility: VisibilityPolicy;
+      readonly beakerId: ContainerId;
+      readonly soluteId: ReagentId;
+      readonly revealed: boolean;
     };
+
+/** One line per objective step, derived from state by scenarios.ts; the UI checklist and the check_objective tool read it. */
+export interface ScenarioProgress {
+  readonly scenarioId: ScenarioId;
+  readonly objective: string;
+  readonly steps: ReadonlyArray<{ readonly label: string; readonly done: boolean }>;
+  readonly complete: boolean;
+  /** A short status line, e.g. "pH 6.4, target 7.0 ± 0.1" or "0.104 M, target 0.100 ± 0.005". */
+  readonly detail: string;
+}
 
 // ---------- public view (what UI and tools may see) ----------
 
@@ -348,7 +415,32 @@ export type PublicScenario =
       readonly revealed: boolean;
       /** Only present once revealed. */
       readonly identities: Readonly<Record<string, StockRecipe>> | null;
-    };
+    }
+  | { readonly kind: "precipitation"; readonly seed: number; readonly visibility: VisibilityPolicy; readonly beakerId: ContainerId; readonly revealed: boolean }
+  | {
+      readonly kind: "neutralize";
+      readonly seed: number;
+      readonly visibility: VisibilityPolicy;
+      readonly beakerId: ContainerId;
+      readonly targetPh: number;
+      readonly tolerance: number;
+      readonly revealed: boolean;
+      /** Only present once revealed. */
+      readonly start: { readonly startReagent: ReagentId; readonly startM: number } | null;
+    }
+  | {
+      readonly kind: "dilution";
+      readonly seed: number;
+      readonly visibility: VisibilityPolicy;
+      readonly reagentId: ReagentId;
+      readonly stockM: number;
+      readonly targetMl: number;
+      readonly targetM: number;
+      readonly toleranceMl: number;
+      readonly toleranceM: number;
+      readonly revealed: boolean;
+    }
+  | { readonly kind: "solubility"; readonly seed: number; readonly visibility: VisibilityPolicy; readonly beakerId: ContainerId; readonly soluteId: ReagentId; readonly revealed: boolean };
 
 export interface PublicLabState {
   readonly clockS: number;
