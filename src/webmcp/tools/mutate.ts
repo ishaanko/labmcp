@@ -79,8 +79,9 @@ const AddReagentInput = z
     reagent_id: z
       .enum([...REAGENT_IDS, ...UNKNOWN_SHELF_IDS])
       .describe('Shelf reagent id from get_lab_state.shelf, e.g. "hcl", "naoh", "water", or a challenge\'s "unknown_acid". See list_reagents.'),
-    volume_ml: VolumeMlSchema,
-    concentration_m: z.number().gt(0).max(2).optional().describe("Concentration in mol/L (0 < x ≤ 2). Omit to use the reagent's default concentration."),
+    volume_ml: VolumeMlSchema.optional().describe("Volume in mL for a liquid reagent, greater than 0. Omit for a solid reagent; use mass_g instead."),
+    mass_g: z.number().gt(0).max(500).optional().describe("Mass in grams for a solid reagent (see list_reagents for which ids are solid). Omit volume_ml when using mass_g."),
+    concentration_m: z.number().gt(0).max(2).optional().describe("Concentration in mol/L (0 < x ≤ 2) for a liquid reagent. Omit to use the reagent's default concentration."),
   })
   .strict();
 
@@ -90,19 +91,48 @@ const addReagent: ToolDef<z.infer<typeof AddReagentInput>> = {
   description:
     "Adds a stock reagent (or water) to a container. Water dilutes without changing species. Overflow fails with " +
     "nothing added; check capacity with measure_volume first if unsure. Mixing may trigger a supported reaction, " +
-    "reported in the observation and in `reaction`. Use add_indicator for indicators and transfer to move existing " +
-    "liquid between containers instead of re-adding stock.",
+    "reported in the observation and in `reaction`. Liquids use volume_ml; solid reagents (see list_reagents) use " +
+    "mass_g instead and dissolve up to their solubility limit. Use add_indicator for indicators and transfer to " +
+    "move existing liquid between containers instead of re-adding stock.",
   input: AddReagentInput,
   readOnly: false,
   targetId: (i) => i.container_id,
-  examples: [{ label: "25 mL 0.1 M HCl into c_1", input: { container_id: "c_1", reagent_id: mintReagentId("hcl"), volume_ml: 25 } }],
+  examples: [
+    { label: "25 mL 0.1 M HCl into c_1", input: { container_id: "c_1", reagent_id: mintReagentId("hcl"), volume_ml: 25 } },
+  ],
   handler: async (input, ctx) => {
     const container = findContainer(ctx.getState().lab, input.container_id);
     if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const def = reagentDef(input.reagent_id);
+    const isSolid = def?.kind === "solid";
+    const label = def?.label ?? input.reagent_id;
+
+    // volumeMl/massG are resolved per branch so each stays narrowed to `number` where it must be,
+    // instead of casting a still-optional field once the branches rejoin below.
+    let volumeMl: number;
+    let massG: number | undefined;
+    if (isSolid) {
+      if (input.mass_g === undefined) {
+        return err(ctx.getState, "INVALID_AMOUNT", `${label} is a solid reagent; provide mass_g in grams.`, ["Use mass_g instead of volume_ml for solid reagents."]);
+      }
+      if (input.volume_ml !== undefined) {
+        return err(ctx.getState, "INVALID_AMOUNT", `${label} is a solid reagent; omit volume_ml.`, ["Solids are added by mass; drop volume_ml and keep mass_g."]);
+      }
+      volumeMl = 0;
+      massG = input.mass_g;
+    } else {
+      if (input.volume_ml === undefined) {
+        return err(ctx.getState, "INVALID_AMOUNT", `${label} is a liquid reagent; provide volume_ml in mL.`, ["Use volume_ml instead of mass_g for liquid reagents."]);
+      }
+      if (input.mass_g !== undefined) {
+        return err(ctx.getState, "INVALID_AMOUNT", `${label} is a liquid reagent; mass_g is only for solids.`, ["Use volume_ml instead of mass_g."]);
+      }
+      volumeMl = input.volume_ml;
+      massG = undefined;
+    }
 
     const dr = await ctx.dispatch(
-      { kind: "ADD_REAGENT", containerId: container.id, reagentId: input.reagent_id, volumeMl: input.volume_ml, concentrationM: input.concentration_m },
+      { kind: "ADD_REAGENT", containerId: container.id, reagentId: input.reagent_id, volumeMl, concentrationM: input.concentration_m, massG },
       "agent",
     );
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
@@ -110,10 +140,19 @@ const addReagent: ToolDef<z.infer<typeof AddReagentInput>> = {
     const updatedLab = ctx.getState().lab;
     const reaction = reactionResult(dr.events.map((o) => o.event), publicContainer(updatedLab, container.id));
     const updated = findContainer(updatedLab, input.container_id);
-    const concentrationM = input.concentration_m ?? (def && def.kind === "solution" ? def.defaultM : null);
+    const stock = updatedLab.shelf.find((s) => s.reagentId === input.reagent_id);
+    const concentrationM = input.concentration_m ?? stock?.concentrationM ?? (def && def.kind === "solution" ? def.defaultM : null);
     return ok(
       ctx.getState,
-      { containerId: container.id, addedMl: input.volume_ml, reagentId: input.reagent_id, concentrationM, newVolumeMl: updated?.volumeMl ?? container.volumeMl, reaction },
+      {
+        containerId: container.id,
+        addedMl: isSolid ? null : volumeMl,
+        addedG: isSolid ? massG : null,
+        reagentId: input.reagent_id,
+        concentrationM,
+        newVolumeMl: updated?.volumeMl ?? container.volumeMl,
+        reaction,
+      },
       dr.observation,
       eventStrings(ctx.getState, dr),
     );

@@ -22,6 +22,10 @@ export type WebMcpProvider = "native" | "polyfill" | "none";
 
 export interface UiState {
   selectedId: string | null;
+  /** Last container id passed to `select()`. Survives deselection, so the objective card can keep
+   * showing a scenario like dilution's "the container you were just filling" once the panel falls
+   * back from `SelectionCard` to `ObjectiveCard`. */
+  lastSelectedContainerId: string | null;
   hoveredId: string | null;
   drag: DragState | null;
   dialog: PendingDialog | null;

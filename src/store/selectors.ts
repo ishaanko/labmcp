@@ -1,4 +1,14 @@
-import { publicView, type CurvePoint, type Instrument, type LabState, type PublicContainer, type PublicLabState, type Vec2 } from "@/engine";
+import {
+  publicView,
+  scenarioProgress,
+  type CurvePoint,
+  type Instrument,
+  type LabState,
+  type PublicContainer,
+  type PublicLabState,
+  type ScenarioProgress,
+  type Vec2,
+} from "@/engine";
 import { notebookRows, type NotebookRow } from "@/lib/notebook";
 import type { FeedEntry, LabStore } from "./types";
 
@@ -119,29 +129,21 @@ export const selectTitration: Selector<TitrationSelection | null> = memoOnLab((s
   };
 });
 
-export interface ObjectiveStep {
-  readonly key: string;
-  readonly label: string;
-  readonly done: boolean;
-}
+/** Every non-sandbox scenario's checklist, detail line, and completion flag, straight from the engine. Null in sandbox, which has no objective. */
+export const selectObjective: Selector<ScenarioProgress | null> = memoOnLab((state) =>
+  selectPublic(state).scenario.kind === "sandbox" ? null : scenarioProgress(state.lab),
+);
 
-/** Titration checklist shown in the objective chip and bench summary; empty outside that scenario. */
-export const selectObjectiveSteps: Selector<ReadonlyArray<ObjectiveStep>> = memoOnLab((state) => {
-  const pub = selectPublic(state);
-  if (pub.scenario.kind !== "titration") return [];
-  const { flaskId, revealed } = pub.scenario;
-  const flask = pub.objects.filter(isPublicContainer).find((c) => c.id === flaskId);
-  const probeAttached = pub.objects.some((o) => o.kind === "instrument" && o.type === "ph_meter" && o.attachedTo === flaskId);
-  const indicatorAdded = flask !== undefined && flask.indicators.length > 0;
-  const endpointReached = selectTitration(state)?.endpointHint != null;
-
-  return [
-    { key: "probe", label: "Attach pH probe", done: probeAttached },
-    { key: "indicator", label: "Add indicator", done: indicatorAdded },
-    { key: "endpoint", label: "Reach endpoint", done: endpointReached },
-    { key: "reveal", label: "Reveal result", done: revealed },
-  ];
-});
+/**
+ * The container last passed to `select()` (survives deselection). The dilution objective card
+ * reads this for "the beaker you're filling", since dilution has no fixed target container the
+ * way titration has a flask.
+ */
+export const selectLastSelectedContainer: Selector<PublicContainer | undefined> = (state) => {
+  const id = state.ui.lastSelectedContainerId;
+  if (id === null) return undefined;
+  return selectContainers(state).find((c) => c.id === id);
+};
 
 export interface AgentTarget {
   readonly targetId: string;

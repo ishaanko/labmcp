@@ -1,11 +1,21 @@
 import { z } from "zod";
-import { constants, INDICATORS, REAGENTS } from "@/engine";
+import { constants, INDICATORS, REAGENTS, scenarioProgress } from "@/engine";
 
 const { CAPACITY_ML } = constants;
 import { notebookRows, renderNotebookMarkdown } from "@/lib/notebook";
 import { errFromLabError, eventStrings, findBenchInstrument, findContainer, missingContainerError, ok } from "../runtime";
 import { ContainerIdSchema, EmptyInput } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
+
+/** Nearest solubility-curve point to 20 °C, plus whether the curve rises with temperature. */
+function solubilityNote(curve: ReadonlyArray<readonly [number, number]>): string {
+  const first = curve[0];
+  if (!first) return "Solubility data unavailable.";
+  const nearest = curve.reduce((best, point) => (Math.abs(point[0] - 20) < Math.abs(best[0] - 20) ? point : best), first);
+  const last = curve[curve.length - 1] ?? first;
+  const rising = last[1] > first[1];
+  return `About ${nearest[1]} g per 100 mL water at ${nearest[0]} °C${rising ? ", more soluble as it warms" : ""}.`;
+}
 
 const getLabState: ToolDef<Record<string, never>> = {
   name: "get_lab_state",
@@ -28,27 +38,51 @@ const listReagents: ToolDef<Record<string, never>> = {
   name: "list_reagents",
   title: "List reagents",
   description:
-    "Lists every reagent stocked on the shelf (id, formula, role, default and max concentration) plus the available " +
-    "indicators and their color ranges. Unknown samples from a challenge scenario are never listed here; use " +
-    "get_lab_state to see what is on the bench.",
+    "Lists every reagent stocked on the shelf: id, kind (solution or solid), formula, role (acid, base, salt, " +
+    "weak_acid, weak_base, carbonate), default and max concentration for liquids, and molar mass plus a solubility " +
+    "note for solids. Also lists the available indicators and their color ranges. Unknown samples from a challenge " +
+    "scenario are never listed here; use get_lab_state to see what is on the bench.",
   input: EmptyInput,
   readOnly: true,
   examples: [{ label: "List the shelf", input: {} }],
   handler: async (_input, ctx) => {
-    const reagents = REAGENTS.map((r) =>
-      r.kind === "water"
-        ? { id: r.id, label: r.label, formula: "H2O", role: "solvent", defaultConcentrationM: null, maxConcentrationM: null }
-        : {
-            id: r.id,
-            label: r.label,
-            formula: r.formula,
-            role: r.role,
-            defaultConcentrationM: r.defaultM,
-            maxConcentrationM: r.maxM,
-          },
-    );
+    const reagents = REAGENTS.map((r) => {
+      if (r.kind === "water") {
+        return { id: r.id, label: r.label, kind: r.kind, formula: "H2O", role: "solvent", defaultConcentrationM: null, maxConcentrationM: null, molarMass: null, solubilityNote: null };
+      }
+      if (r.kind === "solution") {
+        return { id: r.id, label: r.label, kind: r.kind, formula: r.formula, role: r.role, defaultConcentrationM: r.defaultM, maxConcentrationM: r.maxM, molarMass: null, solubilityNote: null };
+      }
+      return {
+        id: r.id,
+        label: r.label,
+        kind: r.kind,
+        formula: r.formula,
+        role: r.role,
+        defaultConcentrationM: null,
+        maxConcentrationM: null,
+        molarMass: r.molarMass,
+        solubilityNote: solubilityNote(r.solubilityG100ml),
+      };
+    });
     const indicators = INDICATORS.map((i) => ({ id: i.id, label: i.label, ranges: i.ranges }));
     return ok(ctx.getState, { reagents, indicators }, "Listed shelf reagents and indicators.", []);
+  },
+};
+
+const checkObjective: ToolDef<Record<string, never>> = {
+  name: "check_objective",
+  title: "Check objective",
+  description:
+    "Returns the active scenario's goal: which steps are done, whether it is complete, and a short status line " +
+    "(e.g. current pH vs target, or current molarity vs target). Call this before planning so you know what is " +
+    "left; get_lab_state's `objective` field carries the same information.",
+  input: EmptyInput,
+  readOnly: true,
+  examples: [{ label: "Check progress", input: {} }],
+  handler: async (_input, ctx) => {
+    const progress = scenarioProgress(ctx.getState().lab);
+    return ok(ctx.getState, progress, progress.detail, []);
   },
 };
 
@@ -232,6 +266,7 @@ export const readTools: ReadonlyArray<AnyToolDef> = [
   getLabState,
   listReagents,
   listEquipment,
+  checkObjective,
   measurePh,
   measureTemperature,
   measureVolume,

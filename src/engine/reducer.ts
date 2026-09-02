@@ -10,6 +10,8 @@ import { derivePh } from "./ph";
 import { deriveObservations, eventsForFired } from "./observations";
 import { resolveReactions } from "./reactions";
 import { loadScenario, SCENARIO_IDS } from "./scenarios";
+import { scenarioProgress, solubilityReading } from "./scenarioProgress";
+import { equilibrateSolubility } from "./solubility";
 import {
   assertNever,
   err,
@@ -114,18 +116,62 @@ function applyTitrationCurveHook(state: LabState, command: LabCommand): LabState
   return { ...state, scenario: { ...scenario, curve: [...scenario.curve, point] } };
 }
 
+/**
+ * Latches the solubility scenario's four sticky progress flags: each stays true forever once
+ * reached, computed fresh from the beaker's current dissolved/undissolved KNO3 and temperature
+ * so it stays correct regardless of which command (or TICK) produced that state.
+ */
+function applySolubilityMilestonesHook(state: LabState): LabState {
+  const scenario = state.scenario;
+  if (scenario.kind !== "solubility") return state;
+  const beaker = state.objects.find((o): o is Container => o.kind === "container" && o.id === scenario.beakerId);
+  if (!beaker) return state;
+
+  const prior = scenario.milestones ?? { addedEnoughSolute: false, hadUndissolved: false, heatedFullyDissolved: false, cooledWithCrystals: false };
+  const { totalG, hasUndissolved } = solubilityReading(beaker);
+  const heatedFullyDissolved = prior.heatedFullyDissolved || (beaker.temperatureC > 60 && !hasUndissolved && totalG > 0);
+  const milestones = {
+    addedEnoughSolute: prior.addedEnoughSolute || totalG >= 20,
+    hadUndissolved: prior.hadUndissolved || hasUndissolved,
+    heatedFullyDissolved,
+    // Only counts once the solute has fully dissolved hot; otherwise a fresh room-temperature
+    // deposit with leftover solid would satisfy "cooled below 30 with crystals" immediately.
+    cooledWithCrystals: prior.cooledWithCrystals || (heatedFullyDissolved && beaker.temperatureC < 30 && hasUndissolved),
+  };
+  return { ...state, scenario: { ...scenario, milestones } };
+}
+
+/**
+ * Appends an OBJECTIVE_COMPLETE observation the moment scenarioProgress flips from incomplete to
+ * complete, exactly once per transition: comparing prev/next rather than tracking a separate
+ * "already fired" flag means UNDOing past completion and re-completing fires it again, which is
+ * the desired behavior, while replaying an already-complete state never re-fires it.
+ */
+function withObjectiveComplete(prevState: LabState, result: Result<Applied, LabError>): Result<Applied, LabError> {
+  if (!result.ok) return result;
+  const { state: nextState, events, historyEntry } = result.value;
+  if (scenarioProgress(prevState).complete) return result;
+  const progress = scenarioProgress(nextState);
+  if (!progress.complete) return result;
+
+  const seq = nextState.nextSeq;
+  const observation: Observation = { seq, clockS: nextState.clockS, actor: "system", event: { kind: "OBJECTIVE_COMPLETE", scenarioId: nextState.scenario.kind, detail: progress.detail } };
+  const withObservation: LabState = { ...nextState, observations: [...nextState.observations, observation], nextSeq: seq + 1 };
+  return ok({ state: withObservation, events: [...events, observation], historyEntry });
+}
+
 function applyGeneric(state: LabState, command: LabCommand, actor: Actor): Result<Applied, LabError> {
   const validated = validate(state, command);
   if (!validated.ok) return err(validated.error);
   const { state: physicalState, touched, events: physicalEvents } = applyPhysical(state, validated.value);
   const { state: committed, events } = commitTouched(physicalState, command, actor, state, touched, physicalEvents);
 
-  const withCurve = applyTitrationCurveHook(committed, command);
+  const withHooks = applySolubilityMilestonesHook(applyTitrationCurveHook(committed, command));
   const undoable = UNDOABLE_KINDS.has(command.kind);
-  if (!undoable) return ok({ state: withCurve, events, historyEntry: null });
+  if (!undoable) return ok({ state: withHooks, events, historyEntry: null });
 
   const historyEntry: HistoryEntry = { seq: state.nextSeq, actor, command, events, snapshot: state };
-  return ok({ state: { ...withCurve, history: [...withCurve.history, historyEntry] }, events, historyEntry });
+  return ok({ state: { ...withHooks, history: [...withHooks.history, historyEntry] }, events, historyEntry });
 }
 
 function applyUndo(state: LabState, actor: Actor): Result<Applied, LabError> {
@@ -159,6 +205,10 @@ function withRevealed(scenario: ScenarioState, revealed: boolean): ScenarioState
       return scenario;
     case "titration":
     case "unknown_id":
+    case "precipitation":
+    case "neutralize":
+    case "dilution":
+    case "solubility":
       return { ...scenario, revealed };
     default:
       return assertNever(scenario);
@@ -174,23 +224,26 @@ function applyReveal(state: LabState, actor: Actor): Result<Applied, LabError> {
 }
 
 export function applyCommand(state: LabState, command: LabCommand, actor: Actor = "human"): Result<Applied, LabError> {
-  switch (command.kind) {
-    case "TICK": {
-      const validated = validate(state, command);
-      if (!validated.ok) return err(validated.error);
-      return ok(advanceTime(state, command.dtS));
+  const result = ((): Result<Applied, LabError> => {
+    switch (command.kind) {
+      case "TICK": {
+        const validated = validate(state, command);
+        if (!validated.ok) return err(validated.error);
+        return ok(advanceTime(state, command.dtS));
+      }
+      case "UNDO":
+        return applyUndo(state, actor);
+      case "RESET":
+        return applyLoadScenario(state, state.scenario.kind, state.scenario.seed, actor);
+      case "LOAD_SCENARIO":
+        return applyLoadScenario(state, command.scenarioId, command.seed, actor);
+      case "REVEAL":
+        return applyReveal(state, actor);
+      default:
+        return applyGeneric(state, command, actor);
     }
-    case "UNDO":
-      return applyUndo(state, actor);
-    case "RESET":
-      return applyLoadScenario(state, state.scenario.kind, state.scenario.seed, actor);
-    case "LOAD_SCENARIO":
-      return applyLoadScenario(state, command.scenarioId, command.seed, actor);
-    case "REVEAL":
-      return applyReveal(state, actor);
-    default:
-      return applyGeneric(state, command, actor);
-  }
+  })();
+  return withObjectiveComplete(state, result);
 }
 
 // ---------- time ----------
@@ -229,7 +282,11 @@ function tickContainer(container: Container, dtS: number, ambientC: number): { c
 
   const gasEffects = container.gasEffects.map((g) => ({ ...g, remainingS: g.remainingS - dtS })).filter((g) => g.remainingS > 0);
 
-  return { container: { ...container, temperatureC, stir, solids, gasEffects }, events };
+  // Temperature drifting toward a HEAT/COOL target can cross a solid reagent's solubility limit
+  // mid-tick (e.g. cooling back below KNO3's curve), so every tick re-equilibrates dissolved vs.
+  // undissolved for whichever solids are present, same as physical.ts does after ADD_REAGENT.
+  const { container: equilibrated, events: solubilityEvents } = equilibrateSolubility({ ...container, temperatureC, stir, solids, gasEffects });
+  return { container: equilibrated, events: [...events, ...solubilityEvents] };
 }
 
 /** Advances the clock by dtS: thermal relaxation, stir countdown/settling, gas expiry. Never triggers reactions (A3.5). */
@@ -246,7 +303,7 @@ export function advanceTime(state: LabState, dtS: number): Applied {
     }
     return next;
   });
-  const nextState: LabState = { ...state, clockS, objects, observations: [...state.observations, ...observations], nextSeq: seq };
+  const nextState = applySolubilityMilestonesHook({ ...state, clockS, objects, observations: [...state.observations, ...observations], nextSeq: seq });
   return { state: nextState, events: observations, historyEntry: null };
 }
 

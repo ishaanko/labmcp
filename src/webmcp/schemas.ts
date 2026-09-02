@@ -46,7 +46,7 @@ export const IndicatorIdSchema = z
     "phenolphthalein: colorless below pH ~8.2, pink above. universal: red/orange/yellow/green/blue/purple across pH 1 to 14. litmus: red in acid, blue in base.",
   );
 
-export const SCENARIO_ID_VALUES = ["sandbox", "titration", "unknown_id"] as const;
+export const SCENARIO_ID_VALUES = ["sandbox", "titration", "unknown_id", "precipitation", "neutralize", "dilution", "solubility"] as const;
 export const ScenarioIdSchema = z.enum(SCENARIO_ID_VALUES);
 
 export const EmptyInput = z.object({}).strict();

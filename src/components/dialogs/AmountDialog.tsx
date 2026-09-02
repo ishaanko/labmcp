@@ -16,6 +16,11 @@ import { useAnchorRect } from "./useAnchorRect";
 
 const REAGENT_PRESETS_ML = [1, 5, 10, 25, 50];
 const INDICATOR_PRESETS_DROPS = [1, 2, 3];
+const SOLID_PRESETS_G = [1, 2, 5, 10, 20];
+const SOLID_MIN_G = 0.5;
+const SOLID_MAX_G = 50;
+const SOLID_STEP_G = 0.5;
+const SOLID_DEFAULT_G = 1;
 
 type AmountPendingDialog = Extract<PendingDialog, { kind: "add_reagent" | "add_indicator" }>;
 
@@ -24,7 +29,8 @@ function selectAmountDialog(dialog: PendingDialog | null): AmountPendingDialog |
 }
 
 interface AmountTarget {
-  readonly kind: "add_reagent" | "add_indicator";
+  /** "mass" dispatches `massG` with `volumeMl: 0`; "volume" and "drops" dispatch as before. */
+  readonly mode: "volume" | "mass" | "drops";
   readonly containerId: string;
   readonly min: number;
   readonly max: number;
@@ -37,16 +43,35 @@ interface AmountTarget {
   readonly stockLine: string | null;
 }
 
+function buildSolidTarget(dialog: Extract<AmountPendingDialog, { kind: "add_reagent" }>, formula: string): AmountTarget {
+  const stock = useLabStore.getState().lab.shelf.find((s) => s.reagentId === dialog.reagentId);
+  return {
+    mode: "mass",
+    containerId: dialog.containerId,
+    min: SOLID_MIN_G,
+    max: SOLID_MAX_G,
+    step: SOLID_STEP_G,
+    initial: SOLID_DEFAULT_G,
+    unit: "g",
+    presets: SOLID_PRESETS_G,
+    name: stock?.label ?? dialog.reagentId,
+    swatch: isReagentId(dialog.reagentId) ? ROLE_HEX[reagentRole(dialog.reagentId)] : ROLE_HEX.water,
+    stockLine: `${formula}, dry`,
+  };
+}
+
 function buildTarget(dialog: AmountPendingDialog): AmountTarget {
   const state = useLabStore.getState();
 
   if (dialog.kind === "add_reagent") {
+    const known = isReagentId(dialog.reagentId) ? reagentDef(dialog.reagentId) : undefined;
+    if (known?.kind === "solid") return buildSolidTarget(dialog, known.formula);
+
     const stock = state.lab.shelf.find((s) => s.reagentId === dialog.reagentId);
     // Only a challenge's hidden stock ("unknown_acid") hides its concentration; water has none.
-    const known = isReagentId(dialog.reagentId) ? reagentDef(dialog.reagentId) : undefined;
     const stockLine = !stock ? null : stock.concentrationM !== null ? `${stock.concentrationM} M stock` : known ? null : "Concentration hidden";
     return {
-      kind: "add_reagent",
+      mode: "volume",
       containerId: dialog.containerId,
       min: 0,
       max: Math.max(0.5, dialog.maxMl),
@@ -62,7 +87,7 @@ function buildTarget(dialog: AmountPendingDialog): AmountTarget {
 
   const def = isIndicatorIdShape(dialog.indicatorId) ? indicatorDef(dialog.indicatorId) : undefined;
   return {
-    kind: "add_indicator",
+    mode: "drops",
     containerId: dialog.containerId,
     min: 0,
     max: 3,
@@ -114,9 +139,11 @@ function AmountDialogContent({ dialog }: { dialog: AmountPendingDialog }) {
       openDialog(null);
       return;
     }
-    if (target.kind === "add_reagent" && dialog.kind === "add_reagent" && isReagentId(dialog.reagentId)) {
+    if (target.mode === "mass" && dialog.kind === "add_reagent" && isReagentId(dialog.reagentId)) {
+      void dispatch({ kind: "ADD_REAGENT", containerId: target.containerId, reagentId: dialog.reagentId, volumeMl: 0, massG: value }, "human");
+    } else if (target.mode === "volume" && dialog.kind === "add_reagent" && isReagentId(dialog.reagentId)) {
       void dispatch({ kind: "ADD_REAGENT", containerId: target.containerId, reagentId: dialog.reagentId, volumeMl: value }, "human");
-    } else if (target.kind === "add_indicator" && dialog.kind === "add_indicator" && isIndicatorIdShape(dialog.indicatorId)) {
+    } else if (target.mode === "drops" && dialog.kind === "add_indicator" && isIndicatorIdShape(dialog.indicatorId)) {
       void dispatch({ kind: "ADD_INDICATOR", containerId: target.containerId, indicator: dialog.indicatorId, drops: value }, "human");
     }
     openDialog(null);
@@ -150,7 +177,7 @@ function AmountDialogContent({ dialog }: { dialog: AmountPendingDialog }) {
       >
         {target.presets.map((preset) => (
           <ToggleGroupItem key={preset} value={String(preset)} className="tabular-nums">
-            {preset} {target.unit === "mL" ? "mL" : "drop" + (preset === 1 ? "" : "s")}
+            {preset} {target.unit === "drops" ? "drop" + (preset === 1 ? "" : "s") : target.unit}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
@@ -166,7 +193,7 @@ function AmountDialogContent({ dialog }: { dialog: AmountPendingDialog }) {
         />
       </div>
 
-      {target.kind === "add_reagent" ? (
+      {target.mode === "volume" ? (
         <p className="text-xs text-muted-foreground">
           {round2(capacityMl - baseVolumeMl)} mL free of {capacityMl} mL capacity
         </p>

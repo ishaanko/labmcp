@@ -47,7 +47,7 @@ export function DevConsole(): React.JSX.Element | null {
   const allowed = useMemo(() => consoleAllowed(), []);
 
   // The registry fills in WebMcpBoot's effect, after this component's first render, so subscribe to
-  // the tool count to re-render once registration lands. Sorting 24 entries per render is cheap.
+  // the tool count to re-render once registration lands. Sorting 25 entries per render is cheap.
   useLabStore((s) => s.ui.webmcp.toolCount);
   const tools = [...toolRegistry.values()].sort((a, b) => a.name.localeCompare(b.name));
   const [tab, setTab] = useState<"call" | "script">("call");

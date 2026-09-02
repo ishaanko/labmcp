@@ -3,13 +3,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/engine", () => ({
   publicView: (lab: { pub: unknown }) => lab.pub,
   describeEvent: (e: { kind: string }) => `desc:${e.kind}`,
+  scenarioProgress: (lab: { pub: { scenario: { kind: string } } }) => ({
+    scenarioId: lab.pub.scenario.kind,
+    objective: "test objective",
+    steps: [{ label: "Step one", done: false }],
+    complete: false,
+    detail: "",
+  }),
 }));
 
 import {
   selectContainer,
   selectContainers,
   selectNotebook,
-  selectObjectiveSteps,
+  selectObjective,
   selectPublic,
   selectTitration,
 } from "../selectors";
@@ -104,23 +111,15 @@ describe("selectTitration", () => {
   });
 });
 
-describe("selectObjectiveSteps", () => {
-  it("is empty outside the titration scenario", () => {
-    expect(selectObjectiveSteps(makeState())).toEqual([]);
+describe("selectObjective", () => {
+  it("is null in the sandbox scenario", () => {
+    expect(selectObjective(makeState())).toBeNull();
   });
 
-  it("marks steps done as the checklist is satisfied", () => {
-    const flask = container("c_flask", { indicators: [{ indicator: "phenolphthalein", drops: 2 }] });
-    const probe = instrument("i_ph", { attachedTo: "c_flask" });
-    const pub = {
-      objects: [flask, probe],
-      scenario: { kind: "titration", flaskId: "c_flask", revealed: false, curve: [] },
-    };
-    const steps = selectObjectiveSteps(makeState({ pub }));
-    const byKey = Object.fromEntries(steps.map((s) => [s.key, s.done]));
-    expect(byKey.probe).toBe(true);
-    expect(byKey.indicator).toBe(true);
-    expect(byKey.endpoint).toBe(false);
-    expect(byKey.reveal).toBe(false);
+  it("delegates to the engine's scenarioProgress outside sandbox", () => {
+    const pub = { objects: [], scenario: { kind: "titration" } };
+    const progress = selectObjective(makeState({ pub }));
+    expect(progress?.scenarioId).toBe("titration");
+    expect(progress?.steps).toEqual([{ label: "Step one", done: false }]);
   });
 });

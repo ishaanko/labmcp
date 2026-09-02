@@ -21,8 +21,8 @@ function isJsonSchemaObject(value: unknown): value is JsonSchemaObject {
 describe("webmcp tool schemas", () => {
   const tools = buildTools();
 
-  it("registers exactly the documented catalog (23 + submit_conclusion)", () => {
-    expect(tools).toHaveLength(24);
+  it("registers exactly the documented catalog (24 + submit_conclusion)", () => {
+    expect(tools).toHaveLength(25);
   });
 
   it("every tool name is unique and matches the WebMCP name pattern", () => {
@@ -56,6 +56,7 @@ describe("webmcp tool schemas", () => {
     expect(readOnlyNames).toEqual(
       [
         "calculate_moles",
+        "check_objective",
         "get_lab_state",
         "get_notebook",
         "get_titration_data",

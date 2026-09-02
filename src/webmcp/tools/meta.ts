@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { checkTitrationAnswer, checkUnknownAnswers, REAGENT_IDS, scenarioObjective, type ReagentId } from "@/engine";
+import { checkTitrationAnswer, checkUnknownAnswers, REAGENT_IDS, SCENARIO_TITLES, scenarioObjective, scenarioProgress, type ReagentId, type ScenarioId } from "@/engine";
 import { err, errFromLabError, eventStrings, ok } from "../runtime";
-import { ContainerIdSchema, ScenarioIdSchema } from "../schemas";
+import { ContainerIdSchema, SCENARIO_ID_VALUES, ScenarioIdSchema } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
 
 const undoLastAction: ToolDef<Record<string, never>> = {
@@ -42,16 +42,13 @@ const resetExperiment: ToolDef<{ confirm: true }> = {
   },
 };
 
-const loadScenarioTool: ToolDef<{ scenario_id: "sandbox" | "titration" | "unknown_id"; seed?: number }> = {
+const loadScenarioTool: ToolDef<{ scenario_id: ScenarioId; seed?: number }> = {
   name: "load_scenario",
   title: "Load scenario",
-  description:
-    "Loads a scenario onto a fresh bench: 'sandbox' (free experimentation), 'titration' (a burette/flask acid-base " +
-    "setup with a hidden analyte concentration), or 'unknown_id' (unlabeled samples to identify). Uses the fixed " +
-    "demo seed 42 unless a different seed is given.",
+  description: `Loads a scenario onto a fresh bench. ${SCENARIO_ID_VALUES.map((id) => `'${id}': ${SCENARIO_TITLES[id]}.`).join(" ")} Uses the fixed demo seed 42 unless a different seed is given.`,
   input: z
     .object({
-      scenario_id: ScenarioIdSchema.describe("Which scenario to load: 'sandbox', 'titration', or 'unknown_id'."),
+      scenario_id: ScenarioIdSchema.describe("Which scenario to load."),
       seed: z.int().min(0).optional().describe("RNG seed. Defaults to the fixed demo seed 42."),
     })
     .strict(),
@@ -72,25 +69,37 @@ const AnswerSchema = z
   })
   .strict();
 
-const submitConclusion: ToolDef<{ answers: ReadonlyArray<{ container_id: string; claim?: ReagentId; concentration_m?: number }> }> = {
+const submitConclusion: ToolDef<{ answers?: ReadonlyArray<{ container_id: string; claim?: ReagentId; concentration_m?: number }> }> = {
   name: "submit_conclusion",
   title: "Submit conclusion",
   description:
-    "Ends the active challenge and grades your answer: for 'unknown_id', one { container_id, claim } per sample, " +
-    "claim being a reagent id guess; for 'titration', one { container_id, concentration_m } with the claimed " +
-    "analyte molarity. This is the only path that reveals hidden identities, and it ends the challenge, so call it " +
-    "once you're confident. Fails with PERMISSION_DENIED outside an active challenge scenario.",
-  input: z.object({ answers: z.array(AnswerSchema).min(1).max(10).describe("One answer per unknown sample, or a single answer for the titration analyte.") }).strict(),
+    "Ends the active challenge and grades your answer. For 'unknown_id' (up to four unknown samples), one " +
+    "{ container_id, claim } per sample, claim being a reagent id guess. For 'titration', one { container_id, " +
+    "concentration_m } with the claimed analyte molarity. For 'neutralize' and 'dilution', omit answers entirely: " +
+    "there is nothing to guess, this just reveals the container and reports whether the objective was met. This " +
+    "is the only path that reveals hidden identities, and it ends the challenge, so call it once you're confident. " +
+    "Fails with PERMISSION_DENIED outside an active challenge scenario.",
+  input: z
+    .object({
+      answers: z
+        .array(AnswerSchema)
+        .max(10)
+        .optional()
+        .describe("One answer per unknown sample, or a single answer for the titration analyte. Omit for neutralize and dilution."),
+    })
+    .strict(),
   readOnly: false,
   examples: [{ label: "Answer the titration", input: { answers: [{ container_id: "c_1", concentration_m: 0.12 }] } }],
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
-    if (lab.scenario.kind === "sandbox") {
-      return err(ctx.getState, "PERMISSION_DENIED", "There is no active challenge to conclude in the sandbox scenario.");
+    const answers = input.answers ?? [];
+
+    if (lab.scenario.kind === "sandbox" || lab.scenario.kind === "precipitation" || lab.scenario.kind === "solubility") {
+      return err(ctx.getState, "PERMISSION_DENIED", "There is no active challenge to conclude in this scenario.");
     }
 
     if (lab.scenario.kind === "titration") {
-      const claimedM = input.answers[0]?.concentration_m;
+      const claimedM = answers[0]?.concentration_m;
       if (claimedM === undefined) return err(ctx.getState, "INVALID_INPUT", "Provide concentration_m for the titration analyte.");
       const check = checkTitrationAnswer(lab, claimedM);
       const dr = await ctx.dispatch({ kind: "REVEAL" }, "agent");
@@ -98,22 +107,31 @@ const submitConclusion: ToolDef<{ answers: ReadonlyArray<{ container_id: string;
       return ok(ctx.getState, { correct: check?.correct ?? false, expected: check ? { analyteM: check.analyteM } : null }, dr.observation, eventStrings(ctx.getState, dr));
     }
 
-    const guesses: Record<string, ReagentId> = {};
-    for (const sample of lab.scenario.samples) {
-      const answer = input.answers.find((a) => a.container_id === sample.containerId);
-      if (answer?.claim !== undefined) guesses[sample.shelfId] = answer.claim;
+    if (lab.scenario.kind === "unknown_id") {
+      const guesses: Record<string, ReagentId> = {};
+      for (const sample of lab.scenario.samples) {
+        const answer = answers.find((a) => a.container_id === sample.containerId);
+        if (answer?.claim !== undefined) guesses[sample.shelfId] = answer.claim;
+      }
+      const check = checkUnknownAnswers(lab, guesses);
+      const dr = await ctx.dispatch({ kind: "REVEAL" }, "agent");
+      if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
+      const revealedScenario = ctx.getState().lab.scenario;
+      const identities = revealedScenario.kind === "unknown_id" ? revealedScenario.secrets : null;
+      return ok(
+        ctx.getState,
+        { correct: check ? check.correct === check.total : false, expected: identities },
+        dr.observation,
+        eventStrings(ctx.getState, dr),
+      );
     }
-    const check = checkUnknownAnswers(lab, guesses);
+
+    // neutralize, dilution: nothing to guess, REVEAL only. `correct` reports whether the
+    // objective was actually met, read from scenarioProgress after the reveal.
     const dr = await ctx.dispatch({ kind: "REVEAL" }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
-    const revealedScenario = ctx.getState().lab.scenario;
-    const identities = revealedScenario.kind === "unknown_id" ? revealedScenario.secrets : null;
-    return ok(
-      ctx.getState,
-      { correct: check ? check.correct === check.total : false, expected: identities },
-      dr.observation,
-      eventStrings(ctx.getState, dr),
-    );
+    const progress = scenarioProgress(ctx.getState().lab);
+    return ok(ctx.getState, { correct: progress.complete, expected: null }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 

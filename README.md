@@ -39,9 +39,17 @@ Any browser: add `?console=1` to the URL and press the backtick key. The console
 
 ## Scenarios
 
-- Titration (default). A flask holds an unknown strong acid, a burette holds 0.100 M NaOH, a pH meter waits in its holder. Attach the probe, add phenolphthalein, dispense to the endpoint, then reveal.
 - Sandbox. Empty bench, all reagents on the shelf. Mix salts, watch precipitates form, dilute, heat.
-- Unknown samples. Three unlabeled beakers. Identify each with as few tests as possible.
+- Titration (default). A flask holds an unknown strong acid, a burette holds 0.100 M NaOH, a pH meter waits in its holder. Attach the probe, add phenolphthalein, dispense to the endpoint, then reveal.
+- Reaction mystery. Three unlabeled samples. Test each against the known reagents to find the pair that makes a gas, a precipitate, or a color change.
+- Precipitation. Mix silver nitrate and sodium chloride in a beaker and watch a white precipitate form.
+- Neutralization challenge. Bring a beaker to pH 7 ± 0.1 using the reagents on the shelf.
+- Dilution challenge. Prepare 100 mL of 0.10 M solution from a 1.0 M stock.
+- Temperature and solubility. Dissolve a solid, then heat and cool it to watch its solubility change.
+
+## Shelf
+
+Acids and bases: hydrochloric acid, sodium hydroxide, acetic acid (weak acid), ammonia (weak base). Salts: silver nitrate, sodium chloride, calcium chloride, barium chloride, sodium carbonate, sodium bicarbonate, sodium sulfate, copper(II) sulfate. Solid, dosed by mass: potassium nitrate. Also water and the three indicators (phenolphthalein, universal, litmus).
 
 ## Tools
 

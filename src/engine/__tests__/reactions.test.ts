@@ -101,6 +101,54 @@ describe("resolveReactions", () => {
     expect(afterStep2.fired.some((f) => f.produced.some((p) => p.species === SP.CO2Gas))).toBe(true);
   });
 
+  it("BaSO4 precipitation is limited by the scarcer ion", () => {
+    // 10 mL 0.1 M BaCl2 (1.0 mmol Ba2+) into 30 mL 0.1 M Na2SO4 (3.0 mmol SO4^2-): Ba2+ is limiting.
+    const { volumeMl, species } = mix(
+      { reagentId: "bacl2", volumeMl: 10, concentrationM: 0.1 },
+      { reagentId: "na2so4", volumeMl: 30, concentrationM: 0.1 },
+    );
+    const container = makeContainer({ volumeMl, species });
+    const { container: after, fired } = resolveReactions(container);
+
+    expect(fired).toHaveLength(1);
+    expect(fired[0]?.limiting).toBe(SP.Ba);
+    expect(getMoles(after.species, SP.Ba)).toBeCloseTo(0, 9);
+    expect(approx(getMoles(after.species, SP.SO4), 0.002, 1e-9)).toBe(true);
+    const solid = after.solids.find((s) => s.species === SP.BaSO4Solid);
+    expect(solid && approx(solid.moles, 0.001, 1e-9)).toBe(true);
+  });
+
+  it("acetic acid gives up its proton only to leftover hydroxide, and only after strong neutralization", () => {
+    // 10 mL 0.2 M NaOH (2.0 mmol OH-) into 20 mL 0.1 M HCl (2.0 mmol H+) + 10 mL 0.1 M acetic acid
+    // (1.0 mmol CH3COOH): strong neutralization consumes all the OH- first, so acetic acid never reacts.
+    const hclAndAcetic = combine(
+      stockToMoles(reagentDef(mintReagentId("hcl"))!, 20, 0.1),
+      stockToMoles(reagentDef(mintReagentId("acetic_acid"))!, 10, 0.1),
+    );
+    const naoh = stockToMoles(reagentDef(mintReagentId("naoh"))!, 10, 0.2);
+    const container = makeContainer({ volumeMl: 40, species: combine(hclAndAcetic, naoh) });
+    const { container: after, fired } = resolveReactions(container);
+
+    expect(fired.some((f) => f.rule.id === "weak_acid_neutralization")).toBe(false);
+    expect(approx(getMoles(after.species, SP.AcOH), 0.001, 1e-9)).toBe(true);
+    expect(getMoles(after.species, SP.H)).toBeCloseTo(0, 9);
+  });
+
+  it("ammonia protonates once strong acid is exhausted", () => {
+    // 20 mL 0.1 M HCl (2.0 mmol H+) + 30 mL 0.1 M ammonia (3.0 mmol NH3): all H+ converts to NH4+.
+    const { volumeMl, species } = mix(
+      { reagentId: "hcl", volumeMl: 20, concentrationM: 0.1 },
+      { reagentId: "ammonia", volumeMl: 30, concentrationM: 0.1 },
+    );
+    const container = makeContainer({ volumeMl, species });
+    const { container: after, fired } = resolveReactions(container);
+
+    expect(fired.some((f) => f.rule.id === "ammonia_protonation")).toBe(true);
+    expect(getMoles(after.species, SP.H)).toBeCloseTo(0, 9);
+    expect(approx(getMoles(after.species, SP.NH4), 0.002, 1e-9)).toBe(true);
+    expect(approx(getMoles(after.species, SP.NH3), 0.001, 1e-9)).toBe(true);
+  });
+
   it("unsupported pairs (Ag+ + OH-) stay inert", () => {
     const species = addMoles(addMoles({}, SP.Ag, 0.001), SP.OH, 0.001);
     const container = makeContainer({ volumeMl: 50, species });

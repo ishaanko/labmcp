@@ -7,15 +7,13 @@ import { selectSelected } from "@/store/selectors";
 import { SelectionCard } from "./SelectionCard";
 import { BenchSummary } from "./BenchSummary";
 import { ObjectiveCard } from "./ObjectiveCard";
-import { TitrationReadouts } from "./TitrationReadouts";
-import { TitrationCurve } from "./TitrationCurve";
 import { BuretteCard } from "./BuretteCard";
 import { HotplateCard } from "./HotplateCard";
 import { Button } from "@/components/ui/button";
 
-function panelKeyFor(selectedId: string | undefined, inTitration: boolean): string {
+function panelKeyFor(selectedId: string | undefined, scenarioKind: string): string {
   if (selectedId) return selectedId;
-  return inTitration ? "titration-objective" : "bench";
+  return scenarioKind === "sandbox" ? "bench" : `${scenarioKind}-objective`;
 }
 
 function PanelContent() {
@@ -28,25 +26,21 @@ function PanelContent() {
     return <SelectionCard object={selected} />;
   }
 
-  if (scenarioKind === "titration") {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <ObjectiveCard />
-        <TitrationReadouts />
-        <TitrationCurve />
-      </div>
-    );
-  }
+  if (scenarioKind === "sandbox") return <BenchSummary />;
 
-  return <BenchSummary />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <ObjectiveCard />
+    </div>
+  );
 }
 
-/** Persistent 320px right panel: selected object, else the titration objective, else a bench summary. */
+/** Persistent 320px right panel: selected object, else the scenario's objective card, else the sandbox bench summary. */
 export function ContextPanel() {
   const selected = useLabStore(selectSelected);
   const scenarioKind = useLabStore((s) => s.lab.scenario.kind);
   const setExplainOpen = useLabStore((s) => s.setExplainOpen);
-  const key = panelKeyFor(selected?.id, scenarioKind === "titration");
+  const key = panelKeyFor(selected?.id, scenarioKind);
 
   return (
     <div className="pointer-events-auto flex w-80 shrink-0 flex-col overflow-y-auto border-l border-border bg-card p-4">

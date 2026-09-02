@@ -89,4 +89,51 @@ describe("derivePh", () => {
     // the drop's own dilution (the pre-fix bug dropped this by ~1.7 units).
     expect(afterPh).toBeGreaterThan(before - 0.01);
   });
+
+  it("reads 2.88 for 0.1 M acetic acid", () => {
+    const c = containerWith("acetic_acid", 100, 0.1);
+    expect(approx(derivePh(c) ?? NaN, 2.88, 0.03)).toBe(true);
+  });
+
+  it("reads 11.13 for 0.1 M ammonia", () => {
+    const c = containerWith("ammonia", 100, 0.1);
+    expect(approx(derivePh(c) ?? NaN, 11.13, 0.03)).toBe(true);
+  });
+
+  it("reads 8.88 for 0.1 M sodium acetate (CH3COO- with its Na+ counterion)", () => {
+    const species: SpeciesMoles = { [SP.Na]: 0.01, [SP.AcO]: 0.01 };
+    const c = makeContainer({ volumeMl: 100, species });
+    expect(approx(derivePh(c) ?? NaN, 8.88, 0.03)).toBe(true);
+  });
+
+  it("reads pKa (4.76) for an equal-parts acetic acid / acetate buffer", () => {
+    // 0.05 M CH3COOH + 0.05 M CH3COO-, charge-balanced by 0.05 M Na+ for the acetate half.
+    const species: SpeciesMoles = { [SP.AcOH]: 0.005, [SP.AcO]: 0.005, [SP.Na]: 0.005 };
+    const c = makeContainer({ volumeMl: 100, species });
+    expect(approx(derivePh(c) ?? NaN, 4.76, 0.03)).toBe(true);
+  });
+
+  it("reads 8.34 for 0.1 M NaHCO3", () => {
+    const species: SpeciesMoles = { [SP.Na]: 0.01, [SP.HCO3]: 0.01 };
+    const c = makeContainer({ volumeMl: 100, species });
+    const ph = derivePh(c) ?? NaN;
+    expect(ph).toBeGreaterThanOrEqual(8.2);
+    expect(ph).toBeLessThanOrEqual(8.4);
+  });
+
+  it("reads 7.00 at the HCl/NaOH equivalence point", () => {
+    const analyte = containerWith("hcl", 25, 0.1);
+    const titrant = containerWith("naoh", 25, 0.1);
+    const species = neutralizeStrong(combine(analyte.species, titrant.species));
+    const c = makeContainer({ volumeMl: analyte.volumeMl + titrant.volumeMl, species });
+    expect(approx(derivePh(c) ?? NaN, 7.0, 0.03)).toBe(true);
+  });
+
+  it("stays at the free acid's pH when excess ammonia protonates only some of it (a buffer, via ammonia_protonation)", () => {
+    // 0.15 mol HCl into 0.10 mol ammonia: 0.10 mol NH4+ forms, 0.05 mol H+ remains free.
+    const species: SpeciesMoles = { [SP.H]: 0.05, [SP.Cl]: 0.15, [SP.NH4]: 0.1 };
+    const c = makeContainer({ volumeMl: 1000, species });
+    // Free 0.05 M strong acid dominates once NH4+ is essentially fully protonated at this pH.
+    expect(approx(derivePh(c) ?? NaN, 1.3, 0.03)).toBe(true);
+  });
 });

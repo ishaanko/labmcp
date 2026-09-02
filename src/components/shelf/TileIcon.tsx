@@ -31,6 +31,17 @@ export function BottleIcon({ size = 28, className }: TileIconProps) {
   );
 }
 
+/** Solid: a crystal pile. Used for reagents dosed by mass instead of volume, such as KNO3. */
+export function CrystalIcon({ size = 28, className }: TileIconProps) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" aria-hidden>
+      <path d="M8 5.5 11 3l3 2.5-1 5.5H9L8 5.5Z" stroke="currentColor" strokeWidth={STROKE} strokeLinejoin="round" />
+      <path d="M4.5 13 8 11l1 5-2.5 3.5-3-2L4.5 13Z" stroke="currentColor" strokeWidth={STROKE} strokeLinejoin="round" />
+      <path d="M13 11.5l3.5-1.5 3 2.5-1 4-4 1.5-2.5-3 1-3.5Z" stroke="currentColor" strokeWidth={STROKE} strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /** Indicator: an eyedropper. Used for phenolphthalein, universal, and litmus. */
 export function DropperIcon({ size = 28, className }: TileIconProps) {
   return (

@@ -4,6 +4,7 @@ import {
   publicView,
   rgbaToHex,
   scenarioObjective,
+  scenarioProgress,
   type LabelLookup,
   type LabEvent,
   type LabState,
@@ -48,6 +49,13 @@ export interface LabSummary {
     readonly objective: string;
     readonly revealed: boolean;
     readonly titration?: { readonly flaskId: string; readonly buretteId: string; readonly analyteMl: number; readonly titrantM: number };
+  };
+  /** Same status scenarioProgress() reports, so get_lab_state alone is enough to know what's left. */
+  readonly objective: {
+    readonly title: string;
+    readonly steps: ReadonlyArray<{ readonly label: string; readonly done: boolean }>;
+    readonly complete: boolean;
+    readonly detail: string;
   };
   readonly clockS: number;
   readonly ambientC: number;
@@ -125,6 +133,7 @@ function eventContainerId(event: LabEvent): string | null {
     case "SOLIDS_SETTLED":
     case "DISPOSED":
     case "OVERFLOW_REJECTED":
+    case "SOLUBILITY_CHANGE":
       return event.containerId;
     default:
       return null;
@@ -167,6 +176,8 @@ export function safeObservationLine(pub: PublicLabState, event: LabEvent, labels
       return "A precipitate formed.";
     case "BUBBLES":
       return "Bubbling observed.";
+    case "SOLUBILITY_CHANGE":
+      return "The solid's solubility changed.";
     case "CONTENTS_INSPECTED":
       return null;
     case "PH_CHANGE": {
@@ -239,6 +250,8 @@ function isDerivedEvent(event: LabEvent): boolean {
     case "PRECIPITATE_FORMED":
     case "BUBBLES":
     case "NO_REACTION":
+    case "SOLUBILITY_CHANGE":
+    case "OBJECTIVE_COMPLETE":
       return true;
     case "TEMPERATURE_CHANGE":
       return event.cause !== "thermal";
@@ -278,6 +291,8 @@ export function summarizeLab(lab: LabState, stateVersion: number): LabSummary {
         }
       : undefined;
 
+  const progress = scenarioProgress(lab);
+
   return {
     scenario: {
       id: pub.scenario.kind,
@@ -285,6 +300,7 @@ export function summarizeLab(lab: LabState, stateVersion: number): LabSummary {
       revealed: pub.scenario.kind === "sandbox" ? true : pub.scenario.revealed,
       titration,
     },
+    objective: { title: progress.objective, steps: progress.steps, complete: progress.complete, detail: progress.detail },
     clockS: round2(pub.clockS),
     ambientC: round2(pub.ambientC),
     stateVersion,

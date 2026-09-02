@@ -2,76 +2,88 @@
 
 import { useState } from "react";
 import { clsx } from "clsx";
-import { checkTitrationAnswer, estimateEquivalenceMl, titrationSolution } from "@/engine";
+import { SCENARIO_TITLES, type PublicScenario } from "@/engine";
 import { useLabStore } from "@/store/labStore";
-import { selectObjectiveSteps, selectPublic, selectTitration, type ObjectiveStep } from "@/store/selectors";
+import { selectObjective, selectPublic } from "@/store/selectors";
 import { Button } from "@/components/ui/button";
+import { DilutionReadout } from "./DilutionReadout";
+import { NeutralizeReadout } from "./NeutralizeReadout";
+import { ObjectiveReveal } from "./ObjectiveReveal";
+import { SolubilityReadout } from "./SolubilityReadout";
+import { TitrationCurve } from "./TitrationCurve";
+import { TitrationReadouts } from "./TitrationReadouts";
 
 const CHECK_PATH_LENGTH = 20;
 
+type Revealable = Extract<PublicScenario, { kind: "titration" | "unknown_id" | "neutralize" }>;
+
+/** Only these three scenarios hide an answer key behind REVEAL; the rest complete from state alone. */
+function isRevealable(scenario: PublicScenario): scenario is Revealable {
+  return scenario.kind === "titration" || scenario.kind === "unknown_id" || scenario.kind === "neutralize";
+}
+
 /**
- * Right-panel titration guide: 4-step checklist and the reveal moment. Shown when nothing is
- * selected in the titration scenario; the goal sentence itself lives in `ObjectiveChip`.
+ * Right-panel objective guide, shown for every scenario except sandbox: a checklist from the
+ * engine's `scenarioProgress`, a detail line, scenario-specific live readouts, and the reveal
+ * moment where the scenario has a secret to uncover.
  */
 export function ObjectiveCard() {
-  const steps = useLabStore(selectObjectiveSteps);
-  const titration = useLabStore(selectTitration);
+  const progress = useLabStore(selectObjective);
   const pub = useLabStore(selectPublic);
-  const lab = useLabStore((s) => s.lab);
   const dispatch = useLabStore((s) => s.dispatch);
   const [revealing, setRevealing] = useState(false);
 
-  if (pub.scenario.kind !== "titration") return null;
-  const endpointDone = steps.find((s) => s.key === "endpoint")?.done ?? false;
-  const revealed = pub.scenario.revealed;
+  const scenario = pub.scenario;
+  if (!progress || scenario.kind === "sandbox") return null;
 
   const reveal = (): void => {
     setRevealing(true);
     void dispatch({ kind: "REVEAL" }, "human").finally(() => setRevealing(false));
   };
 
-  const estimateMl = titration ? estimateEquivalenceMl(titration.curve) : null;
-  const solution = revealed ? titrationSolution(lab) : null;
-  const claimedM = estimateMl !== null && pub.scenario.titrantM > 0 ? (pub.scenario.titrantM * estimateMl) / pub.scenario.analyteMl : null;
-  const verdict = revealed && claimedM !== null ? checkTitrationAnswer(lab, claimedM) : null;
-
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-base font-semibold text-foreground">Objective</h2>
+      <div className="flex items-center gap-2">
+        <h2 className={clsx("text-base font-semibold", progress.complete ? "text-mint" : "text-foreground")}>{SCENARIO_TITLES[scenario.kind]}</h2>
+        {progress.complete ? <span className="text-xs font-medium text-mint">Complete</span> : null}
+      </div>
 
       <ul className="flex flex-col gap-2">
-        {steps.map((step) => (
-          <StepRow key={step.key} step={step} />
+        {progress.steps.map((step, i) => (
+          <StepRow key={`${i}-${step.label}`} label={step.label} done={step.done} />
         ))}
       </ul>
 
-      {!revealed ? (
-        <Button variant={endpointDone ? "default" : "ghost"} size="sm" disabled={revealing} onClick={reveal} className="w-fit">
-          {endpointDone ? "Reveal result" : "Reveal anyway"}
-        </Button>
-      ) : (
-        <div className="rounded-lg border border-border bg-muted/40 p-3">
-          <p className="text-xs text-muted-foreground">True concentration</p>
-          <p className="tabular text-2xl text-foreground">{solution ? solution.analyteM.toFixed(4) : "–"} M</p>
-          {verdict && claimedM !== null ? (
-            <p className={clsx("mt-1 text-sm", verdict.correct ? "text-emerald-400" : "text-destructive")}>
-              Curve estimate {claimedM.toFixed(4)} M, {(verdict.relError * 100).toFixed(1)}% off.
-              {verdict.correct ? " Within tolerance." : " Outside tolerance."}
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-muted-foreground">No equivalence estimate yet; dispense past the endpoint to get one.</p>
-          )}
-        </div>
-      )}
+      {progress.detail ? <p className="text-sm text-muted-foreground">{progress.detail}</p> : null}
+
+      {scenario.kind === "titration" ? (
+        <>
+          <TitrationReadouts />
+          <TitrationCurve />
+        </>
+      ) : null}
+      {scenario.kind === "neutralize" ? <NeutralizeReadout scenario={scenario} /> : null}
+      {scenario.kind === "dilution" ? <DilutionReadout scenario={scenario} /> : null}
+      {scenario.kind === "solubility" ? <SolubilityReadout scenario={scenario} /> : null}
+
+      {isRevealable(scenario) ? (
+        scenario.revealed ? (
+          <ObjectiveReveal scenario={scenario} />
+        ) : (
+          <Button variant={progress.complete ? "default" : "ghost"} size="sm" disabled={revealing} onClick={reveal} className="w-fit">
+            {progress.complete ? "Reveal result" : "Reveal anyway"}
+          </Button>
+        )
+      ) : null}
     </div>
   );
 }
 
-function StepRow({ step }: { step: ObjectiveStep }) {
+function StepRow({ label, done }: { label: string; done: boolean }) {
   return (
     <li className="flex items-center gap-2.5 text-sm">
       <svg viewBox="0 0 16 16" width={16} height={16} className="shrink-0" aria-hidden="true">
-        <circle cx={8} cy={8} r={7} fill="none" strokeWidth={1.5} className={step.done ? "stroke-emerald-400" : "stroke-border"} />
+        <circle cx={8} cy={8} r={7} fill="none" strokeWidth={1.5} className={done ? "stroke-emerald-400" : "stroke-border"} />
         <path
           d="M4.5 8.3 L7 10.8 L11.5 5.5"
           fill="none"
@@ -81,12 +93,12 @@ function StepRow({ step }: { step: ObjectiveStep }) {
           className="stroke-emerald-400"
           style={{
             strokeDasharray: CHECK_PATH_LENGTH,
-            strokeDashoffset: step.done ? 0 : CHECK_PATH_LENGTH,
+            strokeDashoffset: done ? 0 : CHECK_PATH_LENGTH,
             transition: "stroke-dashoffset 200ms var(--ease-out)",
           }}
         />
       </svg>
-      <span className={step.done ? "text-muted-foreground line-through" : "text-foreground"}>{step.label}</span>
+      <span className={done ? "text-muted-foreground line-through" : "text-foreground"}>{label}</span>
     </li>
   );
 }

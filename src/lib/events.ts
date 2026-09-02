@@ -72,6 +72,12 @@ export function emitAnimation(b: AnimationBatch): void {
 
 // ---------- describeCommand ----------
 
+/** "Potassium nitrate" -> "potassium nitrate", for mid-sentence reagent mentions. */
+function lowerFirst(s: string): string {
+  const first = s.slice(0, 1);
+  return first ? first.toLowerCase() + s.slice(1) : s;
+}
+
 /** Short human line for the activity feed, e.g. "Poured 25 mL Flask A -> Beaker B". */
 export function describeCommand(command: LabCommand, lab: LabState): string {
   switch (command.kind) {
@@ -83,8 +89,12 @@ export function describeCommand(command: LabCommand, lab: LabState): string {
       return command.containerId
         ? `Attached ${labelFor(lab, command.instrumentId)} to ${labelFor(lab, command.containerId)}`
         : `Detached ${labelFor(lab, command.instrumentId)}`;
-    case "ADD_REAGENT":
-      return `Added ${fmtMl(command.volumeMl)} ${lab.shelf.find((s) => s.reagentId === command.reagentId)?.label ?? command.reagentId} to ${labelFor(lab, command.containerId)}`;
+    case "ADD_REAGENT": {
+      const label = lab.shelf.find((s) => s.reagentId === command.reagentId)?.label ?? command.reagentId;
+      return command.massG !== undefined
+        ? `Added ${command.massG.toFixed(1)} g of ${lowerFirst(label)} to ${labelFor(lab, command.containerId)}`
+        : `Added ${fmtMl(command.volumeMl)} ${label} to ${labelFor(lab, command.containerId)}`;
+    }
     case "TRANSFER_LIQUID":
       return `Poured ${fmtMl(command.volumeMl)} from ${labelFor(lab, command.fromId)} into ${labelFor(lab, command.toId)}`;
     case "DISPENSE":
@@ -175,6 +185,8 @@ const NOTABLE_KINDS: ReadonlySet<LabEvent["kind"]> = new Set([
   "COLOR_SHIFT",
   "OVERFLOW_REJECTED",
   "COMMAND_REJECTED",
+  "OBJECTIVE_COMPLETE",
+  "SOLUBILITY_CHANGE",
 ]);
 
 function toastKindFor(event: LabEvent): ToastMessage["kind"] {
@@ -225,7 +237,23 @@ export function eventsToToasts(
   const visible = visibleObservationEvents(pub, events.map((o) => o.event));
 
   const toasts: ToastMessage[] = [];
+  // A container heating or cooling through its solubility curve can fire this once per tick;
+  // one toast per container per batch is plenty.
+  const solubilityToasted = new Set<string>();
   for (const event of visible) {
+    if (event.kind === "OBJECTIVE_COMPLETE") {
+      toasts.push({ kind: "success", title: "Objective complete.", description: event.detail });
+      continue;
+    }
+
+    if (event.kind === "SOLUBILITY_CHANGE") {
+      if (solubilityToasted.has(event.containerId)) continue;
+      solubilityToasted.add(event.containerId);
+      const title = pub ? safeObservationLine(pub, event, labels) : describeEvent(event, labels);
+      if (title) toasts.push({ kind: "info", title });
+      continue;
+    }
+
     if (event.kind === "COLOR_SHIFT" && event.indicatorTransition && next && flaskId !== null && event.containerId === flaskId) {
       const curve = titrationCurve(next);
       const ml = (curve[curve.length - 1]?.titrantMl ?? 0).toFixed(2);

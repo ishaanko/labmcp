@@ -34,6 +34,49 @@ describe("stockToMoles", () => {
     if (!water) throw new Error("water missing from registry");
     expect(stockToMoles(water, 100, 0)).toEqual({});
   });
+
+  it("BaCl2 0.1 M, 10 mL -> 1.0 mmol Ba2+, 2.0 mmol Cl-", () => {
+    const bacl2 = reagentDef(mintReagentId("bacl2"));
+    if (!bacl2) throw new Error("bacl2 missing from registry");
+    const moles = stockToMoles(bacl2, 10, 0.1);
+    expect(approx(moles[SP.Ba] ?? 0, 0.001)).toBe(true);
+    expect(approx(moles[SP.Cl] ?? 0, 0.002)).toBe(true);
+  });
+
+  it("Na2SO4 0.1 M, 10 mL -> 2.0 mmol Na+, 1.0 mmol SO4^2-", () => {
+    const na2so4 = reagentDef(mintReagentId("na2so4"));
+    if (!na2so4) throw new Error("na2so4 missing from registry");
+    const moles = stockToMoles(na2so4, 10, 0.1);
+    expect(approx(moles[SP.Na] ?? 0, 0.002)).toBe(true);
+    expect(approx(moles[SP.SO4] ?? 0, 0.001)).toBe(true);
+  });
+
+  it("acetic acid 0.1 M, 10 mL -> 1.0 mmol CH3COOH, no ions", () => {
+    const aceticAcid = reagentDef(mintReagentId("acetic_acid"));
+    if (!aceticAcid) throw new Error("acetic_acid missing from registry");
+    const moles = stockToMoles(aceticAcid, 10, 0.1);
+    expect(approx(moles[SP.AcOH] ?? 0, 0.001)).toBe(true);
+    expect(moles[SP.H]).toBeUndefined();
+  });
+
+  it("ammonia 0.1 M, 10 mL -> 1.0 mmol NH3, no ions", () => {
+    const ammonia = reagentDef(mintReagentId("ammonia"));
+    if (!ammonia) throw new Error("ammonia missing from registry");
+    const moles = stockToMoles(ammonia, 10, 0.1);
+    expect(approx(moles[SP.NH3] ?? 0, 0.001)).toBe(true);
+    expect(moles[SP.OH]).toBeUndefined();
+  });
+});
+
+describe("solid reagents", () => {
+  it("kno3 is a dry solid with a molar mass, ion yields, and an ascending solubility curve", () => {
+    const kno3 = reagentDef(mintReagentId("kno3"));
+    if (!kno3 || kno3.kind !== "solid") throw new Error("kno3 missing or not a solid reagent");
+    expect(approx(kno3.molarMass, 101.1, 1e-6)).toBe(true);
+    expect(kno3.ions.map((i) => i.species)).toEqual(expect.arrayContaining([SP.K, SP.NO3]));
+    const temps = kno3.solubilityG100ml.map(([tempC]) => tempC);
+    expect(temps).toEqual([...temps].sort((a, b) => a - b));
+  });
 });
 
 describe("suggestReagents", () => {

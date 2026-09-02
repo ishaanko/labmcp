@@ -15,11 +15,13 @@ export type LabEvent =
   | { readonly kind: "OBJECT_REMOVED"; readonly objectId: ObjectId }
   | { readonly kind: "OBJECT_MOVED"; readonly objectId: ObjectId; readonly position: Vec2 }
   | { readonly kind: "INSTRUMENT_ATTACHED"; readonly instrumentId: InstrumentId; readonly containerId: ContainerId | null }
+  /** Any shelf addition. A solid reagent sets `massG` and `volumeMl: 0`. */
   | {
       readonly kind: "LIQUID_ADDED";
       readonly containerId: ContainerId;
       readonly reagentId: ReagentId;
       readonly volumeMl: number;
+      readonly massG?: number;
       readonly newVolumeMl: number;
     }
   | { readonly kind: "LIQUID_TRANSFERRED"; readonly fromId: ContainerId; readonly toId: ContainerId; readonly volumeMl: number }

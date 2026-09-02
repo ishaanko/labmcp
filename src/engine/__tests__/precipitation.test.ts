@@ -46,6 +46,25 @@ describe("precipitation via the reducer", () => {
     expect(cuOh2 && approx(cuOh2.moles, 0.002, 1e-9)).toBe(true);
   });
 
+  it("BaCl2 + Na2SO4 precipitates white BaSO4", () => {
+    const placed = placeBeakers(sandboxState(), 1);
+    const id = placed.ids[0];
+    if (!id) throw new Error("unreachable");
+
+    const afterBa = applyOk(placed.state, { kind: "ADD_REAGENT", containerId: id, reagentId: mintReagentId("bacl2"), volumeMl: 10, concentrationM: 0.1 });
+    const res = applyCommand(afterBa, { kind: "ADD_REAGENT", containerId: id, reagentId: mintReagentId("na2so4"), volumeMl: 10, concentrationM: 0.1 });
+    if (!res.ok) throw new Error("unreachable");
+
+    const container = containerOf(res.value.state, id);
+    expect(approx(getMoles(container.species, SP.Ba), 0, 1e-12)).toBe(true);
+    const solid = container.solids.find((s) => s.species === SP.BaSO4Solid);
+    expect(solid && approx(solid.moles, 0.001, 1e-9)).toBe(true);
+
+    const precipitate = res.value.events.find((o) => o.event.kind === "PRECIPITATE_FORMED");
+    if (!precipitate || precipitate.event.kind !== "PRECIPITATE_FORMED") throw new Error("expected PRECIPITATE_FORMED");
+    expect(precipitate.event.description).toContain("White precipitate");
+  });
+
   it("the first equivalent of HCl into Na2CO3 does not bubble; the second does", () => {
     const placed = placeBeakers(sandboxState(), 1);
     const id = placed.ids[0];

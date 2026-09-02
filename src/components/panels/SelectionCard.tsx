@@ -6,8 +6,8 @@ import { formatFormula } from "@/lib/format";
 import { labelFor } from "@/lib/labels";
 import { useLabStore } from "@/store/labStore";
 import { selectContainers } from "@/store/selectors";
-import type { Instrument, PublicContainer } from "@/engine";
-import { constants, describeColor, speciesDef } from "@/engine";
+import type { Instrument, PublicContainer, PublicSolidDeposit, SpeciesId } from "@/engine";
+import { constants, describeColor, REAGENTS, speciesDef } from "@/engine";
 import { Readout } from "./Readout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -87,11 +87,7 @@ function ContainerCard({ container }: { container: PublicContainer }) {
           <p className="text-xs text-muted-foreground">Solids</p>
           <ul className="mt-1 flex flex-col gap-1">
             {container.solids.map((solid, i) => (
-              <li key={solid.kind === "identified" ? solid.species : `redacted-${i}`} className="flex items-center gap-1.5 text-sm text-foreground">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `rgba(${solid.color.r}, ${solid.color.g}, ${solid.color.b}, ${solid.color.a})` }} aria-hidden />
-                {solid.kind === "identified" ? `${formatFormula(solid.species)} ${speciesDef(solid.species).name}` : <span>{describeColor(solid.color)} precipitate, {solid.scale}</span>}
-                <span className="text-muted-foreground">{solid.suspended > 0.5 ? "suspended" : "settled"}</span>
-              </li>
+              <SolidRow key={solid.kind === "identified" ? solid.species : `redacted-${i}`} solid={solid} container={container} />
             ))}
           </ul>
         </div>
@@ -127,6 +123,61 @@ function ContainerCard({ container }: { container: PublicContainer }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** The dry-solid reagent whose `solidSpecies` matches, if this deposit came from a mass dose rather than a reaction. */
+function solidReagentFor(species: SpeciesId) {
+  return REAGENTS.find((r) => r.kind === "solid" && r.solidSpecies === species);
+}
+
+/** One undissolved-solid line: a dosed reagent reads as "Undissolved: 1.8 g potassium nitrate" plus its dissolved ion concentration; a reaction precipitate keeps the formula/name line. */
+function SolidRow({ solid, container }: { solid: PublicSolidDeposit; container: PublicContainer }) {
+  const swatch = (
+    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `rgba(${solid.color.r}, ${solid.color.g}, ${solid.color.b}, ${solid.color.a})` }} aria-hidden />
+  );
+  const settled = <span className="text-muted-foreground">{solid.suspended > 0.5 ? "suspended" : "settled"}</span>;
+
+  if (solid.kind !== "identified") {
+    return (
+      <li className="flex items-center gap-1.5 text-sm text-foreground">
+        {swatch}
+        <span>
+          {describeColor(solid.color)} precipitate, {solid.scale}
+        </span>
+        {settled}
+      </li>
+    );
+  }
+
+  const reagent = solidReagentFor(solid.species);
+  if (!reagent || reagent.kind !== "solid") {
+    return (
+      <li className="flex items-center gap-1.5 text-sm text-foreground">
+        {swatch}
+        {formatFormula(solid.species)} {speciesDef(solid.species).name}
+        {settled}
+      </li>
+    );
+  }
+
+  const undissolvedG = solid.moles * reagent.molarMass;
+  const trackedIon = reagent.ions[0];
+  const dissolvedM = trackedIon && container.contents.kind === "visible" ? container.contents.concentrationsM[trackedIon.species] : undefined;
+
+  return (
+    <li className="flex flex-col gap-0.5 text-sm text-foreground">
+      <span className="flex items-center gap-1.5">
+        {swatch}
+        Undissolved: {undissolvedG.toFixed(1)} g {speciesDef(solid.species).name}
+        {settled}
+      </span>
+      {dissolvedM !== undefined && trackedIon ? (
+        <span className="ml-3 text-xs text-muted-foreground">
+          Dissolved: {dissolvedM.toFixed(3)} M {formatFormula(trackedIon.species)}
+        </span>
+      ) : null}
+    </li>
   );
 }
 

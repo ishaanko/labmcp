@@ -17,6 +17,7 @@ function initialLab(): LabState {
 function initialUi(): UiState {
   return {
     selectedId: null,
+    lastSelectedContainerId: null,
     hoveredId: null,
     drag: null,
     dialog: null,
@@ -93,7 +94,7 @@ export const useLabStore = create<LabStore>()(
           lab: next,
           stateVersion: version,
           feed: reset ? [noteEntry(resetNoteText(command, next))] : s.feed,
-          ui: reset ? { ...s.ui, selectedId: null } : s.ui,
+          ui: reset ? { ...s.ui, selectedId: null, lastSelectedContainerId: null } : s.ui,
         }));
 
         emitAnimation({ prev, next, events, actor, version });
@@ -121,7 +122,10 @@ export const useLabStore = create<LabStore>()(
     },
 
     select(id) {
-      set((s) => ({ ui: { ...s.ui, selectedId: id } }));
+      set((s) => {
+        const isContainer = id !== null && s.lab.objects.some((o) => o.id === id && o.kind === "container");
+        return { ui: { ...s.ui, selectedId: id, lastSelectedContainerId: isContainer ? id : s.ui.lastSelectedContainerId } };
+      });
     },
     setHovered(id) {
       set((s) => ({ ui: { ...s.ui, hoveredId: id } }));

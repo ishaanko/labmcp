@@ -15,8 +15,10 @@ export {
   checkTitrationAnswer,
   checkUnknownAnswers,
   SCENARIO_IDS,
+  SCENARIO_TITLES,
   scenarioObjective,
 } from "./scenarios";
+export { scenarioProgress } from "./scenarioProgress";
 export {
   SPECIES,
   SPECIES_IDS,

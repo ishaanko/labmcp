@@ -4,11 +4,45 @@ import type { DispatchResult } from "@/store/types";
 
 // scenarios.ts (publicView, scenarioObjective) is still an engine stub; fake it so summarizeLab
 // and the tools that read publicView don't throw. Everything else in @/engine is real.
+//
+// TEST_SOLID_ID stands in for a solid shelf reagent (e.g. the engine's eventual "kno3") so the
+// mass_g mapping case below doesn't depend on which solids the shelf actually stocks. Built with
+// vi.hoisted since a vi.mock factory can only close over hoisted bindings.
+const { TEST_SOLID_ID, TEST_SOLID_DEF } = vi.hoisted(() => {
+  const id = "test_solid";
+  return {
+    TEST_SOLID_ID: id,
+    TEST_SOLID_DEF: {
+      kind: "solid" as const,
+      id,
+      label: "Test solid",
+      formula: "TS",
+      role: "salt" as const,
+      ions: [] as ReadonlyArray<never>,
+      molarMass: 100,
+      solidSpecies: "TS(s)",
+      solubilityG100ml: [[20, 30]] as ReadonlyArray<readonly [number, number]>,
+    },
+  };
+});
+
 vi.mock("@/engine", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/engine")>();
   return {
     ...actual,
     scenarioObjective: () => "test objective",
+    scenarioProgress: () => ({ scenarioId: "sandbox", objective: "test objective", steps: [], complete: false, detail: "test objective" }),
+    SCENARIO_TITLES: {
+      sandbox: "test",
+      titration: "test",
+      unknown_id: "test",
+      precipitation: "test",
+      neutralize: "test",
+      dilution: "test",
+      solubility: "test",
+    },
+    REAGENT_IDS: [...actual.REAGENT_IDS, TEST_SOLID_ID],
+    reagentDef: (id: unknown) => (id === TEST_SOLID_ID ? TEST_SOLID_DEF : actual.reagentDef(id as never)),
     publicView: (state: LabState) => ({
       clockS: state.clockS,
       ambientC: state.ambientC,
@@ -110,7 +144,20 @@ describe("tool -> command mapping", () => {
       tool: "add_reagent",
       input: { container_id: "c_1", reagent_id: "hcl", volume_ml: 25 },
       lab: labWith([beaker(1)]),
-      expected: { kind: "ADD_REAGENT", containerId: mintContainerId(1), reagentId: mintReagentId("hcl"), volumeMl: 25, concentrationM: undefined },
+      expected: { kind: "ADD_REAGENT", containerId: mintContainerId(1), reagentId: mintReagentId("hcl"), volumeMl: 25, concentrationM: undefined, massG: undefined },
+    },
+    {
+      tool: "add_reagent",
+      input: { container_id: "c_1", reagent_id: TEST_SOLID_ID, mass_g: 5 },
+      lab: labWith([beaker(1)]),
+      expected: {
+        kind: "ADD_REAGENT",
+        containerId: mintContainerId(1),
+        reagentId: mintReagentId(TEST_SOLID_ID),
+        volumeMl: 0,
+        concentrationM: undefined,
+        massG: 5,
+      },
     },
     {
       tool: "transfer",
@@ -236,6 +283,30 @@ describe("tool -> command mapping", () => {
 
     expect(response.ok).toBe(false);
     if (!response.ok) expect(response.error.code).toBe("INVALID_INPUT");
+    expect(fakeStore.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("add_reagent rejects mass_g for a liquid reagent with INVALID_AMOUNT", async () => {
+    fakeStore.lab = labWith([beaker(1)]);
+    fakeStore.dispatch.mockReset();
+
+    const def = tools.find((t) => t.name === "add_reagent");
+    const response = await runTool(def!)({ container_id: "c_1", reagent_id: "hcl", volume_ml: 10, mass_g: 5 }, { signal: new AbortController().signal });
+
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("INVALID_AMOUNT");
+    expect(fakeStore.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("add_reagent rejects a missing mass_g for a solid reagent with INVALID_AMOUNT", async () => {
+    fakeStore.lab = labWith([beaker(1)]);
+    fakeStore.dispatch.mockReset();
+
+    const def = tools.find((t) => t.name === "add_reagent");
+    const response = await runTool(def!)({ container_id: "c_1", reagent_id: TEST_SOLID_ID }, { signal: new AbortController().signal });
+
+    expect(response.ok).toBe(false);
+    if (!response.ok) expect(response.error.code).toBe("INVALID_AMOUNT");
     expect(fakeStore.dispatch).not.toHaveBeenCalled();
   });
 });

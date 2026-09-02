@@ -26,11 +26,11 @@ describe("loadScenario", () => {
     }
   });
 
-  it("picks 3 distinct archetypes for unknown_id", () => {
+  it("picks 4 distinct archetypes for unknown_id", () => {
     const state = loadScenario("unknown_id", 3);
     if (state.scenario.kind !== "unknown_id") throw new Error("unreachable");
     const reagentIds = state.scenario.samples.map((s) => state.scenario.kind === "unknown_id" ? state.scenario.secrets[s.shelfId]?.reagentId : undefined);
-    expect(new Set(reagentIds).size).toBe(3);
+    expect(new Set(reagentIds).size).toBe(4);
   });
 
   it("lays out the titration bench with the burette directly behind the flask, keeping c_1/c_2/i_3", () => {
@@ -69,16 +69,78 @@ describe("loadScenario", () => {
     expect(instruments[0]).toMatchObject({ type: "hotplate", position: { x: 1.5, y: 0.5 } });
   });
 
-  it("lays out three unknown_id beakers across the front row with the pH meter behind the middle one", () => {
+  it("lays out four unknown_id beakers across the front row with the pH meter behind the second sample", () => {
     const state = loadScenario("unknown_id", 4);
     const beakers = state.objects.filter((o) => o.kind === "container");
     const meter = state.objects.find((o) => o.kind === "instrument" && o.type === "ph_meter");
     expect(beakers.map((b) => b.position)).toEqual([
-      { x: -1.5, y: 0.5 },
-      { x: 0.5, y: 0.5 },
-      { x: 2.5, y: 0.5 },
+      { x: -2.5, y: 0.5 },
+      { x: -0.5, y: 0.5 },
+      { x: 1.5, y: 0.5 },
+      { x: 3.5, y: 0.5 },
     ]);
     expect(meter?.position).toEqual({ x: 0.5, y: -0.5 });
+  });
+
+  it("lays out precipitation with two empty beakers", () => {
+    const state = loadScenario("precipitation", 5);
+    const beakers = state.objects.filter((o) => o.kind === "container");
+    expect(beakers.map((b) => ({ label: b.label, position: b.position }))).toEqual([
+      { label: "Beaker", position: { x: -0.5, y: 0.5 } },
+      { label: "Beaker 2", position: { x: 1.5, y: 0.5 } },
+    ]);
+  });
+
+  it("draws a neutralize start reagent/concentration deterministically and tags the beaker unknown", () => {
+    const a = loadScenario("neutralize", 9);
+    const b = loadScenario("neutralize", 9);
+    expect(a).toEqual(b);
+    if (a.scenario.kind !== "neutralize") throw new Error("unreachable");
+    expect(["hcl", "naoh"]).toContain(a.scenario.secrets.startReagent);
+    expect(a.scenario.secrets.startM).toBeGreaterThanOrEqual(0.02);
+    expect(a.scenario.secrets.startM).toBeLessThanOrEqual(0.06);
+    const { beakerId } = a.scenario;
+    const beaker = a.objects.find((o) => o.id === beakerId);
+    expect(beaker?.kind === "container" ? beaker.containsUnknown : null).toBe(true);
+  });
+
+  it("lays out dilution with a graduated cylinder and a beaker, and a 1.0 M sodium chloride stock", () => {
+    const state = loadScenario("dilution", 6);
+    if (state.scenario.kind !== "dilution") throw new Error("unreachable");
+    const cylinder = state.objects.find((o) => o.kind === "container" && o.type === "graduated_cylinder");
+    const beaker = state.objects.find((o) => o.kind === "container" && o.type === "beaker");
+    expect(cylinder?.position).toEqual({ x: -0.5, y: 0.5 });
+    expect(beaker?.position).toEqual({ x: 1.5, y: 0.5 });
+    const { reagentId } = state.scenario;
+    const naclStock = state.shelf.find((s) => s.reagentId === reagentId);
+    expect(naclStock?.concentrationM).toBe(1.0);
+  });
+
+  it("adds a liquid at the shelf's stocked concentration when the command names none", () => {
+    const state = loadScenario("dilution", 6);
+    if (state.scenario.kind !== "dilution") throw new Error("unreachable");
+    const beaker = state.objects.find((o) => o.kind === "container" && o.type === "beaker");
+    if (!beaker || beaker.kind !== "container") throw new Error("unreachable");
+    const res = applyCommand(state, { kind: "ADD_REAGENT", containerId: beaker.id, reagentId: state.scenario.reagentId, volumeMl: 10 });
+    if (!res.ok) throw new Error("unreachable");
+    const after = res.value.state.objects.find((o) => o.id === beaker.id);
+    if (!after || after.kind !== "container") throw new Error("unreachable");
+    // 10 mL of the 1.0 M stock, not the registry's 0.1 M default.
+    expect(after.species[mintSpeciesId("Na+")]).toBeCloseTo(0.01, 6);
+  });
+
+  it("lays out solubility with a beaker, hotplate and thermometer, and starts every milestone false", () => {
+    const state = loadScenario("solubility", 7);
+    if (state.scenario.kind !== "solubility") throw new Error("unreachable");
+    const { beakerId } = state.scenario;
+    const beaker = state.objects.find((o) => o.id === beakerId);
+    const hotplate = state.objects.find((o) => o.kind === "instrument" && o.type === "hotplate");
+    const thermometer = state.objects.find((o) => o.kind === "instrument" && o.type === "thermometer");
+    expect(beaker?.position).toEqual({ x: -0.5, y: 0.5 });
+    expect(beaker?.kind === "container" ? beaker.volumeMl : null).toBe(50);
+    expect(hotplate?.position).toEqual({ x: 1.5, y: 0.5 });
+    expect(thermometer?.position).toEqual({ x: 1.5, y: -0.5 });
+    expect(state.scenario.milestones).toEqual({ addedEnoughSolute: false, hadUndissolved: false, heatedFullyDissolved: false, cooledWithCrystals: false });
   });
 });
 
@@ -95,6 +157,25 @@ describe("publicView", () => {
 
     const flask = pub.objects.find((o) => o.kind === "container" && pub.scenario.kind === "titration" && o.id === pub.scenario.flaskId);
     expect(flask && flask.kind === "container" ? flask.contents.kind : null).toBe("hidden");
+  });
+
+  it("hides the neutralize start reagent/concentration until revealed, and hides the beaker's contents until then too", () => {
+    const state = loadScenario("neutralize", 14);
+    if (state.scenario.kind !== "neutralize") throw new Error("unreachable");
+    const pub = publicView(state);
+    if (pub.scenario.kind !== "neutralize") throw new Error("unreachable");
+
+    expect(JSON.stringify(pub)).not.toContain("secrets");
+    expect(pub.scenario.start).toBeNull();
+    const { beakerId } = pub.scenario;
+    const beaker = pub.objects.find((o) => o.id === beakerId);
+    expect(beaker && beaker.kind === "container" ? beaker.contents.kind : null).toBe("hidden");
+
+    const revealed = applyCommand(state, { kind: "REVEAL" });
+    if (!revealed.ok) throw new Error("unreachable");
+    const pubRevealed = publicView(revealed.value.state);
+    if (pubRevealed.scenario.kind !== "neutralize") throw new Error("unreachable");
+    expect(pubRevealed.scenario.start).toEqual(state.scenario.secrets);
   });
 
   it("restricts MEASURE contents on a tainted flask in titration, but allows it in sandbox", () => {

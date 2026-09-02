@@ -7,7 +7,7 @@ import { isReagentId, reagentDef } from "@/engine";
  */
 export function shortReagentLabel(reagentId: string, label: string): string {
   const def = isReagentId(reagentId) ? reagentDef(reagentId) : undefined;
-  if (def?.kind === "solution") return def.formula;
+  if (def?.kind === "solution" || def?.kind === "solid") return def.formula;
   if (def?.kind === "water") return "Water";
   return label.replace(/^Unknown acid$/, "Unknown");
 }

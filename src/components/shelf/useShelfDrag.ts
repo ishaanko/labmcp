@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { constants, isIndicatorIdShape, isReagentId, type EquipmentType, type Vec2 } from "@/engine";
+import { constants, isIndicatorIdShape, isReagentId, reagentDef, type EquipmentType, type Vec2 } from "@/engine";
 import { nearestFreeCell, pxToCell, type GridOccupant } from "@/lab2d/grid";
 import { hitTestObject } from "@/lab2d/objectDom";
 import { useLabStore } from "@/store/labStore";
@@ -196,8 +196,10 @@ export function useShelfDrag(): ShelfDragHandlers {
         // The popover must open after the `click` that ends this gesture has dispatched: it lands
         // on the source chip, outside the popup, and would otherwise dismiss it in the same tick.
         if (candidate.kind === "reagent" && isReagentId(candidate.reagentId)) {
-          const maxMl = maxMlFor(overId, candidate.reagentId);
           const reagentId = candidate.reagentId;
+          // A solid reagent doses by mass; AmountDialog builds its own fixed gram range and ignores these mL fields.
+          const isSolid = reagentDef(reagentId)?.kind === "solid";
+          const maxMl = isSolid ? 0 : maxMlFor(overId, reagentId);
           window.setTimeout(() => openDialog({ kind: "add_reagent", containerId: overId, reagentId, defaultMl: Math.min(10, maxMl), maxMl }), 0);
         } else if (candidate.kind === "indicator" && isIndicatorIdShape(candidate.indicatorId)) {
           const indicatorId = candidate.indicatorId;

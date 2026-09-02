@@ -8,6 +8,7 @@ import { mintContainerId, mintInstrumentId, type ContainerId, type InstrumentId 
 import { derivePh } from "./ph";
 import { indicatorDef, reagentDef, stockToMoles } from "./reagents";
 import { addMoles, getMoles, removeMoles, speciesKeys } from "./species";
+import { equilibrateSolubility } from "./solubility";
 import {
   assertNever,
   type Container,
@@ -22,7 +23,8 @@ import {
   type LabState,
   type Vec2,
 } from "./types";
-import { findAttachedInstrument, findContainerOrThrow, isContainerObjectType, isSlotFree, replaceObject, replaceObjects, resolveUnknownStock } from "./commands";
+import { findAttachedInstrument, findContainerOrThrow, replaceObject, replaceObjects, resolveUnknownStock } from "./commands";
+import { isContainerObjectType, isSlotFree } from "./grid";
 
 // ---------- applyPhysical ----------
 
@@ -109,8 +111,13 @@ function mergeIndicatorDoses<T extends { readonly indicator: string; readonly dr
   return result;
 }
 
-/** Moves `volumeMl` of liquid from `from` to `to`: species, indicators, and temperature per A3.2. Solids never transfer. */
-function transferLiquid(state: LabState, fromId: ContainerId, toId: ContainerId, volumeMl: number): LabState {
+/**
+ * Moves `volumeMl` of liquid from `from` to `to`: species, indicators, and temperature per A3.2.
+ * Undissolved solids stay behind (a pour only takes the liquid), but both containers lose or gain
+ * water, so each re-equilibrates its own solubility afterward (a fuller `to` can dissolve more of
+ * whatever solid it already held; a drained `from` may crystallize some back out).
+ */
+function transferLiquid(state: LabState, fromId: ContainerId, toId: ContainerId, volumeMl: number): { state: LabState; events: ReadonlyArray<LabEvent> } {
   const from = findContainerOrThrow(state, fromId);
   const to = findContainerOrThrow(state, toId);
   const f = from.volumeMl > 0 ? volumeMl / from.volumeMl : 0;
@@ -141,7 +148,13 @@ function transferLiquid(state: LabState, fromId: ContainerId, toId: ContainerId,
     indicators: toIndicators,
     containsUnknown: to.containsUnknown || from.containsUnknown,
   };
-  return { ...state, objects: replaceObjects(state.objects, [nextFrom, nextTo]) };
+
+  const fromEq = equilibrateSolubility(nextFrom);
+  const toEq = equilibrateSolubility(nextTo);
+  return {
+    state: { ...state, objects: replaceObjects(state.objects, [fromEq.container, toEq.container]) },
+    events: [...fromEq.events, ...toEq.events],
+  };
 }
 
 function measureWithInstrument(state: LabState, container: Container, type: InstrumentType, instrumentId: InstrumentId | undefined, reading: InstrumentReading): PhysicalResult {
@@ -207,10 +220,32 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
       const container = findContainerOrThrow(state, command.containerId);
       const stock = state.shelf.find((s) => s.reagentId === command.reagentId);
       const def = reagentDef(command.reagentId);
+      if (!stock) throw new Error(`unreachable: validated ADD_REAGENT for unresolved reagent ${command.reagentId}`);
+
+      if (def && def.kind === "solid") {
+        const massG = command.massG;
+        if (massG === undefined) throw new Error("unreachable: validated ADD_REAGENT for a solid reagent with no massG");
+        const moles = massG / def.molarMass;
+        const existingDeposit = container.solids.find((s) => s.species === def.solidSpecies);
+        const solids = existingDeposit
+          ? container.solids.map((s) => (s.species === def.solidSpecies ? { ...s, moles: s.moles + moles, suspended: 1 } : s))
+          : [...container.solids, { species: def.solidSpecies, moles, suspended: 1 }];
+        const { container: nextContainer, events: solubilityEvents } = equilibrateSolubility({ ...container, solids });
+        const objects = replaceObject(state.objects, nextContainer);
+        return {
+          state: { ...state, objects },
+          touched: [container.id],
+          events: [{ kind: "LIQUID_ADDED", containerId: container.id, reagentId: command.reagentId, volumeMl: 0, massG, newVolumeMl: container.volumeMl }, ...solubilityEvents],
+        };
+      }
+
       const unknown = resolveUnknownStock(state.scenario, command.reagentId);
       const effectiveDef = def ?? unknown?.def;
-      if (!stock || !effectiveDef) throw new Error(`unreachable: validated ADD_REAGENT for unresolved reagent ${command.reagentId}`);
-      const concentrationM = def && def.kind === "solution" ? command.concentrationM ?? def.defaultM : unknown ? unknown.concentrationM : 0;
+      if (!effectiveDef) throw new Error(`unreachable: validated ADD_REAGENT for unresolved reagent ${command.reagentId}`);
+      // Shelf stock wins over the registry default: a scenario may stock a reagent at a
+      // non-default molarity (dilution stocks NaCl at 1.0 M) and the human's drag path never
+      // passes an explicit concentration.
+      const concentrationM = def && def.kind === "solution" ? command.concentrationM ?? stock.concentrationM ?? def.defaultM : unknown ? unknown.concentrationM : 0;
 
       const added = stockToMoles(effectiveDef, command.volumeMl, concentrationM);
       let species = container.species;
@@ -218,7 +253,8 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
 
       const newVolumeMl = container.volumeMl + command.volumeMl;
       const temperatureC = (container.volumeMl * container.temperatureC + command.volumeMl * state.ambientC) / newVolumeMl;
-      const nextContainer: Container = { ...container, volumeMl: newVolumeMl, species, temperatureC, containsUnknown: container.containsUnknown || unknown !== undefined };
+      const mixed: Container = { ...container, volumeMl: newVolumeMl, species, temperatureC, containsUnknown: container.containsUnknown || unknown !== undefined };
+      const { container: nextContainer, events: solubilityEvents } = equilibrateSolubility(mixed);
       const objects = replaceObject(state.objects, nextContainer);
       const shelf =
         stock.remainingMl === null
@@ -227,16 +263,24 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
       return {
         state: { ...state, objects, shelf },
         touched: [container.id],
-        events: [{ kind: "LIQUID_ADDED", containerId: container.id, reagentId: command.reagentId, volumeMl: command.volumeMl, newVolumeMl }],
+        events: [{ kind: "LIQUID_ADDED", containerId: container.id, reagentId: command.reagentId, volumeMl: command.volumeMl, newVolumeMl }, ...solubilityEvents],
       };
     }
     case "TRANSFER_LIQUID": {
       const next = transferLiquid(state, command.fromId, command.toId, command.volumeMl);
-      return { state: next, touched: [command.fromId, command.toId], events: [{ kind: "LIQUID_TRANSFERRED", fromId: command.fromId, toId: command.toId, volumeMl: command.volumeMl }] };
+      return {
+        state: next.state,
+        touched: [command.fromId, command.toId],
+        events: [{ kind: "LIQUID_TRANSFERRED", fromId: command.fromId, toId: command.toId, volumeMl: command.volumeMl }, ...next.events],
+      };
     }
     case "DISPENSE": {
       const next = transferLiquid(state, command.buretteId, command.toId, command.volumeMl);
-      return { state: next, touched: [command.buretteId, command.toId], events: [{ kind: "LIQUID_TRANSFERRED", fromId: command.buretteId, toId: command.toId, volumeMl: command.volumeMl }] };
+      return {
+        state: next.state,
+        touched: [command.buretteId, command.toId],
+        events: [{ kind: "LIQUID_TRANSFERRED", fromId: command.buretteId, toId: command.toId, volumeMl: command.volumeMl }, ...next.events],
+      };
     }
     case "STIR": {
       const container = findContainerOrThrow(state, command.containerId);

@@ -46,6 +46,73 @@ export const REAGENTS: ReadonlyArray<ReagentDef> = [
   },
   {
     kind: "solution",
+    id: mintReagentId("bacl2"),
+    label: "Barium chloride",
+    formula: "BaCl2",
+    role: "salt",
+    ions: [
+      { species: SP.Ba, perFormulaUnit: 1 },
+      { species: SP.Cl, perFormulaUnit: 2 },
+    ],
+    defaultM: 0.1,
+    maxM: 0.5,
+  },
+  {
+    kind: "solution",
+    id: mintReagentId("na2so4"),
+    label: "Sodium sulfate",
+    formula: "Na2SO4",
+    role: "salt",
+    ions: [
+      { species: SP.Na, perFormulaUnit: 2 },
+      { species: SP.SO4, perFormulaUnit: 1 },
+    ],
+    defaultM: 0.1,
+    maxM: 1.0,
+  },
+  {
+    kind: "solution",
+    id: mintReagentId("acetic_acid"),
+    label: "Acetic acid",
+    formula: "CH3COOH",
+    role: "weak_acid",
+    ions: [{ species: SP.AcOH, perFormulaUnit: 1 }],
+    defaultM: 0.1,
+    maxM: 2.0,
+  },
+  {
+    kind: "solution",
+    id: mintReagentId("ammonia"),
+    label: "Ammonia",
+    formula: "NH3",
+    role: "weak_base",
+    ions: [{ species: SP.NH3, perFormulaUnit: 1 }],
+    defaultM: 0.1,
+    maxM: 2.0,
+  },
+  {
+    kind: "solid",
+    id: mintReagentId("kno3"),
+    label: "Potassium nitrate",
+    formula: "KNO3",
+    role: "salt",
+    ions: [
+      { species: SP.K, perFormulaUnit: 1 },
+      { species: SP.NO3, perFormulaUnit: 1 },
+    ],
+    molarMass: 101.1,
+    solidSpecies: SP.KNO3Solid,
+    solubilityG100ml: [
+      [0, 13.3],
+      [20, 31.6],
+      [40, 63.9],
+      [60, 110],
+      [80, 169],
+      [100, 246],
+    ],
+  },
+  {
+    kind: "solution",
     id: mintReagentId("agno3"),
     label: "Silver nitrate",
     formula: "AgNO3",
@@ -118,6 +185,11 @@ const REAGENTS_BY_ID = new Map<ReagentId, ReagentDef>(REAGENTS.map((r) => [r.id,
 export function reagentDef(id: ReagentId): ReagentDef | undefined {
   return REAGENTS_BY_ID.get(id);
 }
+
+type SolidReagentDef = Extract<ReagentDef, { kind: "solid" }>;
+
+/** Every dry-solid reagent, for solubility.ts's equilibration pass over a container. */
+export const SOLID_REAGENTS: ReadonlyArray<SolidReagentDef> = REAGENTS.filter((r): r is SolidReagentDef => r.kind === "solid");
 
 export const INDICATORS: ReadonlyArray<IndicatorDef> = [
   {

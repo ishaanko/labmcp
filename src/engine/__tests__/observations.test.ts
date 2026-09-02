@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mintContainerId, mintIndicatorId, mintInstrumentId, mintReagentId, mintReactionRuleId } from "../ids";
 import { describeError, describeEvent } from "../observations";
 import { ruleById } from "../reactions";
+import { SP } from "../species";
 import type { LabError, LabEvent } from "../types";
 
 const containerId = mintContainerId(1);
@@ -51,6 +52,8 @@ const eventFixtures: ReadonlyArray<LabEvent> = [
   { kind: "PH_CHANGE", containerId, from: 7, to: 5 },
   { kind: "NO_REACTION", containerId, description: "Mixed, no visible reaction." },
   { kind: "SOLIDS_SETTLED", containerId },
+  { kind: "SOLUBILITY_CHANGE", containerId, species: SP.KNO3Solid, dissolvedG: 3.2, undissolvedG: 1.8, temperatureC: 20 },
+  { kind: "OBJECTIVE_COMPLETE", scenarioId: "neutralize", detail: "pH 7.02" },
   { kind: "DISPOSED", containerId, volumeMl: 50 },
   { kind: "UNDONE", undoneCommand: { kind: "RESET" }, undoneSeq: 3, undoneActor: "human" },
   { kind: "RESET" },
@@ -117,6 +120,26 @@ describe("describeEvent", () => {
       indicatorTransition: true,
     });
     expect(text).toBe("Faint pink.");
+  });
+
+  it("describes a solid addition in grams, not as 0.0 mL", () => {
+    const text = describeEvent({ kind: "LIQUID_ADDED", containerId, reagentId: mintReagentId("kno3"), volumeMl: 0, massG: 20, newVolumeMl: 50 });
+    expect(text).toBe(`Added 20.0 g Potassium nitrate to ${containerId}.`);
+  });
+
+  it("names the species and grams still dissolved/undissolved for a SOLUBILITY_CHANGE", () => {
+    const text = describeEvent({ kind: "SOLUBILITY_CHANGE", containerId, species: SP.KNO3Solid, dissolvedG: 3.2, undissolvedG: 1.8, temperatureC: 20 });
+    expect(text).toBe("Potassium nitrate: 3.2 g dissolved, 1.8 g undissolved.");
+  });
+
+  it("drops the undissolved clause once a SOLUBILITY_CHANGE reaches full dissolution", () => {
+    const text = describeEvent({ kind: "SOLUBILITY_CHANGE", containerId, species: SP.KNO3Solid, dissolvedG: 5, undissolvedG: 0, temperatureC: 60 });
+    expect(text).toBe("Potassium nitrate: 5.0 g dissolved.");
+  });
+
+  it("prefixes an OBJECTIVE_COMPLETE with its scenario detail", () => {
+    const text = describeEvent({ kind: "OBJECTIVE_COMPLETE", scenarioId: "neutralize", detail: "pH 7.02" });
+    expect(text).toBe("Objective complete: pH 7.02.");
   });
 });
 

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Container, LabState } from "@/engine";
+import { assertNever, type Container, type LabState, type ScenarioState } from "@/engine";
 import { setAnimationSink, type AnimationBatch } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
 import { selectLastAgentTarget, type AgentTarget } from "@/store/selectors";
@@ -99,6 +99,33 @@ function handleLiquidTransferred(prev: LabState, fromId: string, toId: string): 
   }
 }
 
+/**
+ * The single container the success pulse lands on for a completed scenario, or `null` when the
+ * objective has no one vessel to point at (`OBJECTIVE_COMPLETE` itself carries no container id).
+ */
+function objectiveContainerId(scenario: ScenarioState): string | null {
+  switch (scenario.kind) {
+    case "sandbox":
+    case "unknown_id":
+    case "dilution":
+      return null;
+    case "titration":
+      return scenario.flaskId;
+    case "precipitation":
+    case "neutralize":
+    case "solubility":
+      return scenario.beakerId;
+    default:
+      return assertNever(scenario);
+  }
+}
+
+function pulseContainer(id: string): void {
+  const store = useEffectsStore.getState();
+  store.addPulse(id);
+  window.setTimeout(() => useEffectsStore.getState().removePulse(id), PULSE_MS);
+}
+
 function handleAnimationBatch(batch: AnimationBatch): void {
   if (useLabStore.getState().ui.reducedMotion) return;
   for (const observation of batch.events) {
@@ -106,9 +133,10 @@ function handleAnimationBatch(batch: AnimationBatch): void {
     if (event.kind === "LIQUID_TRANSFERRED") {
       handleLiquidTransferred(batch.prev, event.fromId, event.toId);
     } else if (event.kind === "COLOR_SHIFT" && event.indicatorTransition) {
-      const store = useEffectsStore.getState();
-      store.addPulse(event.containerId);
-      window.setTimeout(() => useEffectsStore.getState().removePulse(event.containerId), PULSE_MS);
+      pulseContainer(event.containerId);
+    } else if (event.kind === "OBJECTIVE_COMPLETE") {
+      const containerId = objectiveContainerId(batch.prev.scenario);
+      if (containerId) pulseContainer(containerId);
     }
   }
 }

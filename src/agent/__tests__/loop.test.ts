@@ -6,6 +6,7 @@ import type { ModelInputItem } from "../types";
 
 const STUB_STATE: LabSummary = {
   scenario: { id: "sandbox", objective: "", revealed: false },
+  objective: { title: "", steps: [], complete: false, detail: "" },
   clockS: 0,
   ambientC: 22,
   stateVersion: 1,

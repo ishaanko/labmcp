@@ -1,35 +1,31 @@
 /**
- * Scenario construction (A4.2) and the public, redaction-safe view of state (A4.4). `secrets`
- * never leaves this module except through the deliberately narrow answer-checking helpers.
+ * Scenario construction (A4.2): loadScenario for every ScenarioId, deterministic per seed.
+ * `secrets` never leaves this module except through the answer-checking helpers in
+ * scenarioProgress.ts. Construction helpers (containerAt, instrumentAt, shelfEntry) live in
+ * scenarioLayouts.ts; the redaction-safe public view lives in scenarioView.ts.
  */
-import { isScenarioRevealed } from "./commands";
 import { AMBIENT_C, CAPACITY_ML } from "./constants";
-import { deriveColor, describeColor } from "./color";
-import { mintContainerId, mintIndicatorId, mintInstrumentId, mintReagentId, type ContainerId, type ReactionRuleId, type ReagentId } from "./ids";
-import { derivePh } from "./ph";
-import { precipitateScale } from "./reactions";
+import { mintContainerId, mintIndicatorId, mintInstrumentId, mintReagentId, type ContainerId, type ReagentId } from "./ids";
 import { INDICATOR_IDS, REAGENTS, reagentDef, stockToMoles } from "./reagents";
 import { nextFloat, seedRng, shuffle } from "./rng";
-import { getMoles, speciesDef, speciesKeys } from "./species";
-import {
-  assertNever,
-  type Container,
-  type ContentsView,
-  type CurvePoint,
-  type Instrument,
-  type LabObject,
-  type LabState,
-  type PublicContainer,
-  type PublicLabState,
-  type PublicScenario,
-  type ScenarioId,
-  type ScenarioState,
-  type ShelfStock,
-  type SpeciesMoles,
-  type StockRecipe,
-} from "./types";
+import { containerAt, instrumentAt, round4, shelfEntry } from "./scenarioLayouts";
+import { assertNever, type LabObject, type LabState, type ScenarioId, type ShelfStock, type StockRecipe, type Vec2 } from "./types";
 
-export const SCENARIO_IDS: ReadonlyArray<ScenarioId> = ["sandbox", "titration", "unknown_id"];
+export { publicView } from "./scenarioView";
+export { checkTitrationAnswer, checkUnknownAnswers, estimateEquivalenceMl, titrationCurve, titrationSolution } from "./scenarioAnswers";
+
+export const SCENARIO_IDS: ReadonlyArray<ScenarioId> = ["titration", "precipitation", "neutralize", "dilution", "solubility", "unknown_id", "sandbox"];
+
+/** Short menu labels, in the same order as SCENARIO_IDS. */
+export const SCENARIO_TITLES: Readonly<Record<ScenarioId, string>> = {
+  titration: "Titration",
+  precipitation: "Precipitation",
+  neutralize: "Neutralize to pH 7",
+  dilution: "Dilution",
+  solubility: "Solubility",
+  unknown_id: "Reaction mystery",
+  sandbox: "Sandbox",
+};
 
 export function scenarioObjective(id: ScenarioId): string {
   switch (id) {
@@ -38,60 +34,39 @@ export function scenarioObjective(id: ScenarioId): string {
     case "titration":
       return "Titrate the acid in the flask with the burette's sodium hydroxide to find its exact concentration.";
     case "unknown_id":
-      return "Identify each unknown sample by testing it against the known reagents on the shelf.";
+      return "Find which pairs react: gas, precipitate, or color. Then name each unknown.";
+    case "precipitation":
+      return "Mix two solutions and make a solid appear.";
+    case "neutralize":
+      return "Bring the beaker to pH 7.0 ± 0.1 using the available reagents.";
+    case "dilution":
+      return "Prepare 100 mL of 0.10 M sodium chloride from the 1.0 M stock.";
+    case "solubility":
+      return "Dissolve potassium nitrate, then heat and cool to see solubility change.";
     default:
       return assertNever(id);
   }
 }
 
-const round4 = (x: number): number => Math.round(x * 10000) / 10000;
-
-function containerAt(
-  id: ContainerId,
-  type: Container["type"],
-  label: string,
-  capacityMl: number,
-  position: { readonly x: number; readonly y: number },
-  volumeMl: number,
-  species: SpeciesMoles,
-  containsUnknown: boolean,
-): Container {
-  return {
-    kind: "container",
-    id,
-    type,
-    label,
-    capacityMl,
-    position,
-    rotationDeg: 0,
-    volumeMl,
-    temperatureC: AMBIENT_C,
-    species,
-    solids: [],
-    gasEffects: [],
-    indicators: [],
-    stir: { kind: "still" },
-    thermal: { kind: "idle" },
-    containsUnknown,
-  };
+function fullShelf(): ReadonlyArray<ShelfStock> {
+  return REAGENTS.map((r) => ({
+    reagentId: r.id,
+    label: r.label,
+    concentrationM: r.kind === "solution" ? r.defaultM : null,
+    remainingMl: null,
+  }));
 }
 
 function loadSandbox(seed: number): LabState {
-  const shelf: ReadonlyArray<ShelfStock> = REAGENTS.map((r) => ({
-    reagentId: r.id,
-    label: r.label,
-    concentrationM: r.kind === "water" ? null : r.defaultM,
-    remainingMl: null,
-  }));
   // A hotplate and an empty beaker give sandbox the same heating/mixing setup as the challenge
   // scenarios without dictating what the beaker holds.
   const beaker = containerAt(mintContainerId(1), "beaker", "Beaker", CAPACITY_ML.beaker, { x: -0.5, y: 0.5 }, 0, {}, false);
-  const hotplate: Instrument = { kind: "instrument", id: mintInstrumentId(2), type: "hotplate", position: { x: 1.5, y: 0.5 }, attachedTo: null, lastReading: null };
+  const hotplate = instrumentAt(mintInstrumentId(2), "hotplate", { x: 1.5, y: 0.5 });
   return {
     clockS: 0,
     ambientC: AMBIENT_C,
     objects: [beaker, hotplate],
-    shelf,
+    shelf: fullShelf(),
     indicatorsAvailable: [...INDICATOR_IDS],
     reactions: [],
     observations: [],
@@ -118,17 +93,14 @@ function loadTitration(seed: number): LabState {
   // grid's far-left edge.
   const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask, { x: -1.5, y: 0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
   const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette, { x: -1.5, y: -0.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
-  const phMeter: Instrument = { kind: "instrument", id: mintInstrumentId(3), type: "ph_meter", position: { x: 0.5, y: -0.5 }, attachedTo: null, lastReading: null };
+  const phMeter = instrumentAt(mintInstrumentId(3), "ph_meter", { x: 0.5, y: -0.5 });
   const beaker = containerAt(mintContainerId(4), "beaker", "Beaker", CAPACITY_ML.beaker, { x: 0.5, y: 0.5 }, 0, {}, false);
-  const hotplate: Instrument = { kind: "instrument", id: mintInstrumentId(5), type: "hotplate", position: { x: 2.5, y: 0.5 }, attachedTo: null, lastReading: null };
+  const hotplate = instrumentAt(mintInstrumentId(5), "hotplate", { x: 2.5, y: 0.5 });
 
   // No naoh entry here: the only titrant path is the burette (via dispense), so every base
   // addition is recorded on the titration curve. TRANSFER_LIQUID out of the burette is also
   // blocked in commands.ts for the same reason.
-  const shelf: ReadonlyArray<ShelfStock> = [
-    { reagentId: mintReagentId("water"), label: "Water", concentrationM: null, remainingMl: null },
-    { reagentId: mintReagentId("unknown_acid"), label: "Unknown acid", concentrationM: null, remainingMl: null },
-  ];
+  const shelf: ReadonlyArray<ShelfStock> = [shelfEntry(mintReagentId("water")), { reagentId: mintReagentId("unknown_acid"), label: "Unknown acid", concentrationM: null, remainingMl: null }];
 
   return {
     clockS: 0,
@@ -157,19 +129,20 @@ function loadTitration(seed: number): LabState {
   };
 }
 
-const UNKNOWN_LABELS: ReadonlyArray<string> = ["A", "B", "C"];
-// Front row, spanning the bench; the pH meter sits behind the middle sample.
-const UNKNOWN_POSITIONS: ReadonlyArray<{ readonly x: number; readonly y: number }> = [
-  { x: -1.5, y: 0.5 },
-  { x: 0.5, y: 0.5 },
-  { x: 2.5, y: 0.5 },
+const UNKNOWN_LABELS: ReadonlyArray<string> = ["A", "B", "C", "D"];
+// Front row, spanning the bench; the pH meter sits behind the second-from-left sample.
+const UNKNOWN_POSITIONS: ReadonlyArray<Vec2> = [
+  { x: -2.5, y: 0.5 },
+  { x: -0.5, y: 0.5 },
+  { x: 1.5, y: 0.5 },
+  { x: 3.5, y: 0.5 },
 ];
-const UNKNOWN_ARCHETYPES: ReadonlyArray<string> = ["hcl", "naoh", "nacl", "na2co3", "cacl2"];
-const UNKNOWN_SHOWN_REAGENTS: ReadonlyArray<string> = ["water", "hcl", "naoh", "nacl", "agno3", "cacl2", "na2co3"];
+const UNKNOWN_ARCHETYPES: ReadonlyArray<string> = ["hcl", "na2co3", "agno3", "nacl", "cuso4", "bacl2", "na2so4"];
+const UNKNOWN_SHOWN_REAGENTS: ReadonlyArray<string> = ["hcl", "naoh", "agno3", "nacl", "bacl2", "na2so4", "water"];
 
 function loadUnknownId(seed: number): LabState {
   const draw = shuffle(seedRng(seed), UNKNOWN_ARCHETYPES.map((s) => mintReagentId(s)));
-  const chosen = draw.value.slice(0, 3);
+  const chosen = draw.value.slice(0, 4);
 
   const objects: LabObject[] = [];
   const secrets: Record<string, StockRecipe> = {};
@@ -187,16 +160,9 @@ function loadUnknownId(seed: number): LabState {
     samples.push({ shelfId, label: `Unknown ${label}`, containerId });
   });
 
-  objects.push({ kind: "instrument", id: mintInstrumentId(4), type: "ph_meter", position: { x: 0.5, y: -0.5 }, attachedTo: null, lastReading: null });
+  objects.push(instrumentAt(mintInstrumentId(5), "ph_meter", { x: 0.5, y: -0.5 }));
 
-  const shelf: ReadonlyArray<ShelfStock> = [
-    ...UNKNOWN_SHOWN_REAGENTS.map((slug) => {
-      const id = mintReagentId(slug);
-      const def = reagentDef(id);
-      return { reagentId: id, label: def?.kind === "solution" ? def.label : def?.kind === "water" ? def.label : slug, concentrationM: def?.kind === "solution" ? def.defaultM : null, remainingMl: null };
-    }),
-    ...samples.map((s) => ({ reagentId: s.shelfId, label: s.label, concentrationM: null, remainingMl: null })),
-  ];
+  const shelf: ReadonlyArray<ShelfStock> = [...UNKNOWN_SHOWN_REAGENTS.map((slug) => shelfEntry(mintReagentId(slug))), ...samples.map((s) => ({ reagentId: s.shelfId, label: s.label, concentrationM: null, remainingMl: null }))];
 
   return {
     clockS: 0,
@@ -216,7 +182,142 @@ function loadUnknownId(seed: number): LabState {
       revealed: false,
     },
     rng: draw.rng,
-    nextSeq: 5,
+    nextSeq: 6,
+  };
+}
+
+function loadPrecipitation(seed: number): LabState {
+  const beakerId = mintContainerId(1);
+  const beaker = containerAt(beakerId, "beaker", "Beaker", CAPACITY_ML.beaker, { x: -0.5, y: 0.5 }, 0, {}, false);
+  const beaker2 = containerAt(mintContainerId(2), "beaker", "Beaker 2", CAPACITY_ML.beaker, { x: 1.5, y: 0.5 }, 0, {}, false);
+  const shelf: ReadonlyArray<ShelfStock> = ["agno3", "nacl", "bacl2", "na2so4", "cuso4", "naoh", "water"].map((slug) => shelfEntry(mintReagentId(slug)));
+
+  return {
+    clockS: 0,
+    ambientC: AMBIENT_C,
+    objects: [beaker, beaker2],
+    shelf,
+    indicatorsAvailable: [...INDICATOR_IDS],
+    reactions: [],
+    observations: [],
+    history: [],
+    scenario: {
+      kind: "precipitation",
+      seed,
+      visibility: { inspectContents: "full", revealShelfConcentrations: true, instrumentsRequired: false },
+      beakerId,
+      revealed: false,
+    },
+    rng: seedRng(seed),
+    nextSeq: 3,
+  };
+}
+
+function loadNeutralize(seed: number): LabState {
+  const pickReagent = nextFloat(seedRng(seed));
+  const startReagentId = mintReagentId(pickReagent.value < 0.5 ? "hcl" : "naoh");
+  const pickM = nextFloat(pickReagent.rng);
+  const startM = round4(0.02 + 0.04 * pickM.value);
+
+  const startDef = reagentDef(startReagentId);
+  if (!startDef || startDef.kind !== "solution") throw new Error("unreachable: hcl/naoh missing from registry");
+
+  const beakerId = mintContainerId(1);
+  const beaker = containerAt(beakerId, "beaker", "Beaker", CAPACITY_ML.beaker, { x: 0.5, y: 0.5 }, 50, stockToMoles(startDef, 50, startM), true);
+  const phMeter = instrumentAt(mintInstrumentId(2), "ph_meter", { x: 0.5, y: -0.5 });
+
+  const shelf: ReadonlyArray<ShelfStock> = [
+    shelfEntry(mintReagentId("hcl"), 0.1),
+    shelfEntry(mintReagentId("naoh"), 0.1),
+    shelfEntry(mintReagentId("acetic_acid")),
+    shelfEntry(mintReagentId("ammonia")),
+    shelfEntry(mintReagentId("water")),
+  ];
+
+  return {
+    clockS: 0,
+    ambientC: AMBIENT_C,
+    objects: [beaker, phMeter],
+    shelf,
+    indicatorsAvailable: [...INDICATOR_IDS],
+    reactions: [],
+    observations: [],
+    history: [],
+    scenario: {
+      kind: "neutralize",
+      seed,
+      visibility: { inspectContents: "non_unknown_only", revealShelfConcentrations: true, instrumentsRequired: true },
+      beakerId,
+      targetPh: 7.0,
+      tolerance: 0.1,
+      secrets: { startReagent: startReagentId, startM },
+      revealed: false,
+    },
+    rng: pickM.rng,
+    nextSeq: 3,
+  };
+}
+
+function loadDilution(seed: number): LabState {
+  const naclId = mintReagentId("nacl");
+  const cylinder = containerAt(mintContainerId(1), "graduated_cylinder", "Graduated cylinder", CAPACITY_ML.graduated_cylinder, { x: -0.5, y: 0.5 }, 0, {}, false);
+  const beaker = containerAt(mintContainerId(2), "beaker", "Beaker", CAPACITY_ML.beaker, { x: 1.5, y: 0.5 }, 0, {}, false);
+  const shelf: ReadonlyArray<ShelfStock> = [shelfEntry(naclId, 1.0), shelfEntry(mintReagentId("water"))];
+
+  return {
+    clockS: 0,
+    ambientC: AMBIENT_C,
+    objects: [cylinder, beaker],
+    shelf,
+    indicatorsAvailable: [...INDICATOR_IDS],
+    reactions: [],
+    observations: [],
+    history: [],
+    scenario: {
+      kind: "dilution",
+      seed,
+      visibility: { inspectContents: "full", revealShelfConcentrations: true, instrumentsRequired: false },
+      reagentId: naclId,
+      stockM: 1.0,
+      targetMl: 100,
+      targetM: 0.1,
+      toleranceMl: 2,
+      toleranceM: 0.005,
+      revealed: false,
+    },
+    rng: seedRng(seed),
+    nextSeq: 3,
+  };
+}
+
+function loadSolubility(seed: number): LabState {
+  const beakerId = mintContainerId(1);
+  const beaker = containerAt(beakerId, "beaker", "Beaker", CAPACITY_ML.beaker, { x: -0.5, y: 0.5 }, 50, {}, false);
+  const hotplate = instrumentAt(mintInstrumentId(2), "hotplate", { x: 1.5, y: 0.5 });
+  const thermometer = instrumentAt(mintInstrumentId(3), "thermometer", { x: 1.5, y: -0.5 });
+  const kno3Id = mintReagentId("kno3");
+  const shelf: ReadonlyArray<ShelfStock> = [shelfEntry(kno3Id), shelfEntry(mintReagentId("water"))];
+
+  return {
+    clockS: 0,
+    ambientC: AMBIENT_C,
+    objects: [beaker, hotplate, thermometer],
+    shelf,
+    indicatorsAvailable: [...INDICATOR_IDS],
+    reactions: [],
+    observations: [],
+    history: [],
+    scenario: {
+      kind: "solubility",
+      seed,
+      visibility: { inspectContents: "full", revealShelfConcentrations: true, instrumentsRequired: true },
+      beakerId,
+      soluteId: kno3Id,
+      revealed: false,
+      milestones: { addedEnoughSolute: false, hadUndissolved: false, heatedFullyDissolved: false, cooledWithCrystals: false },
+    },
+    rng: seedRng(seed),
+    nextSeq: 4,
   };
 }
 
@@ -228,168 +329,15 @@ export function loadScenario(id: ScenarioId, seed: number): LabState {
       return loadTitration(seed);
     case "unknown_id":
       return loadUnknownId(seed);
+    case "precipitation":
+      return loadPrecipitation(seed);
+    case "neutralize":
+      return loadNeutralize(seed);
+    case "dilution":
+      return loadDilution(seed);
+    case "solubility":
+      return loadSolubility(seed);
     default:
       return assertNever(id);
   }
-}
-
-// ---------- public view ----------
-
-function isContentsVisible(scenario: ScenarioState, container: Container): boolean {
-  if (!container.containsUnknown) return true;
-  return scenario.visibility.inspectContents === "full" || isScenarioRevealed(scenario);
-}
-
-function concentrationsOf(container: Container): Readonly<Partial<Record<string, number>>> {
-  const liters = container.volumeMl / 1000;
-  const out: Record<string, number> = {};
-  if (liters <= 0) return out;
-  for (const id of speciesKeys(container.species)) out[id] = getMoles(container.species, id) / liters;
-  return out;
-}
-
-function reactionsOccurredIn(state: LabState, containerId: ContainerId): ReadonlyArray<ReactionRuleId> {
-  const seen = new Set<ReactionRuleId>();
-  const out: ReactionRuleId[] = [];
-  for (const r of state.reactions) {
-    if (r.containerId !== containerId || seen.has(r.ruleId)) continue;
-    seen.add(r.ruleId);
-    out.push(r.ruleId);
-  }
-  return out;
-}
-
-/** `visible` matches the container's own `ContentsView`: a hidden container's solids carry no species or moles. */
-function publicSolids(solids: Container["solids"], visible: boolean): PublicContainer["solids"] {
-  return solids.map((s) => {
-    const def = speciesDef(s.species);
-    const color = def.kind === "solid" ? def.color : { r: 200, g: 200, b: 200, a: 1 };
-    const molarMass = def.kind === "solid" ? def.molarMass : 0;
-    const scale = precipitateScale(s.moles * molarMass);
-    return visible ? { kind: "identified" as const, species: s.species, moles: s.moles, suspended: s.suspended, color, scale } : { kind: "redacted" as const, suspended: s.suspended, color, scale };
-  });
-}
-
-function toPublicContainer(state: LabState, container: Container): PublicContainer {
-  const visible = isContentsVisible(state.scenario, container);
-  const hasPhMeter = state.objects.some((o) => o.kind === "instrument" && o.type === "ph_meter" && o.attachedTo === container.id);
-  const contents: ContentsView = visible
-    ? { kind: "visible", species: container.species, concentrationsM: concentrationsOf(container) }
-    : { kind: "hidden", reason: "Unidentified sample; determine its identity through observation." };
-  const color = deriveColor(container);
-  return {
-    kind: "container",
-    id: container.id,
-    type: container.type,
-    label: container.label,
-    capacityMl: container.capacityMl,
-    position: container.position,
-    rotationDeg: container.rotationDeg,
-    volumeMl: container.volumeMl,
-    temperatureC: container.temperatureC,
-    solids: publicSolids(container.solids, visible),
-    gasEffects: container.gasEffects,
-    indicators: container.indicators,
-    stir: container.stir,
-    thermal: container.thermal,
-    contents,
-    pH: visible || hasPhMeter ? derivePh(container) : null,
-    color,
-    colorName: describeColor(color),
-    reactionsOccurred: reactionsOccurredIn(state, container.id),
-  };
-}
-
-function toPublicScenario(scenario: ScenarioState): PublicScenario {
-  switch (scenario.kind) {
-    case "sandbox":
-      return scenario;
-    case "titration":
-      return {
-        kind: "titration",
-        seed: scenario.seed,
-        visibility: scenario.visibility,
-        flaskId: scenario.flaskId,
-        buretteId: scenario.buretteId,
-        analyteMl: scenario.analyteMl,
-        titrantM: scenario.titrantM,
-        curve: scenario.curve,
-        revealed: scenario.revealed,
-        analyteM: scenario.revealed ? scenario.secrets.analyteM : null,
-      };
-    case "unknown_id":
-      return {
-        kind: "unknown_id",
-        seed: scenario.seed,
-        visibility: scenario.visibility,
-        samples: scenario.samples,
-        revealed: scenario.revealed,
-        identities: scenario.revealed ? scenario.secrets : null,
-      };
-    default:
-      return assertNever(scenario);
-  }
-}
-
-/** Redacts secrets and taints per A4.4. UI and tools read the lab exclusively through this. */
-export function publicView(state: LabState): PublicLabState {
-  return {
-    clockS: state.clockS,
-    ambientC: state.ambientC,
-    objects: state.objects.map((o) => (o.kind === "container" ? toPublicContainer(state, o) : o)),
-    shelf: state.shelf,
-    indicatorsAvailable: state.indicatorsAvailable,
-    scenario: toPublicScenario(state.scenario),
-    nextSeq: state.nextSeq,
-  };
-}
-
-// ---------- titration helpers ----------
-
-export function titrationCurve(state: LabState): ReadonlyArray<CurvePoint> {
-  return state.scenario.kind === "titration" ? state.scenario.curve : [];
-}
-
-/** Midpoint of the steepest ΔpH/ΔmL interval; null when fewer than two readings have a pH value. */
-export function estimateEquivalenceMl(curve: ReadonlyArray<CurvePoint>): number | null {
-  const valid = curve.filter((p): p is CurvePoint & { pH: number } => p.pH !== null).slice().sort((a, b) => a.titrantMl - b.titrantMl);
-  if (valid.length < 2) return null;
-  let bestSlope = -Infinity;
-  let bestMid: number | null = null;
-  for (let i = 0; i < valid.length - 1; i++) {
-    const a = valid[i];
-    const b = valid[i + 1];
-    if (!a || !b) continue;
-    const dv = b.titrantMl - a.titrantMl;
-    if (dv <= 0) continue;
-    const slope = Math.abs(b.pH - a.pH) / dv;
-    if (slope > bestSlope) {
-      bestSlope = slope;
-      bestMid = (a.titrantMl + b.titrantMl) / 2;
-    }
-  }
-  return bestMid;
-}
-
-export function titrationSolution(state: LabState): { readonly analyteM: number; readonly equivalenceMl: number } | null {
-  if (state.scenario.kind !== "titration") return null;
-  const { analyteMl, titrantM, secrets } = state.scenario;
-  return { analyteM: secrets.analyteM, equivalenceMl: (analyteMl * secrets.analyteM) / titrantM };
-}
-
-export function checkTitrationAnswer(state: LabState, claimedM: number): { readonly correct: boolean; readonly relError: number; readonly analyteM: number } | null {
-  if (state.scenario.kind !== "titration") return null;
-  const analyteM = state.scenario.secrets.analyteM;
-  const relError = Math.abs(claimedM - analyteM) / analyteM;
-  return { correct: relError <= state.scenario.toleranceRel, relError, analyteM };
-}
-
-export function checkUnknownAnswers(state: LabState, guesses: Readonly<Record<string, ReagentId>>): { readonly correct: number; readonly total: number } | null {
-  if (state.scenario.kind !== "unknown_id") return null;
-  let correct = 0;
-  for (const sample of state.scenario.samples) {
-    const recipe = state.scenario.secrets[sample.shelfId];
-    if (recipe && guesses[sample.shelfId] === recipe.reagentId) correct += 1;
-  }
-  return { correct, total: state.scenario.samples.length };
 }

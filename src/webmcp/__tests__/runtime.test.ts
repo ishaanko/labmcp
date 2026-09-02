@@ -10,6 +10,16 @@ vi.mock("@/engine", async (importOriginal) => {
   return {
     ...actual,
     scenarioObjective: () => "test objective",
+    scenarioProgress: () => ({ scenarioId: "sandbox", objective: "test objective", steps: [], complete: false, detail: "test objective" }),
+    SCENARIO_TITLES: {
+      sandbox: "test",
+      titration: "test",
+      unknown_id: "test",
+      precipitation: "test",
+      neutralize: "test",
+      dilution: "test",
+      solubility: "test",
+    },
     publicView: (state: LabState): PublicLabState => ({
       clockS: state.clockS,
       ambientC: state.ambientC,

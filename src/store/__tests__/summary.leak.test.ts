@@ -3,11 +3,15 @@ import { describe, expect, it, vi } from "vitest";
 const SECRET_SPECIES = "Ag+";
 const SECRET_SOLID = "AgCl(s)";
 const KNOWN_SPECIES = "Cl-";
+const SECRET_START_REAGENT = "unknown_start_reagent_xyz";
 
 vi.mock("@/engine", () => ({
   constants: { EQUIPMENT_TYPES: ["beaker", "flask", "test_tube", "graduated_cylinder", "burette", "ph_meter", "thermometer", "hotplate"] },
   publicView: (lab: { pub: unknown }) => lab.pub,
   scenarioObjective: () => "Find the concentration of the unknown acid.",
+  // Fixed, secret-free status: this test suite checks summarizeLab's own field selection, not
+  // the (concurrently landing) engine scenarioProgress implementation.
+  scenarioProgress: () => ({ scenarioId: "unknown_id", objective: "test objective", steps: [], complete: false, detail: "in progress" }),
   describeEvent: (e: { kind: string; from?: number; to?: number; cause?: string }) =>
     e.kind === "REACTION"
       ? `Reaction produced ${SECRET_SPECIES}`
@@ -127,5 +131,36 @@ describe("summary.leak", () => {
     const lab = labWith([{ event: { kind: "TEMPERATURE_CHANGE", containerId: "c_1", cause: "reaction", fromC: 22, toC: 24 } as never }]);
     const summary = summarizeLab(lab, 1);
     expect(summary.lastObservations.some((line) => line.includes("reaction"))).toBe(false);
+  });
+
+  it("never surfaces a neutralize scenario's hidden starting reagent before it is revealed", () => {
+    // Simulates publicView carrying the neutralize secret on `scenario` (as it does pre-reveal,
+    // via `secrets`/`start`): summarizeLab only ever forwards a fixed whitelist of scenario
+    // fields, so this must never reach the summary regardless of what publicView returns.
+    const lab = {
+      observations: [],
+      pub: {
+        clockS: 5,
+        ambientC: 22,
+        objects: [visibleContainer()],
+        shelf: [],
+        indicatorsAvailable: ["phenolphthalein"],
+        scenario: {
+          kind: "neutralize",
+          revealed: false,
+          targetPh: 7,
+          tolerance: 0.1,
+          start: null,
+          secrets: { startReagent: SECRET_START_REAGENT, startM: 0.4 },
+        },
+      },
+    } as unknown as Parameters<typeof summarizeLab>[0];
+
+    const summary = summarizeLab(lab, 1);
+    const json = JSON.stringify(summary);
+
+    expect(json).not.toContain(SECRET_START_REAGENT);
+    expect(summary.scenario.id).toBe("neutralize");
+    expect(summary.scenario.revealed).toBe(false);
   });
 });

@@ -39,6 +39,16 @@ vi.mock("@/engine", async (importOriginal) => {
   return {
     ...actual,
     scenarioObjective: () => "test objective",
+    scenarioProgress: () => ({ scenarioId: "sandbox", objective: "test objective", steps: [], complete: false, detail: "test objective" }),
+    SCENARIO_TITLES: {
+      sandbox: "test",
+      titration: "test",
+      unknown_id: "test",
+      precipitation: "test",
+      neutralize: "test",
+      dilution: "test",
+      solubility: "test",
+    },
     publicView: (state: LabState): PublicLabState => {
       const revealed = state.scenario.kind === "sandbox" ? true : state.scenario.revealed;
       return {
@@ -47,6 +57,8 @@ vi.mock("@/engine", async (importOriginal) => {
         objects: state.objects.map((o) => (o.kind === "instrument" ? o : toPublicContainer(o, revealed))),
         shelf: state.shelf,
         indicatorsAvailable: state.indicatorsAvailable,
+        // Only sandbox, titration, and unknown_id are exercised by this file's fixtures; the
+        // other scenario kinds fall back to a sandbox-shaped stub, which is never asserted on.
         scenario:
           state.scenario.kind === "titration"
             ? {
@@ -61,16 +73,16 @@ vi.mock("@/engine", async (importOriginal) => {
                 revealed: state.scenario.revealed,
                 analyteM: state.scenario.revealed ? state.scenario.secrets.analyteM : null,
               }
-            : state.scenario.kind === "sandbox"
-              ? state.scenario
-              : {
+            : state.scenario.kind === "unknown_id"
+              ? {
                   kind: "unknown_id" as const,
                   seed: state.scenario.seed,
                   visibility: state.scenario.visibility,
                   samples: state.scenario.samples,
                   revealed: state.scenario.revealed,
                   identities: state.scenario.revealed ? state.scenario.secrets : null,
-                },
+                }
+              : { kind: "sandbox" as const, seed: state.scenario.seed, visibility: state.scenario.visibility },
         nextSeq: state.nextSeq,
       };
     },

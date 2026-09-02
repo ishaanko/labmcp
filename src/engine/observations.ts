@@ -206,8 +206,10 @@ export function describeEvent(event: LabEvent, labels?: LabelLookup): string {
       return event.containerId
         ? `Attached ${labelOf(event.instrumentId, labels)} to ${labelOf(event.containerId, labels)}.`
         : `Detached ${labelOf(event.instrumentId, labels)}.`;
-    case "LIQUID_ADDED":
-      return `Added ${event.volumeMl.toFixed(1)} mL ${reagentLabel(event.reagentId)} to ${labelOf(event.containerId, labels)}.`;
+    case "LIQUID_ADDED": {
+      const amount = event.massG !== undefined ? `${event.massG.toFixed(1)} g` : `${event.volumeMl.toFixed(1)} mL`;
+      return `Added ${amount} ${reagentLabel(event.reagentId)} to ${labelOf(event.containerId, labels)}.`;
+    }
     case "LIQUID_TRANSFERRED":
       return `Poured ${event.volumeMl.toFixed(1)} mL from ${labelOf(event.fromId, labels)} into ${labelOf(event.toId, labels)}.`;
     case "INDICATOR_ADDED":
@@ -243,6 +245,15 @@ export function describeEvent(event: LabEvent, labels?: LabelLookup): string {
       return event.description;
     case "SOLIDS_SETTLED":
       return `Solids in ${labelOf(event.containerId, labels)} settled.`;
+    case "SOLUBILITY_CHANGE": {
+      // The event carries only the current split, not which way it just moved (dissolving vs.
+      // crystallizing both fire it), so the sentence states the split rather than claiming a direction.
+      const name = speciesDef(event.species).name;
+      const remainder = event.undissolvedG > 0.05 ? `, ${event.undissolvedG.toFixed(1)} g undissolved` : "";
+      return `${capitalize(name)}: ${event.dissolvedG.toFixed(1)} g dissolved${remainder}.`;
+    }
+    case "OBJECTIVE_COMPLETE":
+      return `Objective complete: ${event.detail.replace(/\.$/, "")}.`;
     case "DISPOSED":
       return `Disposed of ${event.volumeMl.toFixed(1)} mL from ${labelOf(event.containerId, labels)}.`;
     case "UNDONE":

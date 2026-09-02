@@ -18,12 +18,14 @@ export const MIXING_TEMP_EVENT_C = 0.5;
 
 /** Water autoionisation constant at 25 °C. */
 export const KW = 1e-14;
+/** First dissociation pKa of carbonic acid (H2CO3 / HCO3-). */
+export const PKA1_CARBONIC = 6.35;
 /** Second dissociation pKa of carbonic acid (HCO3- / CO3^2-). */
 export const PKA2_CARBONIC = 10.33;
-/** Kb of carbonate, used for the carbonate-only pH fallback. */
-export const KB_CARBONATE = 2.1e-4;
-/** pH of a pure bicarbonate solution, (pKa1 + pKa2) / 2. */
-export const PH_BICARBONATE = 8.34;
+/** pKa of acetic acid (CH3COOH / CH3COO-). */
+export const PKA_ACETIC = 4.76;
+/** pKa of the ammonium ion (NH4+ / NH3). */
+export const PKA_AMMONIUM = 9.25;
 
 export const HEAT_RATE_C_PER_S = 1.5;
 export const PASSIVE_RATE_C_PER_S = 0.05;
@@ -42,6 +44,9 @@ export const MAX_ADD_ML = 10_000;
 export const MAX_STIR_S = 60;
 export const MAX_INDICATOR_DROPS = 20;
 export const DEFAULT_STIR_S = 5;
+export const MAX_SOLID_MASS_G = 500;
+/** A solid's dissolved mass has to move by more than this for a SOLUBILITY_CHANGE to be worth reporting. */
+export const SOLUBILITY_EVENT_G = 0.05;
 
 /** Gas amount (mol/L) at which bubbling reads at full intensity. */
 export const GAS_FULL_M = 0.02;
