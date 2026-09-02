@@ -9,7 +9,7 @@ import { deriveColor, describeColor } from "./color";
 import type { ContainerId, ReactionRuleId } from "./ids";
 import { derivePh } from "./ph";
 import { precipitateScale } from "./reactions";
-import { getMoles, speciesDef, speciesKeys } from "./species";
+import { getMoles, SP, speciesDef, speciesKeys } from "./species";
 import { assertNever, type Container, type ContentsView, type LabState, type PublicContainer, type PublicLabState, type PublicScenario, type ScenarioState } from "./types";
 
 function isContentsVisible(scenario: ScenarioState, container: Container): boolean {
@@ -77,7 +77,15 @@ function toPublicContainer(state: LabState, container: Container): PublicContain
   };
 }
 
-function toPublicScenario(scenario: ScenarioState): PublicScenario {
+/** The container closest to targetMl among those holding any sodium, or null if none do. Shared by dilution progress and its readout. */
+export function bestDilutionCandidate(state: LabState, targetMl: number): Container | null {
+  const holders = state.objects.filter((o): o is Container => o.kind === "container" && getMoles(o.species, SP.Na) > 1e-9);
+  if (holders.length === 0) return null;
+  return holders.reduce((best, c) => (Math.abs(c.volumeMl - targetMl) < Math.abs(best.volumeMl - targetMl) ? c : best));
+}
+
+function toPublicScenario(state: LabState): PublicScenario {
+  const scenario = state.scenario;
   switch (scenario.kind) {
     case "sandbox":
       return scenario;
@@ -128,6 +136,7 @@ function toPublicScenario(scenario: ScenarioState): PublicScenario {
         toleranceMl: scenario.toleranceMl,
         toleranceM: scenario.toleranceM,
         revealed: scenario.revealed,
+        candidateId: bestDilutionCandidate(state, scenario.targetMl)?.id ?? null,
       };
     case "solubility":
       return { kind: "solubility", seed: scenario.seed, visibility: scenario.visibility, beakerId: scenario.beakerId, soluteId: scenario.soluteId, revealed: scenario.revealed };
@@ -144,7 +153,7 @@ export function publicView(state: LabState): PublicLabState {
     objects: state.objects.map((o) => (o.kind === "container" ? toPublicContainer(state, o) : o)),
     shelf: state.shelf,
     indicatorsAvailable: state.indicatorsAvailable,
-    scenario: toPublicScenario(state.scenario),
+    scenario: toPublicScenario(state),
     nextSeq: state.nextSeq,
   };
 }

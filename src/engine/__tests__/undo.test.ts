@@ -57,6 +57,26 @@ describe("UNDO", () => {
     expect(undone.value.state.clockS).toBe(0);
   });
 
+  it("undoing HEAT reverts the thermal target but keeps the temperature the ramp reached", () => {
+    const placed = placeBeakers(sandboxState(), 1);
+    const id = placed.ids[0];
+    if (!id) throw new Error("unreachable");
+
+    const filled = applyOk(placed.state, { kind: "ADD_REAGENT", containerId: id, reagentId: mintReagentId("water"), volumeMl: 50 });
+    const heating = applyOk(filled, { kind: "HEAT", containerId: id, targetC: 80 });
+    const warmed = applyOk(heating, { kind: "TICK", dtS: 20 });
+    const beakerWarm = warmed.objects.find((o) => o.id === id);
+    if (!beakerWarm || beakerWarm.kind !== "container") throw new Error("unreachable");
+    expect(beakerWarm.temperatureC).toBeGreaterThan(40);
+
+    const undone = applyCommand(warmed, { kind: "UNDO" });
+    if (!undone.ok) throw new Error("unreachable");
+    const beaker = undone.value.state.objects.find((o) => o.id === id);
+    if (!beaker || beaker.kind !== "container") throw new Error("unreachable");
+    expect(beaker.thermal).toEqual({ kind: "idle" });
+    expect(beaker.temperatureC).toBe(beakerWarm.temperatureC);
+  });
+
   it("REVEAL is not itself a history entry, so it survives an UNDO of an earlier command", () => {
     const titration = loadScenario("titration", 1);
     if (titration.scenario.kind !== "titration") throw new Error("unreachable");

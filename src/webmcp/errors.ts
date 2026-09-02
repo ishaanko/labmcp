@@ -33,6 +33,13 @@ function freeCellsSuggestion(lab: LabState): string {
   return free.length > 0 ? `Free bench positions: ${free.join(", ")}.` : "The bench is full.";
 }
 
+/** The way around a challenge restriction depends on which action tripped it (see commands.ts). */
+function restrictedSuggestion(action: string): string {
+  if (action.includes("transfer")) return "Use dispense for the burette so every titrant addition lands on the titration curve.";
+  if (action.includes("concentration")) return "Omit concentration_m; the unknown pours at its hidden stock concentration.";
+  return "Use measure_ph, measure_temperature, or add a test reagent and observe the result instead of inspecting hidden contents.";
+}
+
 /**
  * Turns an engine LabError into the tool-facing { code, message, suggestions } shape, per
  * docs/design/contracts.md #2 and store-webmcp.md B3.1. Suggestions are computed from the
@@ -66,7 +73,7 @@ export function mapLabError(error: LabError, lab: LabState): MappedError {
     case "INVALID_TEMPERATURE":
       return { code: "OUT_OF_RANGE", message, suggestions: [`Valid range is ${error.minC} to ${error.maxC} °C.`] };
     case "RESTRICTED_BY_CHALLENGE":
-      return { code: "PERMISSION_DENIED", message, suggestions: ["Use measure_ph, measure_temperature, or add a test reagent and observe the result instead of inspecting hidden contents."] };
+      return { code: "PERMISSION_DENIED", message, suggestions: [restrictedSuggestion(error.action)] };
     case "NOTHING_TO_UNDO":
       return { code: "NOTHING_TO_UNDO", message };
     case "UNKNOWN_SCENARIO":

@@ -8,6 +8,7 @@ import { derivePh } from "./ph";
 import { ruleById } from "./reactions";
 import { reagentDef } from "./reagents";
 import { scenarioObjective } from "./scenarios";
+import { bestDilutionCandidate } from "./scenarioView";
 import { getMoles, SP } from "./species";
 import { assertNever, type Container, type LabState, type ScenarioId, type ScenarioProgress, type ScenarioState, type SolubilityMilestones } from "./types";
 
@@ -35,18 +36,17 @@ function titrationProgress(state: LabState, scenario: Extract<ScenarioState, { k
   const indicatorAdded = flask !== undefined && flask.indicators.length > 0;
   const endpointReached = state.observations.some((o) => o.event.kind === "COLOR_SHIFT" && o.event.containerId === scenario.flaskId && o.event.indicatorTransition);
   const steps = [step("Attach the pH probe", probeAttached), step("Add indicator", indicatorAdded), step("Reach the endpoint", endpointReached), step("Reveal the result", scenario.revealed)];
-  const done = steps.filter((s) => s.done).length;
-  const detail = scenario.revealed ? "Revealed." : endpointReached ? "Endpoint reached; submit your conclusion." : `${done}/${steps.length} steps done.`;
+  // The detail only carries what the checklist and readouts do not already show; it becomes the completion toast body.
+  const detail = scenario.revealed ? `Analyte ${scenario.secrets.analyteM.toFixed(4)} M.` : endpointReached ? "Endpoint reached." : "";
   return progressFor("titration", steps, detail);
 }
 
 function unknownIdProgress(state: LabState, scenario: Extract<ScenarioState, { kind: "unknown_id" }>): ScenarioProgress {
   const gasObserved = state.reactions.some((r) => ruleById(r.ruleId)?.kind === "gas");
   const precipitateObserved = state.reactions.some((r) => ruleById(r.ruleId)?.kind === "precipitation");
-  const steps = [step("Observe a precipitate", precipitateObserved), step("Observe a gas", gasObserved), step("Name all four unknowns", scenario.revealed)];
-  const done = steps.filter((s) => s.done).length;
-  const detail = scenario.revealed ? "All four named." : `${done}/${steps.length} steps done.`;
-  return progressFor("unknown_id", steps, detail);
+  // REVEAL is the same whether an agent submitted names or the human pressed "Reveal anyway", so the step says what it checks.
+  const steps = [step("Observe a precipitate", precipitateObserved), step("Observe a gas", gasObserved), step("Reveal the identities", scenario.revealed)];
+  return progressFor("unknown_id", steps, scenario.revealed ? "Identities revealed." : "");
 }
 
 const SECOND_PRECIPITATION_RULES = [mintReactionRuleId("baso4_ppt"), mintReactionRuleId("caco3_ppt"), mintReactionRuleId("cuoh2_ppt")];
@@ -64,16 +64,10 @@ function neutralizeProgress(state: LabState, scenario: Extract<ScenarioState, { 
   const meterAttached = state.objects.some((o) => o.kind === "instrument" && o.type === "ph_meter" && o.attachedTo === scenario.beakerId);
   const ph = meterAttached && beaker ? derivePh(beaker) : null;
   const atTarget = ph !== null && Math.abs(ph - scenario.targetPh) <= scenario.tolerance;
-  const steps = [step("Attach the pH meter to the beaker", meterAttached), step(`Bring the beaker to pH ${scenario.targetPh.toFixed(1)} ± ${scenario.tolerance.toFixed(1)}`, atTarget)];
-  const detail = ph !== null ? `pH ${ph.toFixed(2)}, target ${scenario.targetPh.toFixed(1)} ± ${scenario.tolerance.toFixed(1)}` : "no probe";
+  const steps = [step("Attach the pH meter to the beaker", meterAttached), step(`Reach pH ${scenario.targetPh.toFixed(1)} ± ${scenario.tolerance.toFixed(1)}`, atTarget)];
+  // The readout owns the live pH; the detail is the completion moment only.
+  const detail = ph !== null && atTarget ? `pH ${ph.toFixed(2)}, target ${scenario.targetPh.toFixed(1)} ± ${scenario.tolerance.toFixed(1)}` : "";
   return progressFor("neutralize", steps, detail);
-}
-
-/** The container closest to targetMl among those holding any sodium, or null if none do. */
-function bestDilutionCandidate(state: LabState, targetMl: number): Container | null {
-  const holders = state.objects.filter((o): o is Container => o.kind === "container" && getMoles(o.species, SP.Na) > 1e-9);
-  if (holders.length === 0) return null;
-  return holders.reduce((best, c) => (Math.abs(c.volumeMl - targetMl) < Math.abs(best.volumeMl - targetMl) ? c : best));
 }
 
 function dilutionProgress(state: LabState, scenario: Extract<ScenarioState, { kind: "dilution" }>): ScenarioProgress {
@@ -87,20 +81,21 @@ function dilutionProgress(state: LabState, scenario: Extract<ScenarioState, { ki
     step(`Measure out ${scenario.targetMl.toFixed(0)} mL ± ${scenario.toleranceMl.toFixed(0)} mL`, atVolume),
     step(`Dilute to ${scenario.targetM.toFixed(3)} M ± ${scenario.toleranceM.toFixed(3)} M`, atConcentration),
   ];
-  const detail = candidate ? `${candidate.label}: ${candidate.volumeMl.toFixed(1)} mL, ${(concentrationM ?? 0).toFixed(3)} M` : "no sodium chloride yet";
+  // The readout shows the candidate's live numbers; the detail is the completion moment only.
+  const detail = candidate && atVolume && atConcentration ? `${candidate.label}: ${candidate.volumeMl.toFixed(1)} mL, ${(concentrationM ?? 0).toFixed(3)} M` : "";
   return progressFor("dilution", steps, detail);
 }
 
 function solubilityProgress(state: LabState, scenario: Extract<ScenarioState, { kind: "solubility" }>): ScenarioProgress {
   const m = scenario.milestones ?? EMPTY_MILESTONES;
   const steps = [
-    step("Dissolve at least 20 g of potassium nitrate", m.addedEnoughSolute),
+    step("Add at least 20 g of potassium nitrate", m.addedEnoughSolute),
     step("Leave some solid undissolved", m.hadUndissolved),
-    step("Heat above 60 °C until everything dissolves", m.heatedFullyDissolved),
-    step("Cool below 30 °C and watch crystals return", m.cooledWithCrystals),
+    step("Heat to 60 °C until everything dissolves", m.heatedFullyDissolved),
+    step("Cool to room temperature and watch crystals return", m.cooledWithCrystals),
   ];
-  const done = steps.filter((s) => s.done).length;
-  return progressFor("solubility", steps, `${done}/${steps.length} milestones reached.`);
+  const detail = m.cooledWithCrystals && m.crystalsAtC !== undefined ? `Crystals returned at ${m.crystalsAtC.toFixed(1)} °C.` : "";
+  return progressFor("solubility", steps, detail);
 }
 
 export function scenarioProgress(state: LabState): ScenarioProgress {

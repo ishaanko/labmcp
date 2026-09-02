@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { constants, mintIndicatorId, mintReagentId, parseObjectId, publicView, REAGENT_IDS, reagentDef, type LabEvent, type PublicContainer } from "@/engine";
+import { constants, mintIndicatorId, mintReagentId, parseObjectId, publicView, REAGENT_IDS, reagentDef, UNKNOWN_SAMPLE_SHELF_IDS, type LabEvent, type PublicContainer } from "@/engine";
 import { err, errFromLabError, eventStrings, findContainer, missingContainerError, ok, unknownObjectError } from "../runtime";
 import { ContainerIdSchema, EquipmentTypeSchema, INDICATOR_IDS, ObjectIdSchema, SlotSchema, TemperatureCSchema, VolumeMlSchema } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
@@ -71,7 +71,7 @@ const addContainer: ToolDef<z.infer<typeof AddContainerInput>> = {
 };
 
 /** Hidden stocks a challenge scenario puts on the shelf; the engine checks the id against the loaded shelf. */
-const UNKNOWN_SHELF_IDS = ["unknown_acid", "unknown_a", "unknown_b", "unknown_c"].map(mintReagentId);
+const UNKNOWN_SHELF_IDS = [mintReagentId("unknown_acid"), ...UNKNOWN_SAMPLE_SHELF_IDS];
 
 const AddReagentInput = z
   .object({
@@ -280,7 +280,7 @@ const heat: ToolDef<{ container_id: string; target_c: number }> = {
 const cool: ToolDef<{ container_id: string; target_c?: number }> = {
   name: "cool",
   title: "Cool",
-  description: "Sets a container cooling toward a target temperature (0 to 100 °C), or toward ambient if omitted. Requires a hotplate on the bench.",
+  description: "Sets a container cooling toward a target temperature (0 to 100 °C), or toward ambient if omitted. Requires a hotplate on the bench; fails with INSTRUMENT_MISSING otherwise.",
   input: z.object({ container_id: ContainerIdSchema, target_c: TemperatureCSchema.optional() }).strict(),
   readOnly: false,
   targetId: (i) => i.container_id,

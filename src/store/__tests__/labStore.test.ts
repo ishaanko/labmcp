@@ -11,6 +11,7 @@ vi.mock("@/engine", () => {
     assertNever,
     describeEvent: () => "",
     describeError: () => "rejected",
+    SCENARIO_TITLES: { sandbox: "Sandbox", titration: "Titration" },
     loadScenario: vi.fn(() => baseLab()),
     createEmptyState: vi.fn(() => baseLab()),
     applyCommand: vi.fn(),

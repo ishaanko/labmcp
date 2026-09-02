@@ -5,6 +5,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { constants, isIndicatorIdShape, isReagentId, reagentDef, type EquipmentType, type Vec2 } from "@/engine";
 import { nearestFreeCell, pxToCell, type GridOccupant } from "@/lab2d/grid";
 import { hitTestObject } from "@/lab2d/objectDom";
+import { emitToast } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
 import type { XY } from "@/store/types";
 
@@ -72,6 +73,16 @@ function isContainer(id: string): boolean {
   return obj !== undefined && obj.kind === "container";
 }
 
+/** Target for a plain click on a reagent/indicator tile: the selected container, else the bench's only container, else null. */
+function clickTargetContainer(): string | null {
+  const state = useLabStore.getState();
+  const selectedId = state.ui.selectedId;
+  if (selectedId !== null && isContainer(selectedId)) return selectedId;
+  const containers = state.lab.objects.filter((o) => o.kind === "container");
+  const only = containers[0];
+  return containers.length === 1 && only ? only.id : null;
+}
+
 /** `min(stock remaining ?? Infinity, capacity - volume)` (C4.3/C4.4). */
 function maxMlFor(containerId: string, reagentId: string): number {
   const state = useLabStore.getState();
@@ -93,7 +104,9 @@ export interface ShelfDragHandlers {
  * Owns the full shelf-drag gesture (C4.3): pointerdown on a chip/button arms a 6px-threshold
  * watcher; crossing it starts the real drag in `ui.drag` (which mounts `ReagentGhost`);
  * pointermove after that is rAF-throttled and hit-tests the scene; pointerup opens the amount
- * dialog, dispatches `PLACE_OBJECT`, or leaves `ui.drag` to fall back to the origin chip.
+ * dialog, dispatches `PLACE_OBJECT`, or leaves `ui.drag` to fall back to the origin chip. A
+ * click that never crosses the threshold opens the amount dialog for the selected (or only)
+ * container instead.
  * Pointer capture stays on the source element for the whole gesture, so release always reaches
  * this handler even when the pointer ends up over the canvas.
  */
@@ -173,9 +186,37 @@ export function useShelfDrag(): ShelfDragHandlers {
         armed.current = false;
       };
 
+      // The popover must open after the `click` that ends this gesture has dispatched: it lands
+      // on the source chip, outside the popup, and would otherwise dismiss it in the same tick.
+      // The tile loses focus too, or its focus ring and tooltip would stay up while the pointer is
+      // at the vessel.
+      const openAmountDialog = (containerId: string): void => {
+        el.blur();
+        if (candidate.kind === "reagent" && isReagentId(candidate.reagentId)) {
+          const reagentId = candidate.reagentId;
+          // A solid reagent doses by mass; AmountDialog builds its own fixed gram range and ignores these mL fields.
+          const isSolid = reagentDef(reagentId)?.kind === "solid";
+          const maxMl = isSolid ? 0 : maxMlFor(containerId, reagentId);
+          window.setTimeout(() => openDialog({ kind: "add_reagent", containerId, reagentId, defaultMl: Math.min(10, maxMl), maxMl }), 0);
+        } else if (candidate.kind === "indicator" && isIndicatorIdShape(candidate.indicatorId)) {
+          const indicatorId = candidate.indicatorId;
+          window.setTimeout(() => openDialog({ kind: "add_indicator", containerId, indicatorId }), 0);
+        }
+      };
+
       const onUp = (): void => {
         cleanup();
-        if (!started) return;
+        if (!started) {
+          // A plain click: dose the obvious vessel when there is one, else say what the tile wants.
+          if (candidate.kind === "equipment") {
+            emitToast({ kind: "info", title: "Drag onto the bench" });
+            return;
+          }
+          const target = clickTargetContainer();
+          if (target) openAmountDialog(target);
+          else emitToast({ kind: "info", title: "Drag onto a vessel" });
+          return;
+        }
         const current = useLabStore.getState().ui.drag;
         const origin: XY = { x: originX, y: originY };
         const flicked = speedPxPerS > FLICK_PX_PER_S;
@@ -191,20 +232,7 @@ export function useShelfDrag(): ShelfDragHandlers {
         const overId = current && (current.kind === "reagent" || current.kind === "indicator") ? current.overId : null;
         lastOutcome = { origin, landed: overId !== null, flicked };
         setDrag(null);
-        if (!overId) return;
-
-        // The popover must open after the `click` that ends this gesture has dispatched: it lands
-        // on the source chip, outside the popup, and would otherwise dismiss it in the same tick.
-        if (candidate.kind === "reagent" && isReagentId(candidate.reagentId)) {
-          const reagentId = candidate.reagentId;
-          // A solid reagent doses by mass; AmountDialog builds its own fixed gram range and ignores these mL fields.
-          const isSolid = reagentDef(reagentId)?.kind === "solid";
-          const maxMl = isSolid ? 0 : maxMlFor(overId, reagentId);
-          window.setTimeout(() => openDialog({ kind: "add_reagent", containerId: overId, reagentId, defaultMl: Math.min(10, maxMl), maxMl }), 0);
-        } else if (candidate.kind === "indicator" && isIndicatorIdShape(candidate.indicatorId)) {
-          const indicatorId = candidate.indicatorId;
-          window.setTimeout(() => openDialog({ kind: "add_indicator", containerId: overId, indicatorId }), 0);
-        }
+        if (overId) openAmountDialog(overId);
       };
 
       el.setPointerCapture(pointerId);

@@ -109,6 +109,8 @@ export type PublicScenario =
       readonly toleranceMl: number;
       readonly toleranceM: number;
       readonly revealed: boolean;
+      /** The container progress is graded on: the sodium holder closest to targetMl, or null before any stock is poured. */
+      readonly candidateId: ContainerId | null;
     }
   | { readonly kind: "solubility"; readonly seed: number; readonly visibility: VisibilityPolicy; readonly beakerId: ContainerId; readonly soluteId: ReagentId; readonly revealed: boolean };
 

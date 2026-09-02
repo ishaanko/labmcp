@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mintIndicatorId, mintInstrumentId, mintReagentId } from "../ids";
+import { mintIndicatorId, mintInstrumentId, mintReagentId, type ContainerId } from "../ids";
 import { applyCommand } from "../reducer";
 import { loadScenario } from "../scenarios";
 import { scenarioProgress } from "../scenarioProgress";
@@ -110,9 +110,8 @@ describe("scenarioProgress: neutralize", () => {
     expect(objectiveCompletions(finalResult.value.state.observations)).toHaveLength(1);
   });
 
-  it("reports 'no probe' before a pH meter is attached", () => {
-    const progress = scenarioProgress(loadScenario("neutralize", 3));
-    expect(progress.detail).toBe("no probe");
+  it("has no detail line until the target is reached; the readout owns the live pH", () => {
+    expect(scenarioProgress(loadScenario("neutralize", 3)).detail).toBe("");
   });
 });
 
@@ -182,8 +181,8 @@ describe("scenarioProgress: solubility", () => {
     cur = settle(withBeaker(cur, { species: { [SP.K]: 15 / molarMassKno3 }, solids: [{ species: SP.KNO3Solid, moles: 10 / molarMassKno3, suspended: 0 }], temperatureC: 35 }));
     expect(scenarioProgress(cur).steps.map((s) => s.done)).toEqual([true, true, false, false]);
 
-    // Heated well past 60 °C with everything dissolved.
-    cur = settle(withBeaker(cur, { species: { [SP.K]: 25 / molarMassKno3 }, solids: [], temperatureC: 70 }));
+    // Heated to exactly 60 °C (the hotplate's own preset settles there) with everything dissolved.
+    cur = settle(withBeaker(cur, { species: { [SP.K]: 25 / molarMassKno3 }, solids: [], temperatureC: 60 }));
     expect(scenarioProgress(cur).steps.map((s) => s.done)).toEqual([true, true, true, false]);
 
     // Cooled well below 30 °C with crystals back: this is the completing step.
@@ -194,30 +193,39 @@ describe("scenarioProgress: solubility", () => {
     const progress = scenarioProgress(finalState);
     expect(progress.steps.map((s) => s.done)).toEqual([true, true, true, true]);
     expect(progress.complete).toBe(true);
+    expect(progress.detail).toBe("Crystals returned at 20.0 °C.");
     expect(objectiveCompletions(finalState.observations)).toHaveLength(1);
   });
 });
 
 describe("scenarioProgress: unknown_id", () => {
+  /** The sample whose hidden recipe is `slug`; every draw holds hcl and na2co3 (scenarios.ts). */
+  function sampleOf(state: LabState, slug: string): { readonly containerId: ContainerId } {
+    if (state.scenario.kind !== "unknown_id") throw new Error("unreachable");
+    const { samples, secrets } = state.scenario;
+    const found = samples.find((s) => secrets[s.shelfId]?.reagentId === mintReagentId(slug));
+    if (!found) throw new Error(`unreachable: no ${slug} sample`);
+    return found;
+  }
+
   it("completes once a precipitate, a gas, and REVEAL have all happened, firing OBJECTIVE_COMPLETE once", () => {
-    // Seed 10 draws [agno3, hcl, na2co3, cuso4] as Unknown A/B/C/D, with no bacl2/na2so4 involved.
     const state = loadScenario("unknown_id", 10);
     if (state.scenario.kind !== "unknown_id") throw new Error("unreachable");
-    const [sampleA, , sampleC] = state.scenario.samples;
-    if (!sampleA || !sampleC) throw new Error("unreachable");
+    const acid = sampleOf(state, "hcl");
+    const carbonate = sampleOf(state, "na2co3");
 
-    // AgNO3 (Unknown A) + shelf NaCl precipitates AgCl.
-    let cur = applyOk(state, { kind: "ADD_REAGENT", containerId: sampleA.containerId, reagentId: mintReagentId("nacl"), volumeMl: 20, concentrationM: 0.1 });
+    // Shelf AgNO3 into the HCl sample precipitates AgCl.
+    let cur = applyOk(state, { kind: "ADD_REAGENT", containerId: acid.containerId, reagentId: mintReagentId("agno3"), volumeMl: 20, concentrationM: 0.1 });
     let progress = scenarioProgress(cur);
     expect(progress.steps.map((s) => s.done)).toEqual([true, false, false]);
 
-    // Na2CO3 (Unknown C) + shelf HCl: the first equivalent only protonates to bicarbonate. 0.4 M
+    // Na2CO3 sample + shelf HCl: the first equivalent only protonates to bicarbonate. 0.4 M
     // keeps each 5 mL dose within the 50 mL sample beaker's headroom above its starting 20 mL.
-    cur = applyOk(cur, { kind: "ADD_REAGENT", containerId: sampleC.containerId, reagentId: mintReagentId("hcl"), volumeMl: 5, concentrationM: 0.4 });
+    cur = applyOk(cur, { kind: "ADD_REAGENT", containerId: carbonate.containerId, reagentId: mintReagentId("hcl"), volumeMl: 5, concentrationM: 0.4 });
     expect(scenarioProgress(cur).steps.map((s) => s.done)).toEqual([true, false, false]);
 
     // The second equivalent releases CO2.
-    cur = applyOk(cur, { kind: "ADD_REAGENT", containerId: sampleC.containerId, reagentId: mintReagentId("hcl"), volumeMl: 5, concentrationM: 0.4 });
+    cur = applyOk(cur, { kind: "ADD_REAGENT", containerId: carbonate.containerId, reagentId: mintReagentId("hcl"), volumeMl: 5, concentrationM: 0.4 });
     progress = scenarioProgress(cur);
     expect(progress.steps.map((s) => s.done)).toEqual([true, true, false]);
     expect(progress.complete).toBe(false);
@@ -228,7 +236,19 @@ describe("scenarioProgress: unknown_id", () => {
     progress = scenarioProgress(finalResult.value.state);
     expect(progress.steps.map((s) => s.done)).toEqual([true, true, true]);
     expect(progress.complete).toBe(true);
+    expect(progress.detail).toBe("Identities revealed.");
     expect(objectiveCompletions(finalResult.value.events)).toHaveLength(1);
     expect(objectiveCompletions(finalResult.value.state.observations)).toHaveLength(1);
+  });
+
+  it("is reachable on every seed: the gas step needs a carbonate sample and an acid, and each draw holds both", () => {
+    for (let seed = 1; seed <= 16; seed++) {
+      const state = loadScenario("unknown_id", seed);
+      const carbonate = sampleOf(state, "na2co3");
+      sampleOf(state, "hcl");
+      let cur = state;
+      for (let i = 0; i < 2; i++) cur = applyOk(cur, { kind: "ADD_REAGENT", containerId: carbonate.containerId, reagentId: mintReagentId("hcl"), volumeMl: 5, concentrationM: 0.4 });
+      expect(scenarioProgress(cur).steps[1]?.done, `seed ${seed}`).toBe(true);
+    }
   });
 });

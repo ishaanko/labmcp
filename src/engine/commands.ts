@@ -66,6 +66,13 @@ export function checkAmount(field: string, value: number, max: number): Result<n
   return ok(value);
 }
 
+/** HEAT and COOL both need a hotplate somewhere on the bench, in every scenario; the tool descriptions promise INSTRUMENT_MISSING. */
+function requireHotplate<C extends Extract<LabCommand, { kind: "HEAT" | "COOL" }>>(state: LabState, command: C): Result<C, LabError> {
+  const hasHotplate = state.objects.some((o) => o.kind === "instrument" && o.type === "hotplate");
+  if (!hasHotplate) return err({ kind: "NO_INSTRUMENT", containerId: command.containerId, needed: "hotplate", hint: "Place a hotplate on the bench first." });
+  return ok(command);
+}
+
 function maxAddable(container: Container): number {
   return Math.max(0, container.capacityMl - container.volumeMl);
 }
@@ -270,13 +277,7 @@ export function validate(state: LabState, command: LabCommand): Result<LabComman
       if (!(command.targetC >= MIN_TEMP_C && command.targetC <= MAX_TEMP_C)) {
         return err({ kind: "INVALID_TEMPERATURE", requestedC: command.targetC, minC: MIN_TEMP_C, maxC: MAX_TEMP_C });
       }
-      if (state.scenario.visibility.instrumentsRequired) {
-        const hasHotplate = state.objects.some((o) => o.kind === "instrument" && o.type === "hotplate");
-        if (!hasHotplate) {
-          return err({ kind: "NO_INSTRUMENT", containerId: command.containerId, needed: "hotplate", hint: "Place a hotplate on the bench first." });
-        }
-      }
-      return ok(command);
+      return requireHotplate(state, command);
     }
     case "COOL": {
       const containerRes = requireContainer(state, command.containerId);
@@ -285,7 +286,7 @@ export function validate(state: LabState, command: LabCommand): Result<LabComman
       if (!(targetC >= MIN_TEMP_C && targetC <= MAX_TEMP_C)) {
         return err({ kind: "INVALID_TEMPERATURE", requestedC: targetC, minC: MIN_TEMP_C, maxC: MAX_TEMP_C });
       }
-      return ok(command);
+      return requireHotplate(state, command);
     }
     case "ADD_INDICATOR": {
       const containerRes = requireContainer(state, command.containerId);

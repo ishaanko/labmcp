@@ -59,6 +59,16 @@ function precipitateFor(container: PublicContainer): VesselPrecipitate | null {
   return { color: rgbaToCss(solid.color), scale: solid.scale, suspended: solid.suspended };
 }
 
+/**
+ * An attached probe reads its container live (`publicView` exposes pH once a meter is on it);
+ * only a detached one falls back to the last MEASURE it took.
+ */
+function liveReading(type: InstrumentType, docked: PublicContainer | undefined, lastReading: InstrumentReading | null): string | null {
+  if (docked && type === "ph_meter" && docked.pH !== null) return fmtPh(docked.pH);
+  if (docked && type === "thermometer") return fmtC(docked.temperatureC);
+  return formatReading(lastReading);
+}
+
 function formatReading(reading: InstrumentReading | null): string | null {
   if (!reading) return null;
   switch (reading.kind) {
@@ -173,7 +183,7 @@ export function BenchObject({ id }: BenchObjectProps) {
         ) : (
           <InstrumentGlass
             type={object.type}
-            reading={formatReading(object.lastReading)}
+            reading={liveReading(object.type, docked, object.lastReading)}
             attached={object.attachedTo !== null}
             heatLevel={heatingOnCell ? 1 : 0}
             size={size}

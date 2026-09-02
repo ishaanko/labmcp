@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { clsx } from "clsx";
-import { SCENARIO_TITLES, type PublicScenario } from "@/engine";
+import type { PublicScenario } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectObjective, selectPublic } from "@/store/selectors";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,9 @@ function isRevealable(scenario: PublicScenario): scenario is Revealable {
 }
 
 /**
- * Right-panel objective guide, shown for every scenario except sandbox: a checklist from the
- * engine's `scenarioProgress`, a detail line, scenario-specific live readouts, and the reveal
- * moment where the scenario has a secret to uncover.
+ * Right-panel objective guide, shown for every scenario except sandbox: the objective sentence,
+ * a checklist from the engine's `scenarioProgress`, a detail line, scenario-specific live
+ * readouts, and the reveal moment where the scenario has a secret to uncover.
  */
 export function ObjectiveCard() {
   const progress = useLabStore(selectObjective);
@@ -43,9 +43,9 @@ export function ObjectiveCard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <h2 className={clsx("text-base font-semibold", progress.complete ? "text-mint" : "text-foreground")}>{SCENARIO_TITLES[scenario.kind]}</h2>
-        {progress.complete ? <span className="text-xs font-medium text-mint">Complete</span> : null}
+      <div className="flex items-start gap-2">
+        <p className={clsx("text-sm", progress.complete ? "text-mint" : "text-foreground")}>{progress.objective}</p>
+        {progress.complete ? <span className="shrink-0 text-xs font-medium text-mint">Complete</span> : null}
       </div>
 
       <ul className="flex flex-col gap-2">
@@ -83,14 +83,14 @@ function StepRow({ label, done }: { label: string; done: boolean }) {
   return (
     <li className="flex items-center gap-2.5 text-sm">
       <svg viewBox="0 0 16 16" width={16} height={16} className="shrink-0" aria-hidden="true">
-        <circle cx={8} cy={8} r={7} fill="none" strokeWidth={1.5} className={done ? "stroke-emerald-400" : "stroke-border"} />
+        <circle cx={8} cy={8} r={7} fill="none" strokeWidth={1.5} className={done ? "stroke-mint" : "stroke-border"} />
         <path
           d="M4.5 8.3 L7 10.8 L11.5 5.5"
           fill="none"
           strokeWidth={1.75}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="stroke-emerald-400"
+          className="stroke-mint"
           style={{
             strokeDasharray: CHECK_PATH_LENGTH,
             strokeDashoffset: done ? 0 : CHECK_PATH_LENGTH,
@@ -98,7 +98,7 @@ function StepRow({ label, done }: { label: string; done: boolean }) {
           }}
         />
       </svg>
-      <span className={done ? "text-muted-foreground line-through" : "text-foreground"}>{label}</span>
+      <span className={done ? "text-muted-foreground" : "text-foreground"}>{label}</span>
     </li>
   );
 }

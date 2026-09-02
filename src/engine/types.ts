@@ -351,6 +351,8 @@ export interface SolubilityMilestones {
   readonly hadUndissolved: boolean;
   readonly heatedFullyDissolved: boolean;
   readonly cooledWithCrystals: boolean;
+  /** Beaker temperature the moment crystals returned; the completion toast quotes it. */
+  readonly crystalsAtC?: number;
 }
 
 /** One line per objective step, derived from state by scenarios.ts; the UI checklist and the check_objective tool read it. */

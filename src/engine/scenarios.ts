@@ -38,7 +38,7 @@ export function scenarioObjective(id: ScenarioId): string {
     case "precipitation":
       return "Mix two solutions and make a solid appear.";
     case "neutralize":
-      return "Bring the beaker to pH 7.0 ± 0.1 using the available reagents.";
+      return "Bring the beaker to pH 7.0 ± 0.1. Strong acid and base overshoot in tiny doses; acetic acid and ammonia settle near 7.";
     case "dilution":
       return "Prepare 100 mL of 0.10 M sodium chloride from the 1.0 M stock.";
     case "solubility":
@@ -130,19 +130,24 @@ function loadTitration(seed: number): LabState {
 }
 
 const UNKNOWN_LABELS: ReadonlyArray<string> = ["A", "B", "C", "D"];
-// Front row, spanning the bench; the pH meter sits behind the second-from-left sample.
+/** Shelf ids of the four mystery samples ("unknown_a" .. "unknown_d"); the add_reagent tool enum includes them. */
+export const UNKNOWN_SAMPLE_SHELF_IDS: ReadonlyArray<ReagentId> = UNKNOWN_LABELS.map((label) => mintReagentId(`unknown_${label.toLowerCase()}`));
+// Four adjacent front-row cells so every sample fits a 730px bench viewport; the pH meter sits behind the third.
 const UNKNOWN_POSITIONS: ReadonlyArray<Vec2> = [
-  { x: -2.5, y: 0.5 },
+  { x: -1.5, y: 0.5 },
   { x: -0.5, y: 0.5 },
+  { x: 0.5, y: 0.5 },
   { x: 1.5, y: 0.5 },
-  { x: 3.5, y: 0.5 },
 ];
-const UNKNOWN_ARCHETYPES: ReadonlyArray<string> = ["hcl", "na2co3", "agno3", "nacl", "cuso4", "bacl2", "na2so4"];
+// Every draw holds the acid and the carbonate, so "observe a gas" is always reachable; two of the rest fill the other samples.
+const UNKNOWN_REQUIRED: ReadonlyArray<string> = ["hcl", "na2co3"];
+const UNKNOWN_OPTIONAL: ReadonlyArray<string> = ["agno3", "nacl", "cuso4", "bacl2", "na2so4"];
 const UNKNOWN_SHOWN_REAGENTS: ReadonlyArray<string> = ["hcl", "naoh", "agno3", "nacl", "bacl2", "na2so4", "water"];
 
 function loadUnknownId(seed: number): LabState {
-  const draw = shuffle(seedRng(seed), UNKNOWN_ARCHETYPES.map((s) => mintReagentId(s)));
-  const chosen = draw.value.slice(0, 4);
+  const optional = shuffle(seedRng(seed), UNKNOWN_OPTIONAL.map((s) => mintReagentId(s)));
+  const draw = shuffle(optional.rng, [...UNKNOWN_REQUIRED.map((s) => mintReagentId(s)), ...optional.value.slice(0, 2)]);
+  const chosen = draw.value;
 
   const objects: LabObject[] = [];
   const secrets: Record<string, StockRecipe> = {};

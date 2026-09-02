@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { setToastSink } from "@/lib/events";
 import { attachEffectsSink } from "@/lab2d/effectsStore";
-import { observe } from "@/components/ui/toasts";
+import { dismissAll, observe } from "@/components/ui/toasts";
 import { Toaster } from "@/components/ui/sonner";
 import { useTheme } from "@/hooks/useTheme";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
@@ -21,7 +21,7 @@ export function Providers({ children }: { children: ReactNode }) {
   useReducedMotion();
 
   useEffect(() => {
-    setToastSink(observe);
+    setToastSink(observe, dismissAll);
     attachEffectsSink();
   }, []);
 

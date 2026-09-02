@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { applyCommand, describeError, loadScenario, publicView, type Actor, type LabCommand, type LabState } from "@/engine";
-import { describeCommand, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, summarizeEvents, targetOfCommand } from "@/lib/events";
+import { applyCommand, describeError, loadScenario, publicView, SCENARIO_TITLES, type Actor, type LabCommand, type LabState } from "@/engine";
+import { describeCommand, dismissToasts, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, summarizeEvents, targetOfCommand } from "@/lib/events";
 import { feedId } from "@/lib/ids";
 import { labelLookup } from "@/lib/labels";
 import { enqueue } from "./commandQueue";
@@ -49,7 +49,7 @@ const isResetCommand = (command: LabCommand): command is Extract<LabCommand, { k
   command.kind === "RESET" || command.kind === "LOAD_SCENARIO";
 
 function resetNoteText(command: Extract<LabCommand, { kind: "RESET" | "LOAD_SCENARIO" }>, next: LabState): string {
-  return command.kind === "LOAD_SCENARIO" ? `Loaded ${command.scenarioId} scenario.` : `Reset ${next.scenario.kind} scenario.`;
+  return command.kind === "LOAD_SCENARIO" ? `Loaded ${SCENARIO_TITLES[command.scenarioId]}.` : `Reset ${SCENARIO_TITLES[next.scenario.kind]}.`;
 }
 
 export const useLabStore = create<LabStore>()(
@@ -89,6 +89,7 @@ export const useLabStore = create<LabStore>()(
         const version = get().stateVersion + 1;
         const observation = summarizeEvents(publicView(next), events, command.kind === "REMOVE_OBJECT" ? labelLookup(prev) : undefined);
         const reset = isResetCommand(command);
+        if (reset) dismissToasts();
 
         set((s) => ({
           lab: next,

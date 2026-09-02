@@ -10,13 +10,10 @@ import { ObjectiveCard } from "./ObjectiveCard";
 import { BuretteCard } from "./BuretteCard";
 import { HotplateCard } from "./HotplateCard";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
-function panelKeyFor(selectedId: string | undefined, scenarioKind: string): string {
-  if (selectedId) return selectedId;
-  return scenarioKind === "sandbox" ? "bench" : `${scenarioKind}-objective`;
-}
-
-function PanelContent() {
+/** The lower, crossfading half: the selected object's card, else the sandbox bench summary, else nothing. */
+function LowerContent() {
   const selected = useLabStore(selectSelected);
   const scenarioKind = useLabStore((s) => s.lab.scenario.kind);
 
@@ -25,25 +22,25 @@ function PanelContent() {
     if (selected.kind === "instrument" && selected.type === "hotplate") return <HotplateCard instrument={selected} />;
     return <SelectionCard object={selected} />;
   }
-
-  if (scenarioKind === "sandbox") return <BenchSummary />;
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <ObjectiveCard />
-    </div>
-  );
+  return scenarioKind === "sandbox" ? <BenchSummary /> : null;
 }
 
-/** Persistent 320px right panel: selected object, else the scenario's objective card, else the sandbox bench summary. */
+/**
+ * Persistent 320px right panel. Guided scenarios keep the objective card on top at all times, so
+ * the success moment stays visible while a dragged probe or beaker is still selected; the
+ * selected object's card (or the sandbox bench summary) crossfades underneath.
+ */
 export function ContextPanel() {
   const selected = useLabStore(selectSelected);
   const scenarioKind = useLabStore((s) => s.lab.scenario.kind);
   const setExplainOpen = useLabStore((s) => s.setExplainOpen);
-  const key = panelKeyFor(selected?.id, scenarioKind);
+  const guided = scenarioKind !== "sandbox";
+  const key = selected?.id ?? (guided ? "none" : "bench");
 
   return (
     <div className="pointer-events-auto flex w-80 shrink-0 flex-col overflow-y-auto border-l border-border bg-card p-4">
+      {guided ? <ObjectiveCard /> : null}
+      {guided && selected ? <Separator className="my-4" /> : null}
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={key}
@@ -53,7 +50,7 @@ export function ContextPanel() {
           transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
           className="flex flex-col"
         >
-          <PanelContent />
+          <LowerContent />
         </motion.div>
       </AnimatePresence>
       {scenarioKind === "titration" ? (

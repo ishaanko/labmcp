@@ -2,7 +2,7 @@
 
 import { isSpeciesIdShape, type PublicScenario, type SpeciesId } from "@/engine";
 import { useLabStore } from "@/store/labStore";
-import { selectLastSelectedContainer } from "@/store/selectors";
+import { selectContainer, selectLastSelectedContainer } from "@/store/selectors";
 import { Readout } from "./Readout";
 
 function speciesIdOrNull(formula: string): SpeciesId | null {
@@ -16,19 +16,20 @@ export interface DilutionReadoutProps {
 }
 
 /**
- * Dilution challenge: the last container the human selected (there is no fixed target vessel,
- * unlike titration's flask), its volume, and its Na+ molarity once contents are visible.
+ * Dilution challenge: the container progress is graded on (the sodium holder nearest 100 mL,
+ * whoever filled it), falling back to the last container the human selected before any stock
+ * is poured. Volume and Na+ molarity; the step labels already carry the targets.
  */
 export function DilutionReadout({ scenario }: DilutionReadoutProps) {
-  const container = useLabStore(selectLastSelectedContainer);
+  const candidate = useLabStore(selectContainer(scenario.candidateId ?? ""));
+  const lastSelected = useLabStore(selectLastSelectedContainer);
+  const container = candidate ?? lastSelected;
   const naM = container && container.contents.kind === "visible" && NA_PLUS ? (container.contents.concentrationsM[NA_PLUS] ?? 0) : null;
 
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-      <Readout label="Container volume" value={container?.volumeMl ?? null} unit="mL" digits={1} emptyLabel="select a container" />
-      <Readout label="Na+ molarity" value={naM} unit="M" digits={3} emptyLabel={container ? "hidden" : "–"} />
-      <Readout label="Target volume" value={scenario.targetMl} unit="mL" digits={0} />
-      <Readout label="Target molarity" value={scenario.targetM} unit="M" digits={3} />
+      <Readout label={container ? `${container.label} volume` : "Volume"} value={container?.volumeMl ?? null} unit="mL" digits={1} size="lg" emptyLabel="no stock yet" />
+      <Readout label="Na+ molarity" value={naM} unit="M" digits={3} size="lg" emptyLabel={container ? "hidden" : "–"} />
     </div>
   );
 }

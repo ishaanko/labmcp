@@ -23,18 +23,25 @@ import {
   type LabCommand,
   type LabError,
   type LabEvent,
+  type LabObject,
   type LabState,
   type Observation,
   type ReactionRecord,
   type Result,
   type ScenarioId,
   type ScenarioState,
+  type SolubilityMilestones,
   type StirState,
 } from "./types";
 import { isScenarioRevealed, replaceObject, validate } from "./commands";
 import { applyPhysical } from "./physical";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
+
+/** Solubility milestone thresholds: "heat to 60 °C until everything dissolves", "cool below 30 °C". */
+const SOLUBILITY_HOT_C = 60;
+const SOLUBILITY_COOL_C = 30;
+const THERMAL_KINDS: ReadonlySet<LabCommand["kind"]> = new Set(["HEAT", "COOL"]);
 
 const UNDOABLE_KINDS: ReadonlySet<LabCommand["kind"]> = new Set([
   "PLACE_OBJECT",
@@ -129,14 +136,17 @@ function applySolubilityMilestonesHook(state: LabState): LabState {
 
   const prior = scenario.milestones ?? { addedEnoughSolute: false, hadUndissolved: false, heatedFullyDissolved: false, cooledWithCrystals: false };
   const { totalG, hasUndissolved } = solubilityReading(beaker);
-  const heatedFullyDissolved = prior.heatedFullyDissolved || (beaker.temperatureC > 60 && !hasUndissolved && totalG > 0);
-  const milestones = {
+  // `>=`: the hotplate's own 60 preset (and heat target_c 60) settles at exactly 60.0.
+  const heatedFullyDissolved = prior.heatedFullyDissolved || (beaker.temperatureC >= SOLUBILITY_HOT_C && !hasUndissolved && totalG > 0);
+  // Only counts once the solute has fully dissolved hot; otherwise a fresh room-temperature
+  // deposit with leftover solid would satisfy "cooled with crystals" immediately.
+  const cooledWithCrystals = prior.cooledWithCrystals || (heatedFullyDissolved && beaker.temperatureC < SOLUBILITY_COOL_C && hasUndissolved);
+  const milestones: SolubilityMilestones = {
     addedEnoughSolute: prior.addedEnoughSolute || totalG >= 20,
     hadUndissolved: prior.hadUndissolved || hasUndissolved,
     heatedFullyDissolved,
-    // Only counts once the solute has fully dissolved hot; otherwise a fresh room-temperature
-    // deposit with leftover solid would satisfy "cooled below 30 with crystals" immediately.
-    cooledWithCrystals: prior.cooledWithCrystals || (heatedFullyDissolved && beaker.temperatureC < 30 && hasUndissolved),
+    cooledWithCrystals,
+    crystalsAtC: prior.crystalsAtC ?? (cooledWithCrystals ? beaker.temperatureC : undefined),
   };
   return { ...state, scenario: { ...scenario, milestones } };
 }
@@ -187,8 +197,19 @@ function applyUndo(state: LabState, actor: Actor): Result<Applied, LabError> {
   // REVEAL isn't a history entry (A2), so restoring an older snapshot must not silently re-hide a
   // challenge that was revealed after that snapshot was taken.
   const scenario = withRevealed(entry.snapshot.scenario, isScenarioRevealed(state.scenario));
-  const next: LabState = { ...entry.snapshot, scenario, observations: [...state.observations, observation], nextSeq: seq + 1 };
+  // Undoing HEAT/COOL reverts the thermal target only: temperature is a ramp, not a value the
+  // command set, so snapping it back to the snapshot would teleport a beaker from 22 to 80 °C.
+  const objects = THERMAL_KINDS.has(entry.command.kind) ? keepTemperatures(entry.snapshot.objects, state.objects) : entry.snapshot.objects;
+  const next: LabState = { ...entry.snapshot, objects, scenario, observations: [...state.observations, observation], nextSeq: seq + 1 };
   return ok({ state: next, events: [observation], historyEntry: null });
+}
+
+function keepTemperatures(snapshot: ReadonlyArray<LabObject>, current: ReadonlyArray<LabObject>): ReadonlyArray<LabObject> {
+  return snapshot.map((o) => {
+    if (o.kind !== "container") return o;
+    const live = current.find((c): c is Container => c.kind === "container" && c.id === o.id);
+    return live ? { ...o, temperatureC: live.temperatureC } : o;
+  });
 }
 
 function applyLoadScenario(state: LabState, scenarioId: ScenarioId, seed: number, actor: Actor): Result<Applied, LabError> {

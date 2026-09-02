@@ -26,3 +26,8 @@ export function observe({ kind, title, description, action, durationMs }: ToastM
   else if (kind === "success") toast.success(title, options);
   else toast(title, options);
 }
+
+/** Clears every visible toast; the store calls this through `dismissToasts` on a scenario reset or load. */
+export function dismissAll(): void {
+  toast.dismiss();
+}

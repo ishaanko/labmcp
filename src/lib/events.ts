@@ -41,11 +41,17 @@ export interface ToastMessage {
 export type ToastSink = (t: ToastMessage) => void;
 
 let toastSink: ToastSink = () => {};
-export function setToastSink(fn: ToastSink): void {
+let toastDismiss: () => void = () => {};
+/** `dismiss` clears every visible toast; the store calls it on RESET / LOAD_SCENARIO so the old scenario's toasts do not sit over the new bench. */
+export function setToastSink(fn: ToastSink, dismiss: () => void = () => {}): void {
   toastSink = fn;
+  toastDismiss = dismiss;
 }
 export function emitToast(t: ToastMessage): void {
   toastSink(t);
+}
+export function dismissToasts(): void {
+  toastDismiss();
 }
 
 // ---------- animation sink ----------
@@ -186,7 +192,6 @@ const NOTABLE_KINDS: ReadonlySet<LabEvent["kind"]> = new Set([
   "OVERFLOW_REJECTED",
   "COMMAND_REJECTED",
   "OBJECTIVE_COMPLETE",
-  "SOLUBILITY_CHANGE",
 ]);
 
 function toastKindFor(event: LabEvent): ToastMessage["kind"] {
@@ -237,20 +242,11 @@ export function eventsToToasts(
   const visible = visibleObservationEvents(pub, events.map((o) => o.event));
 
   const toasts: ToastMessage[] = [];
-  // A container heating or cooling through its solubility curve can fire this once per tick;
-  // one toast per container per batch is plenty.
-  const solubilityToasted = new Set<string>();
+  // SOLUBILITY_CHANGE is deliberately absent: it fires every tick while a beaker heats or cools,
+  // and the feed row plus the live Dissolved/Undissolved readouts already carry those grams.
   for (const event of visible) {
     if (event.kind === "OBJECTIVE_COMPLETE") {
       toasts.push({ kind: "success", title: "Objective complete.", description: event.detail });
-      continue;
-    }
-
-    if (event.kind === "SOLUBILITY_CHANGE") {
-      if (solubilityToasted.has(event.containerId)) continue;
-      solubilityToasted.add(event.containerId);
-      const title = pub ? safeObservationLine(pub, event, labels) : describeEvent(event, labels);
-      if (title) toasts.push({ kind: "info", title });
       continue;
     }
 

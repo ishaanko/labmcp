@@ -28,10 +28,10 @@ export function SolubilityReadout({ scenario }: SolubilityReadoutProps) {
     dissolvedM !== null && trackedIon ? ((dissolvedM * beaker.volumeMl) / (1000 * trackedIon.perFormulaUnit)) * solute.molarMass : null;
 
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+    <div className="grid grid-cols-3 gap-x-3">
       <Readout label="Temperature" value={beaker.temperatureC} unit="°C" digits={1} size="lg" />
+      <Readout label="Dissolved" value={dissolvedG} unit="g" digits={1} size="lg" emptyLabel="hidden" />
       <Readout label="Undissolved" value={undissolvedG} unit="g" digits={1} size="lg" />
-      <Readout label="Dissolved" value={dissolvedG} unit="g" digits={1} emptyLabel="hidden" />
     </div>
   );
 }

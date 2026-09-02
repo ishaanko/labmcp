@@ -16,6 +16,7 @@ export {
   checkUnknownAnswers,
   SCENARIO_IDS,
   SCENARIO_TITLES,
+  UNKNOWN_SAMPLE_SHELF_IDS,
   scenarioObjective,
 } from "./scenarios";
 export { scenarioProgress } from "./scenarioProgress";

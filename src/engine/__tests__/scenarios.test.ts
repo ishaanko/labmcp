@@ -69,15 +69,15 @@ describe("loadScenario", () => {
     expect(instruments[0]).toMatchObject({ type: "hotplate", position: { x: 1.5, y: 0.5 } });
   });
 
-  it("lays out four unknown_id beakers across the front row with the pH meter behind the second sample", () => {
+  it("lays out four unknown_id beakers in adjacent front-row cells with the pH meter behind the third sample", () => {
     const state = loadScenario("unknown_id", 4);
     const beakers = state.objects.filter((o) => o.kind === "container");
     const meter = state.objects.find((o) => o.kind === "instrument" && o.type === "ph_meter");
     expect(beakers.map((b) => b.position)).toEqual([
-      { x: -2.5, y: 0.5 },
+      { x: -1.5, y: 0.5 },
       { x: -0.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
       { x: 1.5, y: 0.5 },
-      { x: 3.5, y: 0.5 },
     ]);
     expect(meter?.position).toEqual({ x: 0.5, y: -0.5 });
   });
