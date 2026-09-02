@@ -95,7 +95,8 @@ export const useLabStore = create<LabStore>()(
         }));
 
         emitAnimation({ prev, next, events, actor, version });
-        for (const t of eventsToToasts(events, actor)) emitToast(t);
+        const undo = (): void => void get().dispatch({ kind: "UNDO" }, "human");
+        for (const t of eventsToToasts(events, actor, next, undo)) emitToast(t);
         for (const m of eventsToMeasurements(events, actor)) get().pushFeed({ id: feedId(), ts: performance.now(), ...m });
 
         if (actor === "human" && !reset) {

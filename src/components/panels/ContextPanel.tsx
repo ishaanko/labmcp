@@ -1,15 +1,52 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
+import { MessageSquareText } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
 import { selectSelected } from "@/store/selectors";
 import { SelectionCard } from "./SelectionCard";
 import { BenchSummary } from "./BenchSummary";
+import { ObjectiveCard } from "./ObjectiveCard";
+import { TitrationReadouts } from "./TitrationReadouts";
+import { TitrationCurve } from "./TitrationCurve";
+import { BuretteCard } from "./BuretteCard";
+import { HotplateCard } from "./HotplateCard";
+import { Button } from "@/components/ui/Button";
 
-/** Persistent right panel: selected object, else a bench summary. Crossfades, never slides. */
+function panelKeyFor(selectedId: string | undefined, inTitration: boolean): string {
+  if (selectedId) return selectedId;
+  return inTitration ? "titration-objective" : "bench";
+}
+
+function PanelContent() {
+  const selected = useLabStore(selectSelected);
+  const scenarioKind = useLabStore((s) => s.lab.scenario.kind);
+
+  if (selected) {
+    if (selected.kind === "container" && selected.type === "burette") return <BuretteCard container={selected} />;
+    if (selected.kind === "instrument" && selected.type === "hotplate") return <HotplateCard instrument={selected} />;
+    return <SelectionCard object={selected} />;
+  }
+
+  if (scenarioKind === "titration") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <ObjectiveCard />
+        <TitrationReadouts />
+        <TitrationCurve />
+      </div>
+    );
+  }
+
+  return <BenchSummary />;
+}
+
+/** Persistent right panel (C2, C7 §6): selected object, else the titration objective, else a bench summary. */
 export function ContextPanel() {
   const selected = useLabStore(selectSelected);
-  const key = selected ? selected.id : "bench";
+  const scenarioKind = useLabStore((s) => s.lab.scenario.kind);
+  const setExplainOpen = useLabStore((s) => s.setExplainOpen);
+  const key = panelKeyFor(selected?.id, scenarioKind === "titration");
 
   return (
     <div className="material pointer-events-auto flex h-full w-[300px] max-[1100px]:w-[280px] flex-col overflow-hidden p-4">
@@ -22,9 +59,15 @@ export function ContextPanel() {
           transition={{ duration: 0.15 }}
           className="flex min-h-0 flex-1 flex-col"
         >
-          {selected ? <SelectionCard object={selected} /> : <BenchSummary />}
+          <PanelContent />
         </motion.div>
       </AnimatePresence>
+      {scenarioKind === "titration" ? (
+        <Button variant="ghost" size="sm" onClick={() => setExplainOpen(true)} className="mt-3 w-fit shrink-0">
+          <MessageSquareText size={13} />
+          Explain
+        </Button>
+      ) : null}
     </div>
   );
 }

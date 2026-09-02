@@ -167,7 +167,6 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
         <cylinderGeometry args={[hitRadius, hitRadius, hitHeight, 16]} />
         <meshBasicMaterial />
       </mesh>
-      <group name="effects" />
       {children}
     </group>
   );

@@ -1,6 +1,7 @@
 import {
   assertNever,
   describeEvent,
+  titrationCurve,
   type Actor,
   type LabCommand,
   type LabEvent,
@@ -21,10 +22,18 @@ import { safeObservationLine } from "./summary";
 // The store has no hard dependency on the toast UI (sonner). components/ui/toasts.ts calls
 // setToastSink once on mount; until then every toast is silently dropped.
 
+export interface ToastAction {
+  readonly label: string;
+  readonly onClick: () => void;
+}
+
 export interface ToastMessage {
   readonly kind: "success" | "error" | "info";
   readonly title: string;
   readonly description?: string;
+  readonly action?: ToastAction;
+  /** Overrides toasts.ts's per-kind default duration; used for the 6s overshoot warning. */
+  readonly durationMs?: number;
 }
 export type ToastSink = (t: ToastMessage) => void;
 
@@ -179,11 +188,68 @@ function toastKindFor(event: LabEvent): ToastMessage["kind"] {
   return "success";
 }
 
-/** Toasts fire only for events worth interrupting the user for; routine reads stay in the feed. */
-export function eventsToToasts(events: ReadonlyArray<Observation>, _actor: Actor): ReadonlyArray<ToastMessage> {
+const OVERSHOOT_PH = 10.5;
+
+/**
+ * True when `containerId` already crossed the phenolphthalein endpoint at some point strictly
+ * before `beforeSeq` (i.e. in an earlier command's events, not the batch producing the pH we're
+ * checking now). Distinguishes "past the endpoint" overshoot from the endpoint moment itself.
+ */
+function hasPriorEndpoint(lab: LabState, containerId: string, beforeSeq: number): boolean {
+  return lab.observations.some(
+    (o) => o.seq < beforeSeq && o.event.kind === "COLOR_SHIFT" && o.event.containerId === containerId && o.event.indicatorTransition,
+  );
+}
+
+/**
+ * Toasts fire only for events worth interrupting the user for; routine reads stay in the feed.
+ *
+ * `next` (the lab state the events batch was derived from) and `undo` (fires the overshoot
+ * toast's Undo action) are optional and threaded in by the caller rather than read from the
+ * store here, so this stays a pure function with no import cycle back to `store/labStore.ts`.
+ * Without them the titration-specific endpoint/overshoot copy below is skipped and those events
+ * fall through to the generic `describeEvent` toast instead; `store/labStore.ts`'s `dispatch`
+ * should pass both (`next`, and `() => void get().dispatch({ kind: "UNDO" }, "human")`) to get
+ * the full C7 behaviour.
+ */
+export function eventsToToasts(
+  events: ReadonlyArray<Observation>,
+  _actor: Actor,
+  next?: LabState,
+  undo?: () => void,
+): ReadonlyArray<ToastMessage> {
+  const flaskId = next && next.scenario.kind === "titration" ? next.scenario.flaskId : null;
+  const batchSeq = events.length > 0 ? Math.min(...events.map((o) => o.seq)) : 0;
+
   const toasts: ToastMessage[] = [];
   for (const o of events) {
     const event = o.event;
+
+    if (event.kind === "COLOR_SHIFT" && event.indicatorTransition && next && flaskId !== null && event.containerId === flaskId) {
+      const curve = titrationCurve(next);
+      const ml = (curve[curve.length - 1]?.titrantMl ?? 0).toFixed(2);
+      toasts.push({ kind: "success", title: `Endpoint: faint pink at ${ml} mL` });
+      continue;
+    }
+
+    if (
+      event.kind === "PH_CHANGE" &&
+      next &&
+      undo &&
+      flaskId !== null &&
+      event.containerId === flaskId &&
+      event.to > OVERSHOOT_PH &&
+      hasPriorEndpoint(next, flaskId, batchSeq)
+    ) {
+      toasts.push({
+        kind: "info",
+        title: "Past the endpoint. The pink is strong.",
+        durationMs: 6000,
+        action: { label: "Undo", onClick: undo },
+      });
+      continue;
+    }
+
     if (!NOTABLE_KINDS.has(event.kind)) continue;
     if (event.kind === "COLOR_SHIFT" && !event.indicatorTransition) continue;
     toasts.push({ kind: toastKindFor(event), title: describeEvent(event) });

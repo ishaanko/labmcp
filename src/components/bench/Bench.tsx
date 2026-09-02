@@ -4,16 +4,20 @@ import type { Vec2 } from "@/engine";
 import { makeBenchTileTexture, makeWallGradientTexture, resolveCssColor } from "@/scene/textures";
 
 /**
- * The bench top IS the snap grid (C3.2): one world unit = one tile = one grid cell. Engine
- * positions are already grid coordinates, so world conversion is a direct axis swap with no
- * scaling: grid x -> world x, grid y (depth on the bench) -> world z.
+ * One grid cell is `GRID_SCALE` world units (C3.2 nominally says 1:1, but the locked camera
+ * cannot fit all 9 columns at that scale without the flask/burette running off the left edge
+ * and the beaker off the right, so cells sit slightly closer together than the bench tile
+ * texture's 1-unit squares). Engine positions are grid coordinates; world conversion is a
+ * direct axis swap plus this scale: grid x -> world x, grid y (depth on the bench) -> world z.
  */
+export const GRID_SCALE = 0.85;
+
 export function gridToWorld(pos: Vec2): readonly [number, number, number] {
-  return [pos.x, 0, pos.y];
+  return [pos.x * GRID_SCALE, 0, pos.y * GRID_SCALE];
 }
 
 export function worldToGrid(x: number, z: number): Vec2 {
-  return { x, y: z };
+  return { x: x / GRID_SCALE, y: z / GRID_SCALE };
 }
 
 export const GRID_BOUNDS = { minX: -4.5, maxX: 3.5, minY: -1.5, maxY: 1.5 } as const;

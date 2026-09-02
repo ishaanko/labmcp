@@ -10,6 +10,7 @@ import { Burette } from "@/components/glassware/Burette";
 import { PHProbe, type RimPose } from "@/components/glassware/PHProbe";
 import { Thermometer } from "@/components/glassware/Thermometer";
 import { Hotplate } from "@/components/glassware/Hotplate";
+import { Effects } from "./effects/Effects";
 
 const HOTPLATE_TOP_Y = 0.12;
 
@@ -95,6 +96,7 @@ export function Objects() {
         return renderContainer(container, restsOnHotplate);
       })}
       {instruments.map((instrument) => renderInstrument(instrument, containers))}
+      <Effects />
     </group>
   );
 }

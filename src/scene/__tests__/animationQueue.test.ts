@@ -1,8 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyCommand, createEmptyState, loadScenario, mintContainerId, mintReagentId, type LabState, type Observation } from "@/engine";
+import {
+  applyCommand,
+  createEmptyState,
+  loadScenario,
+  mintContainerId,
+  mintIndicatorId,
+  mintReagentId,
+  type LabState,
+  type Observation,
+} from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { targets, visualFor, visuals } from "../visualStore";
-import { clear, enqueue, tick } from "../animationQueue";
+import { clearEffects, isSourceActive, listEffects, nowMs } from "../effectsStore";
+import { cancelPoseJobs, clear, enqueue, tick } from "../animationQueue";
 
 const FLASK_ID = mintContainerId(1);
 const BURETTE_ID = mintContainerId(2);
@@ -17,9 +27,40 @@ interface DispenseFixture {
  * Exercises the queue against the real engine reducer (titration scenario), so these tests
  * catch drift between the event shapes the engine actually emits and what the jobs expect.
  */
-function dispenseTitration(): DispenseFixture {
+function dispenseTitration(volumeMl = 5): DispenseFixture {
   const before = loadScenario("titration", 1);
-  const applied = applyCommand(before, { kind: "DISPENSE", buretteId: BURETTE_ID, toId: FLASK_ID, volumeMl: 5 }, "agent");
+  const applied = applyCommand(before, { kind: "DISPENSE", buretteId: BURETTE_ID, toId: FLASK_ID, volumeMl }, "agent");
+  if (!applied.ok) throw new Error(`fixture command was rejected: ${applied.error.kind}`);
+  return { before, after: applied.value.state, events: applied.value.events };
+}
+
+/** Two sandbox beakers, the first holding 50 mL of water, ready to pour into the second. */
+function pourFixture(): DispenseFixture & { readonly fromId: string; readonly toId: string } {
+  const sandbox = loadScenario("sandbox", 1);
+  const placedFrom = applyCommand(sandbox, { kind: "PLACE_OBJECT", objectType: "beaker" }, "human");
+  if (!placedFrom.ok) throw new Error(`fixture command was rejected: ${placedFrom.error.kind}`);
+  const placedTo = applyCommand(placedFrom.value.state, { kind: "PLACE_OBJECT", objectType: "beaker" }, "human");
+  if (!placedTo.ok) throw new Error(`fixture command was rejected: ${placedTo.error.kind}`);
+  const [fromObj, toObj] = placedTo.value.state.objects.filter((o) => o.kind === "container");
+  if (!fromObj || !toObj) throw new Error("fixture: beakers not placed");
+
+  const filled = applyCommand(
+    placedTo.value.state,
+    { kind: "ADD_REAGENT", containerId: fromObj.id, reagentId: mintReagentId("water"), volumeMl: 50, concentrationM: 0 },
+    "human",
+  );
+  if (!filled.ok) throw new Error(`fixture command was rejected: ${filled.error.kind}`);
+
+  const poured = applyCommand(filled.value.state, { kind: "TRANSFER_LIQUID", fromId: fromObj.id, toId: toObj.id, volumeMl: 10 }, "human");
+  if (!poured.ok) throw new Error(`fixture command was rejected: ${poured.error.kind}`);
+
+  return { before: filled.value.state, after: poured.value.state, events: poured.value.events, fromId: fromObj.id, toId: toObj.id };
+}
+
+/** Adds phenolphthalein to the titration flask, which already holds liquid. */
+function addIndicator(): DispenseFixture {
+  const before = loadScenario("titration", 1);
+  const applied = applyCommand(before, { kind: "ADD_INDICATOR", containerId: FLASK_ID, indicator: mintIndicatorId("phenolphthalein") }, "human");
   if (!applied.ok) throw new Error(`fixture command was rejected: ${applied.error.kind}`);
   return { before, after: applied.value.state, events: applied.value.events };
 }
@@ -52,6 +93,7 @@ function bubblingBeaker(): DispenseFixture & { readonly beakerId: string } {
 beforeEach(() => {
   visuals.clear();
   targets.clear();
+  clearEffects();
   useLabStore.getState().setReducedMotion(false);
 });
 
@@ -180,5 +222,79 @@ describe("clear", () => {
     const empty = createEmptyState(5);
     clear(empty);
     expect(visuals.has("c_1")).toBe(false);
+  });
+});
+
+describe("effects (C3.7 stream/drop/ripple)", () => {
+  it("drops onto the target then ripples on impact for a <=1 mL dispense", () => {
+    const { before, after, events } = dispenseTitration(0.5);
+    clear(before);
+    enqueue({ prev: before, next: after, events, actor: "agent", version: 1 });
+
+    expect(listEffects().some((e) => e.kind === "drop" && e.sourceId === BURETTE_ID)).toBe(true);
+    expect(listEffects().some((e) => e.kind === "ripple")).toBe(false);
+    expect(isSourceActive(BURETTE_ID, nowMs())).toBe(true);
+
+    tick(0.13);
+    expect(listEffects().some((e) => e.kind === "ripple")).toBe(true);
+  });
+
+  it("streams from the burette tip for a >1 mL dispense", () => {
+    const { before, after, events } = dispenseTitration(5);
+    clear(before);
+    enqueue({ prev: before, next: after, events, actor: "agent", version: 1 });
+
+    const stream = listEffects().find((e) => e.kind === "stream");
+    expect(stream?.sourceId).toBe(BURETTE_ID);
+    expect(isSourceActive(BURETTE_ID, nowMs())).toBe(true);
+  });
+
+  it("spawns nothing under reduced motion", () => {
+    const { before, after, events } = dispenseTitration(0.5);
+    clear(before);
+    useLabStore.getState().setReducedMotion(true);
+    enqueue({ prev: before, next: after, events, actor: "agent", version: 1 });
+
+    expect(listEffects()).toHaveLength(0);
+  });
+
+  it("streams from the source vessel once a pour reaches its tilt phase", () => {
+    const { before, after, events } = pourFixture();
+    clear(before);
+    enqueue({ prev: before, next: after, events, actor: "human", version: 1 });
+
+    expect(listEffects().some((e) => e.kind === "stream")).toBe(false);
+    tick(0.25);
+    expect(listEffects().some((e) => e.kind === "stream" && e.sourceId === undefined)).toBe(true);
+  });
+
+  it("spawns three staggered drops for an added indicator, with no volume change", () => {
+    const { before, after, events } = addIndicator();
+    clear(before);
+    enqueue({ prev: before, next: after, events, actor: "human", version: 1 });
+
+    tick(0.25);
+    expect(listEffects().filter((e) => e.kind === "drop")).toHaveLength(3);
+
+    const flaskBefore = before.objects.find((o) => o.id === FLASK_ID);
+    if (!flaskBefore || flaskBefore.kind !== "container") throw new Error("fixture missing flask");
+    expect(targets.get(FLASK_ID)?.displayedVolumeMl).toBeCloseTo(flaskBefore.volumeMl, 5);
+  });
+});
+
+describe("cancelPoseJobs", () => {
+  it("clears a vessel's pending pour stages and resets its pose target", () => {
+    const { before, after, events, fromId } = pourFixture();
+    clear(before);
+    enqueue({ prev: before, next: after, events, actor: "human", version: 1 });
+
+    expect(targets.get(fromId)?.pose).not.toBeNull();
+    cancelPoseJobs(fromId);
+    expect(targets.get(fromId)?.pose).toBeNull();
+
+    // The pour's later stages (tilt/stream/return) must never fire once cancelled.
+    tick(2);
+    expect(listEffects().some((e) => e.kind === "stream")).toBe(false);
+    expect(targets.get(fromId)?.pose).toBeNull();
   });
 });

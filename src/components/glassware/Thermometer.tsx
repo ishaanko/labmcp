@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { dampValue, SMOOTH_TIME } from "@/scene/spring";
 import { registerVessel, visualFor } from "@/scene/visualStore";
 import type { RimPose } from "./PHProbe";
+import { Labels } from "./Labels";
 
 export interface ThermometerProps {
   readonly id: string;
@@ -29,6 +30,8 @@ export function Thermometer({ id, position, attachedRim, attachedContainerId }: 
   }, [attachedRim, position, attachedContainerId]);
 
   useEffect(() => {
+    // Registers this id in `visuals` so `VisualDriver`'s frame loop calls `apply` below.
+    visualFor(id);
     return registerVessel(id, {
       apply: (_v, dt) => {
         const target = rimRef.current;
@@ -60,18 +63,26 @@ export function Thermometer({ id, position, attachedRim, attachedContainerId }: 
 
   return (
     <group ref={groupRef} position={position} userData={{ objectId: id }}>
-      <mesh position={[0, -0.05, 0]}>
+      <mesh position={[0, -0.05, 0]} raycast={() => null}>
         <cylinderGeometry args={[0.03, 0.03, 0.9, 16]} />
         <meshStandardMaterial color="#dfe8f0" roughness={0.2} transparent opacity={0.4} />
       </mesh>
-      <mesh ref={columnRef} position={[0, -0.05, 0]}>
+      <mesh ref={columnRef} position={[0, -0.05, 0]} raycast={() => null}>
         <cylinderGeometry args={[0.012, 0.012, 1, 12]} />
         <meshStandardMaterial color="#e0433c" toneMapped={false} />
       </mesh>
-      <mesh position={[0, -0.5, 0]}>
+      <mesh position={[0, -0.5, 0]} raycast={() => null}>
         <sphereGeometry args={[0.045, 16, 16]} />
         <meshStandardMaterial color="#e0433c" toneMapped={false} />
       </mesh>
+      {/* Single hit volume for the whole assembly (C3.5): the only raycast target for drag/select. */}
+      <mesh visible={false} userData={{ objectId: id }} position={[0, -0.05, 0]}>
+        <cylinderGeometry args={[0.1, 0.1, 1, 12]} />
+        <meshBasicMaterial />
+      </mesh>
+      {attachedContainerId ? (
+        <Labels kind="temperature" containerId={attachedContainerId} anchorRef={groupRef} offset={[0, 0.6, 0]} />
+      ) : null}
     </group>
   );
 }

@@ -11,13 +11,14 @@ const DURATION_MS: Record<ToastMessage["kind"], number> = { success: 3500, info:
  * burette" toasts collapses into one. Registered with `setToastSink` from `@/lib/events`
  * (see `Providers.tsx`), so the store can toast without depending on sonner directly.
  */
-export function observe({ kind, title, description }: ToastMessage): void {
+export function observe({ kind, title, description, action, durationMs }: ToastMessage): void {
   const now = Date.now();
   const last = recent.get(title);
   if (last !== undefined && now - last < DEDUPE_MS) return;
   recent.set(title, now);
 
-  if (kind === "error") toast.error(title, { description, duration: DURATION_MS[kind] });
-  else if (kind === "success") toast.success(title, { description, duration: DURATION_MS[kind] });
-  else toast(title, { description, duration: DURATION_MS[kind] });
+  const options = { description, duration: durationMs ?? DURATION_MS[kind], action };
+  if (kind === "error") toast.error(title, options);
+  else if (kind === "success") toast.success(title, options);
+  else toast(title, options);
 }

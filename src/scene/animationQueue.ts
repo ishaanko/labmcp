@@ -11,13 +11,15 @@ import {
 import { setAnimationSink, type AnimationBatch } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
 import { gridToWorld } from "@/components/bench/Bench";
+import { buretteTipWorld } from "@/components/glassware/Burette";
+import { heightForVolume, profileForContainerType } from "./profiles";
 import { defaultVisual, dropVisual, setTarget, targets, visualFor, visuals, type PrecipitateVisual, type Rgba01 } from "./visualStore";
 import { rgbaToHex, rgbaToRgba01 } from "./textures";
 import { bubblesJob } from "./jobs/bubbles";
 import { drainJob } from "./jobs/drain";
 import { pourJob } from "./jobs/pour";
 import { precipitateJob } from "./jobs/precipitate";
-import { reagentJob } from "./jobs/reagent";
+import { indicatorJob, reagentJob } from "./jobs/reagent";
 import { stirJob } from "./jobs/stir";
 
 /**
@@ -96,6 +98,17 @@ export function tick(dt: number): void {
   }
 }
 
+/**
+ * Called by the drag lane when a human grabs an object (C5: "human drag cancels any job
+ * holding that object"). Clears `objectId`'s pending scheduled actions (pour stages, drain
+ * ramps, terminators) and returns its pose target to null so the vessel's rest position takes
+ * over immediately; the drag lane then drives position/rotation itself.
+ */
+export function cancelPoseJobs(objectId: string): void {
+  queues.delete(objectId);
+  setTarget(objectId, { pose: null });
+}
+
 function pulseAgentRing(id: string | undefined): void {
   if (!id) return;
   ringPulses.set(id, { fallAtMs: elapsedMs + 220 });
@@ -109,6 +122,20 @@ function findContainer(state: LabState, id: string): Container | undefined {
 
 function snapshotOf(container: Container): VesselSnapshot {
   return { id: container.id, volumeMl: container.volumeMl, color: rgbaToRgba01(deriveColor(container)) };
+}
+
+/** World-space point on a container's current liquid surface, for drop/stream landing points (C3.7). */
+function meniscusWorld(container: Container, displayedVolumeMl: number): Vec3 {
+  const [x, y, z] = gridToWorld(container.position);
+  const profile = profileForContainerType(container.type);
+  return { x, y: y + heightForVolume(profile, displayedVolumeMl), z };
+}
+
+/** World-space point 0.6 above a container's rim, where a poured-in stream/drops originate (C3.7). */
+function rimWorld(container: Container): Vec3 {
+  const [x, y, z] = gridToWorld(container.position);
+  const profile = profileForContainerType(container.type);
+  return { x, y: y + profile.capacityHeight + 0.6, z };
 }
 
 const PRECIPITATE_AMOUNT: Readonly<Record<PrecipitateScale, number>> = {
@@ -212,7 +239,14 @@ function handleLiquidTransferred(prev: LabState, next: LabState, fromId: string,
   if (!prevFrom || !nextFrom || !nextTo) return;
 
   if (prevFrom.type === "burette") {
-    drainJob(schedule, snapshotOf(nextFrom), snapshotOf(nextTo), volumeMl, reducedMotion);
+    const [tx, ty, tz] = buretteTipWorld(gridToWorld(prevFrom.position));
+    drainJob(
+      schedule,
+      { ...snapshotOf(nextFrom), tip: { x: tx, y: ty, z: tz } },
+      { ...snapshotOf(nextTo), meniscus: meniscusWorld(nextTo, visualFor(toId).displayedVolumeMl) },
+      volumeMl,
+      reducedMotion,
+    );
     return;
   }
   const restPose = gridToWorld(prevFrom.position);
@@ -220,7 +254,7 @@ function handleLiquidTransferred(prev: LabState, next: LabState, fromId: string,
   pourJob(
     schedule,
     { ...snapshotOf(nextFrom), restPose: { x: restPose[0], y: restPose[1], z: restPose[2] } },
-    { ...snapshotOf(nextTo), pos: { x: toPos[0], y: toPos[1], z: toPos[2] } },
+    { ...snapshotOf(nextTo), pos: { x: toPos[0], y: toPos[1], z: toPos[2] }, meniscus: meniscusWorld(nextTo, visualFor(toId).displayedVolumeMl) },
     volumeMl,
     reducedMotion,
   );
@@ -242,7 +276,15 @@ function handleEvent(event: LabEvent, prev: LabState, next: LabState, reducedMot
       return;
     case "LIQUID_ADDED": {
       const container = findContainer(next, event.containerId);
-      if (container) reagentJob(schedule, snapshotOf(container), event.volumeMl, reducedMotion);
+      if (container) {
+        const preVolumeMl = visualFor(event.containerId).displayedVolumeMl;
+        reagentJob(
+          schedule,
+          { ...snapshotOf(container), rim: rimWorld(container), meniscus: meniscusWorld(container, preVolumeMl) },
+          event.volumeMl,
+          reducedMotion,
+        );
+      }
       touched.add(event.containerId);
       return;
     }
@@ -251,8 +293,15 @@ function handleEvent(event: LabEvent, prev: LabState, next: LabState, reducedMot
       touched.add(event.fromId);
       touched.add(event.toId);
       return;
-    case "INDICATOR_ADDED":
+    case "INDICATOR_ADDED": {
+      const container = findContainer(next, event.containerId);
+      if (container) {
+        const colorHex = rgbaToHex(deriveColor(container));
+        const preVolumeMl = visualFor(event.containerId).displayedVolumeMl;
+        indicatorJob(schedule, { id: event.containerId, rim: rimWorld(container), meniscus: meniscusWorld(container, preVolumeMl), colorHex }, reducedMotion);
+      }
       return;
+    }
     case "STIR_STARTED":
       stirJob(schedule, event.containerId, event.durationS, reducedMotion);
       return;

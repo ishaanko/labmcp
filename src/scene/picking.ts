@@ -1,9 +1,9 @@
 import * as THREE from "three";
 
 /**
- * Raycasting and grid-occupancy helpers shared by pointer interactions (C4). This phase does
- * not wire up dragging yet, so only the primitives the drag phase will need are here:
- * projecting a pointer onto the bench's ground plane, and finding a free cell to drop into.
+ * Raycasting and grid-occupancy helpers shared by pointer interactions (C4): projecting a
+ * pointer onto the bench's ground plane, finding a free cell to drop into, and softening a
+ * dragged object's position past the grid bounds.
  */
 
 const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -35,13 +35,22 @@ export interface GridBounds {
 }
 
 /**
- * Finds the nearest unoccupied integer cell to `from`, spiralling outward ring by ring and
- * clamped to `bounds`. Used when a dropped object's target cell is already taken.
+ * Snaps `value` to the nearest cell on a lattice spaced 1 apart starting at `min` (the titration
+ * layout's columns sit at -4.5, -3.5, ..., so plain `Math.round` would misalign them: `-4.5`
+ * rounds to `-4`, one cell in the middle of nowhere).
+ */
+function snapToLattice(value: number, min: number): number {
+  return min + Math.round(value - min);
+}
+
+/**
+ * Finds the nearest unoccupied cell to `from`, spiralling outward ring by ring and clamped to
+ * `bounds`. Used when a dropped object's target cell is already taken.
  */
 export function nearestFreeCell(occupied: ReadonlySet<string>, from: GridCell, bounds: GridBounds): GridCell {
   const start: GridCell = {
-    x: Math.round(Math.min(bounds.maxX, Math.max(bounds.minX, from.x))),
-    y: Math.round(Math.min(bounds.maxY, Math.max(bounds.minY, from.y))),
+    x: snapToLattice(Math.min(bounds.maxX, Math.max(bounds.minX, from.x)), bounds.minX),
+    y: snapToLattice(Math.min(bounds.maxY, Math.max(bounds.minY, from.y)), bounds.minY),
   };
   if (!occupied.has(cellKey(start))) return start;
 
@@ -58,4 +67,25 @@ export function nearestFreeCell(occupied: ReadonlySet<string>, from: GridCell, b
     }
   }
   return start;
+}
+
+/**
+ * iOS-style rubber-band: eases a raw overshoot `x` past a boundary into a diminishing-returns
+ * displacement, so a drag past the grid edge visibly resists rather than teleporting the object
+ * beyond the bench (C1 `damp.snap`-adjacent, C4.2). `dim` is a reference distance (how far one
+ * more grid cell would read) and `coeff` (0..1) sets how much of `x` still shows through as it
+ * grows; `coeff 0.55` keeps the response fairly stiff near the edge, per the design tokens.
+ */
+export function rubberband(x: number, dim: number, coeff: number): number {
+  if (x === 0) return 0;
+  const sign = Math.sign(x);
+  const magnitude = Math.abs(x);
+  return sign * (1 - 1 / (magnitude * coeff / dim + 1)) * dim;
+}
+
+/** Softens `value` back toward `[min, max]` with `rubberband` once it strays past either edge. */
+export function rubberbandClamp(value: number, min: number, max: number, dim: number, coeff: number): number {
+  if (value > max) return max + rubberband(value - max, dim, coeff);
+  if (value < min) return min - rubberband(min - value, dim, coeff);
+  return value;
 }

@@ -6,10 +6,13 @@ import { useLabStore } from "@/store/labStore";
 
 /**
  * Locked perspective camera (C3.1): no orbit, just a fixed position and a subtly parallaxing
- * look target. The x-offset keeps the bench clear of the 300px right panel as the viewport
- * resizes; the pointer parallax is off while dragging, a popover is open, or reduced motion.
+ * look target. Dollied back from the design doc's literal (0.8, 6.2, 9.0) along the same
+ * sightline, at `Bench.GRID_SCALE`, so the full usable grid (x -4.5..3.5, z -1.5..1.5) clears
+ * both the top bar and the right panel, including the burette's ~2.9-unit stand. The x-offset
+ * keeps the bench clear of the 300px right panel as the viewport resizes; the pointer parallax
+ * is off while dragging, a popover is open, or reduced motion.
  */
-const BASE_POSITION = new THREE.Vector3(0.8, 6.2, 9.0);
+const BASE_POSITION = new THREE.Vector3(0.8, 7.9, 11.8);
 const BASE_LOOKAT = new THREE.Vector3(0.8, 0.45, -0.3);
 const PARALLAX_SMOOTH_TIME = 0.6;
 const MAX_YAW_RAD = (1.2 * Math.PI) / 180;
@@ -30,7 +33,7 @@ export function CameraRig() {
   }, [camera]);
 
   useFrame((state, dt) => {
-    const xOffset = 0.8 * (300 / size.width) * 4.8;
+    const xOffset = 0.8 * (300 / size.width) * 1.0;
     const parallaxAllowed = !dragging && !dialogOpen && !reducedMotion;
     const targetYaw = parallaxAllowed ? state.pointer.x * MAX_YAW_RAD : 0;
     const targetPitch = parallaxAllowed ? state.pointer.y * MAX_PITCH_RAD : 0;

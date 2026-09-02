@@ -1,24 +1,22 @@
 "use client";
 
-import type { PointerEvent } from "react";
 import { constants } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectPublic } from "@/store/selectors";
 import { ReagentChip } from "./ReagentChip";
 import { EquipmentButton } from "./EquipmentButton";
+import { ReagentGhost } from "./ReagentGhost";
+import { useShelfDrag } from "./useShelfDrag";
 
 /** Bottom-center dock: reagent + indicator chips, a divider, then equipment buttons (C2). */
 export function Shelf() {
   const shelf = useLabStore((s) => s.lab.shelf);
   const indicators = useLabStore(selectPublic).indicatorsAvailable;
-  const setDrag = useLabStore((s) => s.setDrag);
-
-  const onIndicatorPointerDown = (indicatorId: string) => (e: PointerEvent<HTMLButtonElement>) => {
-    setDrag({ kind: "indicator", indicatorId, pointer: { x: e.clientX, y: e.clientY }, overId: null });
-  };
+  const { onIndicatorPointerDown } = useShelfDrag();
 
   return (
     <div className="material-thin pointer-events-auto flex h-14 max-w-[860px] items-center gap-3 overflow-x-auto px-3 [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-16px),transparent)]">
+      <ReagentGhost />
       <div className="flex items-center gap-1.5">
         {shelf.map((stock) => (
           <ReagentChip key={stock.reagentId} reagentId={stock.reagentId} label={stock.label} />

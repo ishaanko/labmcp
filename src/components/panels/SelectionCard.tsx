@@ -1,13 +1,14 @@
 "use client";
 
-import { Droplets, Waves, Flame, Trash2, Unlink } from "lucide-react";
+import { Pipette, Waves, Trash2, Unlink } from "lucide-react";
+import { emitToast } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
+import { selectContainers } from "@/store/selectors";
 import type { Instrument, PublicContainer } from "@/engine";
 import { constants } from "@/engine";
 import { Readout } from "@/components/ui/Readout";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
-import { observe } from "@/components/ui/toasts";
 
 export interface SelectionCardProps {
   object: PublicContainer | Instrument;
@@ -19,19 +20,35 @@ export function SelectionCard({ object }: SelectionCardProps) {
   return <ContainerCard container={object} />;
 }
 
+/** The bench's titration-style layout puts a burette one row behind (same x, y - 1) its flask. */
+function buretteBehind(container: PublicContainer, containers: ReadonlyArray<PublicContainer>): PublicContainer | undefined {
+  return containers.find(
+    (c) => c.type === "burette" && c.volumeMl > 0 && c.position.x === container.position.x && container.position.y - c.position.y === 1,
+  );
+}
+
 function ContainerCard({ container }: { container: PublicContainer }) {
   const dispatch = useLabStore((s) => s.dispatch);
+  const dispenseIncrementMl = useLabStore((s) => s.ui.dispenseIncrementMl);
+  const containers = useLabStore(selectContainers);
+  const burette = buretteBehind(container, containers);
 
-  const pour = (): void => observe({ kind: "info", title: "Drag this vessel onto another container to pour." });
+  const dispenseHere = (): void => {
+    if (!burette) return;
+    void dispatch({ kind: "DISPENSE", buretteId: burette.id, toId: container.id, volumeMl: dispenseIncrementMl }, "human");
+  };
   const stir = (): void => void dispatch({ kind: "STIR", containerId: container.id, durationS: constants.DEFAULT_STIR_S }, "human");
-  const heat = (): void =>
-    void dispatch(
-      container.thermal.kind === "heating"
-        ? { kind: "COOL", containerId: container.id }
-        : { kind: "HEAT", containerId: container.id, targetC: 60 },
-      "human",
-    );
-  const dispose = (): void => void dispatch({ kind: "DISPOSE", containerId: container.id }, "human");
+  const dispose = (): void => {
+    const label = container.label;
+    void dispatch({ kind: "DISPOSE", containerId: container.id }, "human").then((res) => {
+      if (!res.ok) return;
+      emitToast({
+        kind: "info",
+        title: `Disposed contents of ${label}`,
+        action: { label: "Undo", onClick: () => void dispatch({ kind: "UNDO" }, "human") },
+      });
+    });
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -77,17 +94,15 @@ function ContainerCard({ container }: { container: PublicContainer }) {
       ) : null}
 
       <div className="mt-auto flex flex-wrap gap-2 border-t border-hairline pt-3">
-        <Button size="sm" onClick={pour}>
-          <Droplets size={13} />
-          Pour
-        </Button>
+        {burette ? (
+          <Button size="sm" onClick={dispenseHere}>
+            <Pipette size={13} />
+            Dispense here
+          </Button>
+        ) : null}
         <Button size="sm" onClick={stir}>
           <Waves size={13} />
           Stir
-        </Button>
-        <Button size="sm" onClick={heat}>
-          <Flame size={13} />
-          {container.thermal.kind === "heating" ? "Stop heat" : "Heat"}
         </Button>
         <Button size="sm" variant="danger" onClick={dispose}>
           <Trash2 size={13} />

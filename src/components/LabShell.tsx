@@ -8,6 +8,8 @@ import { ContextPanel } from "@/components/panels/ContextPanel";
 import { ActivityPanel } from "@/components/feed/ActivityPanel";
 import { Shelf } from "@/components/shelf/Shelf";
 import { ResetDialog } from "@/components/ui/ResetDialog";
+import { Dialogs } from "@/components/ui/Dialogs";
+import { ExplainSheet } from "@/components/panels/ExplainSheet";
 
 // The R3F canvas touches WebGL and `document`, so it is client-only and loaded after hydration.
 const LabCanvas = dynamic(() => import("./bench/LabCanvas").then((m) => m.LabCanvas), {
@@ -32,13 +34,15 @@ export function LabShell() {
           <div className="pointer-events-none absolute inset-y-0 right-0 flex items-stretch">
             <ContextPanel />
           </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-1">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-1 pr-[300px] max-[1100px]:pr-[280px]">
             <Shelf />
           </div>
         </div>
       </div>
 
       <ResetDialog />
+      <Dialogs />
+      <ExplainSheet />
       <WebMcpBoot />
       <DevConsole />
     </div>
