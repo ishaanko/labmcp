@@ -29,7 +29,9 @@ export interface FeedEntryProps {
 /**
  * One row in the activity feed (C6 item 3). Agent calls carry an amber left rule and
  * Sparkles; human actions a neutral rule and Hand. Read-only agent calls collapse to one
- * grey line. Agent rows enter with a 200ms opacity+transform fade; human rows (one per D-key
+ * grey line; a finished mutating call shows its observation alone ("Dispensed 1.0 mL into
+ * Flask. pH 11.86 to 11.95."), since a title would only repeat it. The title stays for a
+ * running or failed call. Agent rows enter with a 200ms opacity+transform fade; human rows (one per D-key
  * dispense, far more frequent) render immediately, since a per-row FLIP would run a main-thread
  * layout pass over up to 300 rows every keystroke.
  */
@@ -122,14 +124,17 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
         <p className="truncate text-muted-foreground">
           {title} · {entry.resultSummary ? stripRawIds(entry.resultSummary) : "ok"}
         </p>
+      ) : running ? (
+        <>
+          <p className="text-foreground">{title}</p>
+          <p className="mt-0.5 text-muted-foreground">Running…</p>
+        </>
+      ) : entry.resultSummary && entry.ok !== false ? (
+        <p className="line-clamp-2 text-xs text-foreground">{stripRawIds(entry.resultSummary)}</p>
       ) : (
         <>
           <p className="text-foreground">{title}</p>
-          {running ? (
-            <p className="mt-0.5 text-muted-foreground">Running…</p>
-          ) : entry.resultSummary ? (
-            <SummaryLine text={stripRawIds(entry.resultSummary)} tone={entry.ok === false ? "text-destructive" : "text-foreground/70"} />
-          ) : null}
+          {entry.resultSummary ? <SummaryLine text={stripRawIds(entry.resultSummary)} tone="text-destructive" /> : null}
         </>
       )}
     </Row>

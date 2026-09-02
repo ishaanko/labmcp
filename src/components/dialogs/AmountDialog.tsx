@@ -2,11 +2,12 @@
 
 import { useState, type KeyboardEvent } from "react";
 import NumberFlow from "@number-flow/react";
-import { indicatorDef, isContainerId, isIndicatorIdShape, isReagentId } from "@/engine";
+import { indicatorDef, isContainerId, isIndicatorIdShape, isReagentId, reagentDef } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import type { PendingDialog } from "@/store/types";
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Slider } from "@/components/ui/slider";
 import { ROLE_HEX, indicatorRole, reagentRole } from "@/components/shelf/roleColor";
 import { round2 } from "@/lib/format";
@@ -40,6 +41,9 @@ function buildTarget(dialog: AmountPendingDialog): AmountTarget {
 
   if (dialog.kind === "add_reagent") {
     const stock = state.lab.shelf.find((s) => s.reagentId === dialog.reagentId);
+    // Only a challenge's hidden stock ("unknown_acid") hides its concentration; water has none.
+    const known = isReagentId(dialog.reagentId) ? reagentDef(dialog.reagentId) : undefined;
+    const stockLine = !stock ? null : stock.concentrationM !== null ? `${stock.concentrationM} M stock` : known ? null : "Concentration hidden";
     return {
       kind: "add_reagent",
       containerId: dialog.containerId,
@@ -51,7 +55,7 @@ function buildTarget(dialog: AmountPendingDialog): AmountTarget {
       presets: REAGENT_PRESETS_ML.filter((v) => v <= dialog.maxMl),
       name: stock?.label ?? dialog.reagentId,
       swatch: isReagentId(dialog.reagentId) ? ROLE_HEX[reagentRole(dialog.reagentId)] : ROLE_HEX.water,
-      stockLine: stock ? (stock.concentrationM !== null ? `${stock.concentrationM} M stock` : "Concentration hidden") : null,
+      stockLine,
     };
   }
 
@@ -73,7 +77,8 @@ function buildTarget(dialog: AmountPendingDialog): AmountTarget {
 
 /**
  * Amount/drops prompt, opened by `useShelfDrag` on a landed reagent or indicator drop.
- * Anchored to the target container's projected screen rect via `useAnchorRect`. Enter confirms.
+ * Anchored beside the target container's projected screen rect via `useAnchorRect`, so the vessel
+ * being dosed stays in view. Enter confirms.
  */
 export function AmountDialog() {
   const dialog = useLabStore((s) => selectAmountDialog(s.ui.dialog));
@@ -85,7 +90,7 @@ export function AmountDialog() {
 
   return (
     <Popover open={dialog !== null} onOpenChange={(open) => !open && close()}>
-      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="top" align="center" sideOffset={12} className="w-64">
+      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="right" align="start" sideOffset={16} className="w-72">
         {dialog ? <AmountDialogContent key={key} dialog={dialog} /> : null}
       </PopoverContent>
     </Popover>
@@ -131,13 +136,23 @@ function AmountDialogContent({ dialog }: { dialog: AmountPendingDialog }) {
       </div>
       {target.stockLine ? <p className="text-xs text-muted-foreground">{target.stockLine}</p> : null}
 
-      <div className="flex flex-wrap gap-1.5">
+      <ToggleGroup
+        value={[String(value)]}
+        onValueChange={(values) => {
+          const picked = values[0];
+          if (picked !== undefined) setValue(Number(picked));
+        }}
+        variant="outline"
+        size="sm"
+        spacing={0}
+        aria-label={`${target.name} presets`}
+      >
         {target.presets.map((preset) => (
-          <Button key={preset} size="sm" variant={value === preset ? "default" : "secondary"} onClick={() => setValue(preset)}>
+          <ToggleGroupItem key={preset} value={String(preset)} className="tabular-nums">
             {preset} {target.unit === "mL" ? "mL" : "drop" + (preset === 1 ? "" : "s")}
-          </Button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
 
       <div className="flex items-center gap-3">
         <Slider value={value} min={target.min} max={target.max} step={target.step} onValueChange={setValue} aria-label={`${target.name} amount`} />

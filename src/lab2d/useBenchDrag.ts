@@ -21,6 +21,8 @@ interface HoldState {
   readonly pointerId: number;
   timeout: ReturnType<typeof setTimeout> | null;
   interval: ReturnType<typeof setInterval> | null;
+  /** True once the hold delay elapsed and dispensing started; a move after that no longer starts a drag. */
+  fired: boolean;
 }
 
 function workspacePointFromClient(el: Element, clientX: number, clientY: number): XY {
@@ -64,7 +66,9 @@ export interface BenchDragOptions {
 /**
  * Pointer-driven bench interactions (click select, drag move, burette click-and-hold dispense).
  * One instance per `BenchObject`; `setPointerCapture` on the object's own root keeps the
- * gesture alive past the element's bounds, so no window-level listeners are needed.
+ * gesture alive past the element's bounds, so no window-level listeners are needed. A burette
+ * press arms both a drag and a hold: crossing the drag threshold first moves the burette, the
+ * hold delay elapsing first locks it into dispensing.
  */
 export function useBenchDrag(id: string, kind: "container" | "instrument", options: BenchDragOptions): BenchDragRender {
   const phaseRef = useRef<Phase>({ kind: "idle" });
@@ -107,10 +111,16 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
     void store.dispatch({ kind: "DISPENSE", buretteId: burette.id, toId: front.id, volumeMl: store.ui.dispenseIncrementMl }, "human");
   };
 
+  /**
+   * Burette press: nothing happens for `HOLD_DELAY_MS`, so a drag can still begin in that window;
+   * after it, one dispense fires and then repeats every `HOLD_INTERVAL_MS`. A release before the
+   * delay is a click and dispenses once from `onPointerUp`.
+   */
   const beginHold = (pointerId: number): void => {
-    dispenseOnce();
-    const hold: HoldState = { pointerId, timeout: null, interval: null };
+    const hold: HoldState = { pointerId, timeout: null, interval: null, fired: false };
     hold.timeout = setTimeout(() => {
+      hold.fired = true;
+      dispenseOnce();
       hold.interval = setInterval(dispenseOnce, HOLD_INTERVAL_MS);
     }, HOLD_DELAY_MS);
     holdRef.current = hold;
@@ -197,20 +207,19 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
   };
 
   const onPointerDown = (e: ReactPointerEvent<HTMLElement>): void => {
-    if (e.button !== 0 || phaseRef.current.kind !== "idle" || holdRef.current) return;
+    if (e.button !== 0 || phaseRef.current.kind !== "idle") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     useLabStore.getState().select(id);
-    if (options.isBurette) {
-      beginHold(e.pointerId);
-      return;
-    }
     phaseRef.current = { kind: "pending", pointerId: e.pointerId, start: { x: e.clientX, y: e.clientY } };
+    if (options.isBurette) beginHold(e.pointerId);
   };
 
   const onPointerMove = (e: ReactPointerEvent<HTMLElement>): void => {
     const phase = phaseRef.current;
     if (phase.kind === "pending" && e.pointerId === phase.pointerId) {
       if (Math.hypot(e.clientX - phase.start.x, e.clientY - phase.start.y) < DRAG_THRESHOLD_PX) return;
+      if (holdRef.current?.fired) return;
+      clearHold();
       beginDrag(phase.pointerId, e.clientX, e.clientY, e.currentTarget);
       return;
     }
@@ -226,24 +235,23 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
 
   const onPointerUp = (e: ReactPointerEvent<HTMLElement>): void => {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-    if (holdRef.current && holdRef.current.pointerId === e.pointerId) {
-      clearHold();
-      return;
-    }
     const phase = phaseRef.current;
     if (phase.kind === "idle" || e.pointerId !== phase.pointerId) return;
+    const holdFired = holdRef.current?.fired ?? false;
+    clearHold();
     phaseRef.current = { kind: "idle" };
-    if (phase.kind === "pending") return; // click: selection already happened on pointerdown
+    if (phase.kind === "pending") {
+      // A click: selection already happened on pointerdown; a burette click also dispenses once.
+      if (options.isBurette && !holdFired) dispenseOnce();
+      return;
+    }
     finishDrag(e.clientX, e.clientY, e.currentTarget);
   };
 
   const onPointerCancel = (e: ReactPointerEvent<HTMLElement>): void => {
-    if (holdRef.current && holdRef.current.pointerId === e.pointerId) {
-      clearHold();
-      return;
-    }
     const phase = phaseRef.current;
     if (phase.kind === "idle" || e.pointerId !== phase.pointerId) return;
+    clearHold();
     phaseRef.current = { kind: "idle" };
     if (phase.kind === "dragging") finishDrag(e.clientX, e.clientY, e.currentTarget);
   };

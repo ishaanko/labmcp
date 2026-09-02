@@ -2,9 +2,11 @@
 
 import { reagentDef, type ReagentId } from "@/engine";
 import { useLabStore } from "@/store/labStore";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ROLE_HEX, reagentRole } from "./roleColor";
 import { BottleIcon, DropletIcon } from "./TileIcon";
 import { Tile } from "./Tile";
+import { shortReagentLabel } from "./tileLabel";
 import { useShelfDrag } from "./useShelfDrag";
 
 export interface ReagentChipProps {
@@ -20,12 +22,20 @@ export function ReagentChip({ reagentId, label }: ReagentChipProps) {
   const color = ROLE_HEX[reagentRole(reagentId)];
 
   return (
-    <Tile
-      onPointerDown={onReagentPointerDown(reagentId)}
-      color={color}
-      label={label}
-      dragging={dragging}
-      icon={isWater ? <DropletIcon /> : <BottleIcon />}
-    />
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Tile
+            onPointerDown={onReagentPointerDown(reagentId)}
+            aria-label={label}
+            color={color}
+            label={shortReagentLabel(reagentId, label)}
+            dragging={dragging}
+            icon={isWater ? <DropletIcon /> : <BottleIcon />}
+          />
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { Bench } from "@/lab2d/Bench";
 import { AgentPanel } from "@/components/agent/AgentPanel";
 import { WebMcpBoot } from "@/webmcp/WebMcpBoot";
@@ -17,7 +18,9 @@ import { useLabStore } from "@/store/labStore";
 /**
  * Full-viewport lab: a flat top bar, a left activity rail, the 2D bench filling the center with
  * the reagent dock floating over its bottom edge, and a fixed-width right context panel. The
- * agent panel and every dialog mount alongside, each gating on its own store flag.
+ * agent panel and every dialog mount alongside, each gating on its own store flag. While the
+ * agent panel is open the bench viewport gives up its right 380px so the objects re-center in
+ * the space that is still visible.
  */
 export function LabShell() {
   const agentPanelOpen = useLabStore((s) => s.ui.agentPanelOpen);
@@ -32,7 +35,7 @@ export function LabShell() {
         <ActivityPanel />
 
         <div className="relative min-h-0 flex-1">
-          <div id={BENCH_VIEWPORT_ID} className="absolute inset-0 overflow-hidden">
+          <div id={BENCH_VIEWPORT_ID} className={clsx("absolute inset-0 overflow-hidden", agentPanelOpen && "right-[380px]")}>
             <Bench />
           </div>
           <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">

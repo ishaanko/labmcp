@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { constants, mintIndicatorId, mintReagentId, parseObjectId, publicView, REAGENT_IDS, reagentDef, type LabEvent, type PublicContainer } from "@/engine";
-import { err, errFromLabError, eventStrings, findContainer, ok, unknownObjectError } from "../runtime";
+import { err, errFromLabError, eventStrings, findContainer, missingContainerError, ok, unknownObjectError } from "../runtime";
 import { ContainerIdSchema, EquipmentTypeSchema, INDICATOR_IDS, ObjectIdSchema, SlotSchema, TemperatureCSchema, VolumeMlSchema } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
 
@@ -42,8 +42,8 @@ const addContainer: ToolDef<z.infer<typeof AddContainerInput>> = {
   title: "Add container",
   description:
     "Places a new piece of equipment on the bench: glassware (beaker, flask, test_tube, graduated_cylinder, " +
-    "burette) or an instrument (ph_meter, thermometer, hotplate). Uses the next free bench slot when position is " +
-    "omitted. Fails with OUT_OF_RANGE if the bench is full or the slot is occupied.",
+    "burette) or an instrument (ph_meter, thermometer, hotplate). Uses the free bench slot nearest the existing objects " +
+    "when position is omitted. Fails with OUT_OF_RANGE if the bench is full or the slot is occupied.",
   input: AddContainerInput,
   readOnly: false,
   examples: [{ label: "Add a beaker", input: { type: "beaker" } }],
@@ -70,10 +70,15 @@ const addContainer: ToolDef<z.infer<typeof AddContainerInput>> = {
   },
 };
 
+/** Hidden stocks a challenge scenario puts on the shelf; the engine checks the id against the loaded shelf. */
+const UNKNOWN_SHELF_IDS = ["unknown_acid", "unknown_a", "unknown_b", "unknown_c"].map(mintReagentId);
+
 const AddReagentInput = z
   .object({
     container_id: ContainerIdSchema,
-    reagent_id: z.enum(REAGENT_IDS).describe('Shelf reagent id, e.g. "hcl", "naoh", "water". See list_reagents.'),
+    reagent_id: z
+      .enum([...REAGENT_IDS, ...UNKNOWN_SHELF_IDS])
+      .describe('Shelf reagent id from get_lab_state.shelf, e.g. "hcl", "naoh", "water", or a challenge\'s "unknown_acid". See list_reagents.'),
     volume_ml: VolumeMlSchema,
     concentration_m: z.number().gt(0).max(2).optional().describe("Concentration in mol/L (0 < x ≤ 2). Omit to use the reagent's default concentration."),
   })
@@ -93,7 +98,7 @@ const addReagent: ToolDef<z.infer<typeof AddReagentInput>> = {
   examples: [{ label: "25 mL 0.1 M HCl into c_1", input: { container_id: "c_1", reagent_id: mintReagentId("hcl"), volume_ml: 25 } }],
   handler: async (input, ctx) => {
     const container = findContainer(ctx.getState().lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const def = reagentDef(input.reagent_id);
 
     const dr = await ctx.dispatch(
@@ -207,7 +212,7 @@ const stir: ToolDef<{ container_id: string; duration_s?: number }> = {
   examples: [{ label: "Stir c_1 for 3 s", input: { container_id: "c_1", duration_s: 3 } }],
   handler: async (input, ctx) => {
     const container = findContainer(ctx.getState().lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const dr = await ctx.dispatch({ kind: "STIR", containerId: container.id, durationS: input.duration_s }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     return ok(ctx.getState, { containerId: container.id, durationS: input.duration_s }, dr.observation, eventStrings(ctx.getState, dr));
@@ -224,7 +229,7 @@ const heat: ToolDef<{ container_id: string; target_c: number }> = {
   examples: [{ label: "Heat c_1 to 60 °C", input: { container_id: "c_1", target_c: 60 } }],
   handler: async (input, ctx) => {
     const container = findContainer(ctx.getState().lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const currentC = container.temperatureC;
     const dr = await ctx.dispatch({ kind: "HEAT", containerId: container.id, targetC: input.target_c }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
@@ -244,7 +249,7 @@ const cool: ToolDef<{ container_id: string; target_c?: number }> = {
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
     const container = findContainer(lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const currentC = container.temperatureC;
     const targetC = input.target_c ?? lab.ambientC;
     const dr = await ctx.dispatch({ kind: "COOL", containerId: container.id, targetC: input.target_c }, "agent");
@@ -274,7 +279,7 @@ const addIndicator: ToolDef<{ container_id: string; indicator_id: string; drops?
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
     const container = findContainer(lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const indicatorId = mintIndicatorId(input.indicator_id);
     const dr = await ctx.dispatch({ kind: "ADD_INDICATOR", containerId: container.id, indicator: indicatorId, drops: input.drops }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);

@@ -7,10 +7,11 @@ import { clsx } from "clsx";
 import { constants, indicatorDef, isIndicatorIdShape, isReagentId, reagentDef, type EquipmentType } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import type { DragState, XY } from "@/store/types";
-import { EQUIPMENT_COLOR, EQUIPMENT_ICON, EQUIPMENT_LABEL } from "./EquipmentButton";
+import { EQUIPMENT_COLOR, EQUIPMENT_ICON, EQUIPMENT_LABEL, EQUIPMENT_TILE_LABEL } from "./EquipmentButton";
 import { ROLE_HEX, indicatorRole, reagentRole } from "./roleColor";
 import { BottleIcon, DropletIcon, DropperIcon } from "./TileIcon";
 import { TileFace } from "./Tile";
+import { shortIndicatorLabel, shortReagentLabel } from "./tileLabel";
 import { takeDragOutcome } from "./useShelfDrag";
 
 type GhostDrag = Extract<DragState, { kind: "reagent" | "indicator" | "equipment" }>;
@@ -24,9 +25,12 @@ function isEquipmentType(v: string): v is EquipmentType {
 }
 
 function labelFor(drag: GhostDrag, shelf: ReadonlyArray<{ reagentId: string; label: string }>): string {
-  if (drag.kind === "reagent") return shelf.find((s) => s.reagentId === drag.reagentId)?.label ?? drag.reagentId;
-  if (drag.kind === "indicator") return (isIndicatorIdShape(drag.indicatorId) ? indicatorDef(drag.indicatorId)?.label : undefined) ?? drag.indicatorId;
-  return isEquipmentType(drag.equipmentType) ? EQUIPMENT_LABEL[drag.equipmentType] : drag.equipmentType;
+  if (drag.kind === "reagent") return shortReagentLabel(drag.reagentId, shelf.find((s) => s.reagentId === drag.reagentId)?.label ?? drag.reagentId);
+  if (drag.kind === "indicator") {
+    const label = (isIndicatorIdShape(drag.indicatorId) ? indicatorDef(drag.indicatorId)?.label : undefined) ?? drag.indicatorId;
+    return shortIndicatorLabel(drag.indicatorId, label);
+  }
+  return isEquipmentType(drag.equipmentType) ? (EQUIPMENT_TILE_LABEL[drag.equipmentType] ?? EQUIPMENT_LABEL[drag.equipmentType]) : drag.equipmentType;
 }
 
 function colorFor(drag: GhostDrag): string {

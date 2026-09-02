@@ -78,8 +78,14 @@ export function TitrationCurve() {
         strokeWidth={1}
         strokeDasharray="2 3"
       />
+      <text x={2} y={PAD.top + 4} className="fill-ink-3 text-2xs">
+        14
+      </text>
       <text x={2} y={neutralY + 3} className="fill-ink-3 text-2xs">
         7
+      </text>
+      <text x={2} y={HEIGHT - PAD.bottom + 3} className="fill-ink-3 text-2xs">
+        0
       </text>
       <text x={PAD.left} y={HEIGHT - 3} className="fill-ink-3 text-2xs">
         0

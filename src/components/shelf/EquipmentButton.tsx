@@ -22,12 +22,15 @@ export const EQUIPMENT_LABEL: Record<EquipmentType, string> = {
   beaker: "Beaker",
   flask: "Flask",
   test_tube: "Test tube",
-  graduated_cylinder: "Graduated cyl.",
+  graduated_cylinder: "Graduated cylinder",
   burette: "Burette",
   ph_meter: "pH meter",
   thermometer: "Thermometer",
   hotplate: "Hotplate",
 };
+
+/** Tile text where the full name does not fit the 64px tile; the tooltip carries the full name. */
+export const EQUIPMENT_TILE_LABEL: Partial<Record<EquipmentType, string>> = { graduated_cylinder: "Grad. cyl", thermometer: "Thermo" };
 
 /** Glassware outline color: no chemistry role of its own, so it reads as the neutral glass line. */
 export const EQUIPMENT_COLOR = "#e6e6ee";
@@ -50,7 +53,7 @@ export function EquipmentButton({ equipmentType }: EquipmentButtonProps) {
             onPointerDown={onEquipmentPointerDown(equipmentType)}
             aria-label={EQUIPMENT_LABEL[equipmentType]}
             color={EQUIPMENT_COLOR}
-            label={EQUIPMENT_LABEL[equipmentType]}
+            label={EQUIPMENT_TILE_LABEL[equipmentType] ?? EQUIPMENT_LABEL[equipmentType]}
             dragging={dragging}
             icon={<Icon size={20} strokeWidth={1.75} />}
           />

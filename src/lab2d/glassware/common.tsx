@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import { motion } from "motion/react";
 import type { CSSProperties, ReactNode } from "react";
 
@@ -23,9 +24,11 @@ interface VesselFrameProps {
   readonly viewBoxWidth: number;
   readonly viewBoxHeight: number;
   readonly size: number;
+  /** Caption under the glass; empty hides the caption (a docked instrument's card names it instead). */
   readonly label: string;
   /** True while the pointer is over this vessel, or it is hovered by store state (drag target etc). */
   readonly hovered: boolean;
+  readonly selected?: boolean;
   readonly children: ReactNode;
 }
 
@@ -38,7 +41,7 @@ interface VesselFrameProps {
  * tall burette's empty corners never steal a drop aimed at the flask beneath it. Enter/leave
  * still reach the figure because they bubble from the shapes.
  */
-export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, hovered, children }: VesselFrameProps) {
+export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, hovered, selected = false, children }: VesselFrameProps) {
   const { width, height } = svgDims(viewBoxWidth, viewBoxHeight, size);
   return (
     <motion.figure
@@ -51,7 +54,7 @@ export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, hovered,
       <svg width={width} height={height} viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`} className="overflow-visible">
         <g style={{ pointerEvents: "visiblePainted" }}>{children}</g>
       </svg>
-      <figcaption className="text-xs text-ink-2">{label}</figcaption>
+      {label ? <figcaption className={clsx("text-xs", selected ? "font-medium text-ink" : "text-ink-2")}>{label}</figcaption> : null}
     </motion.figure>
   );
 }
@@ -61,11 +64,15 @@ interface SelectionRingProps {
   readonly y: number;
   readonly width: number;
   readonly height: number;
+  readonly selected: boolean;
   readonly agentActive: boolean;
 }
 
-/** Soft amber halo shown only while the agent is acting on this vessel. Opacity-only transition. */
-export function SelectionRing({ x, y, width, height, agentActive }: SelectionRingProps) {
+/**
+ * Halo around a vessel: a thin white ring while it is the selection, a thicker amber one while
+ * the agent is acting on it (amber wins). Opacity-only transition, so nothing paints at rest.
+ */
+export function SelectionRing({ x, y, width, height, selected, agentActive }: SelectionRingProps) {
   return (
     <rect
       x={x - 6}
@@ -74,9 +81,9 @@ export function SelectionRing({ x, y, width, height, agentActive }: SelectionRin
       height={height + 12}
       rx={16}
       fill="none"
-      stroke="var(--amber)"
-      strokeWidth={3}
-      style={{ opacity: agentActive ? 0.8 : 0, transition: "opacity 200ms ease-out", pointerEvents: "none" }}
+      stroke={agentActive ? "var(--amber)" : "rgba(255,255,255,0.45)"}
+      strokeWidth={agentActive ? 3 : 1.5}
+      style={{ opacity: agentActive ? 0.8 : selected ? 1 : 0, transition: "opacity 200ms ease-out", pointerEvents: "none" }}
     />
   );
 }
@@ -127,17 +134,26 @@ interface PrecipitateBedProps {
   readonly floorY: number;
 }
 
-/** Solid deposit at the bottom of a vessel: settles when `suspended` is 0, spreads upward at 1. */
+/**
+ * Solid deposit at the bottom of a vessel: a flat mound on the floor plus specks that spread
+ * upward while `suspended` is 1 and settle back onto the mound at 0.
+ */
 export function PrecipitateBed({ precipitate, left, right, floorY }: PrecipitateBedProps) {
   const count = PRECIPITATE_COUNT[precipitate.scale];
   const width = right - left;
   const spreadPx = 34;
+  const moundHeight = 7 + count / 3;
   return (
     <g>
+      <path
+        d={`M ${left + 4} ${floorY} Q ${(left + right) / 2} ${floorY - moundHeight} ${right - 4} ${floorY} Z`}
+        fill={precipitate.color}
+        style={{ opacity: 0.9 * (1 - precipitate.suspended), transition: "opacity 600ms ease-out" }}
+      />
       {Array.from({ length: count }, (_, i) => {
         const cx = left + width * 0.15 + width * 0.7 * ((i / Math.max(1, count - 1)) + jitter(i) * 0.15);
         const baseCy = floorY - 3 - (Math.abs(jitter(i + 7)) * 6);
-        const radius = 1.6 + Math.abs(jitter(i + 3)) * 1.4;
+        const radius = 2.4 + Math.abs(jitter(i + 3)) * 1.8;
         return (
           <circle
             key={i}

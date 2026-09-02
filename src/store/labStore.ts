@@ -86,7 +86,7 @@ export const useLabStore = create<LabStore>()(
 
         const { state: next, events, historyEntry } = res.value;
         const version = get().stateVersion + 1;
-        const observation = summarizeEvents(publicView(next), events);
+        const observation = summarizeEvents(publicView(next), events, command.kind === "REMOVE_OBJECT" ? labelLookup(prev) : undefined);
         const reset = isResetCommand(command);
 
         set((s) => ({

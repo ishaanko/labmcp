@@ -2,7 +2,7 @@ import { COLOR_EVENT_THRESHOLD, EPS_MOL, MIXING_TEMP_EVENT_C, PH_EVENT_THRESHOLD
 import { colorDistance, describeColor, deriveColor, indicatorBand } from "./color";
 import { derivePh } from "./ph";
 import { computeGasEffect, precipitateScale, type FiredReaction } from "./reactions";
-import { reagentDef } from "./reagents";
+import { INDICATORS, reagentDef } from "./reagents";
 import { speciesDef } from "./species";
 import type { Container, InstrumentReading, LabCommand, LabError, LabEvent, Rgba, ThermalState } from "./types";
 import { assertNever } from "./types";
@@ -287,10 +287,11 @@ export function describeError(error: LabError, labels?: LabelLookup): string {
         : `Unknown reagent "${error.requested}".`;
     case "UNSUPPORTED_CONCENTRATION":
       return `${error.reagentId} supports up to ${error.maxM} M; ${error.requestedM} M was requested.`;
-    case "UNSUPPORTED_INDICATOR":
-      return error.suggestions.length > 0
-        ? `Unknown indicator "${error.requested}". Did you mean: ${error.suggestions.join(", ")}?`
-        : `Unknown indicator "${error.requested}".`;
+    case "UNSUPPORTED_INDICATOR": {
+      const stocked = INDICATORS.some((i) => i.id === error.requested);
+      const lead = stocked ? `Indicator "${error.requested}" is not available in this scenario.` : `Unknown indicator "${error.requested}".`;
+      return error.suggestions.length > 0 ? `${lead} Did you mean: ${error.suggestions.join(", ")}?` : lead;
+    }
     case "STOCK_DEPLETED":
       return `${error.reagentId} is nearly out (${error.remainingMl.toFixed(1)} mL left on the shelf).`;
     case "NO_INSTRUMENT":

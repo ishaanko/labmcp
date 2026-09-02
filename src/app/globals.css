@@ -35,7 +35,7 @@
   --agcl-white: #f4f2ee;
   --caco3-white: #ebe7dd;
   --cuoh2-blue: #5a9be0;
-  --water: rgba(190, 214, 232, 0.35);
+  --water: rgba(90, 210, 255, 0.4);
 
   /* Reagent-role palette (Little Alchemy tile fills), same in light and dark: these are
      chemistry-role colors, not surface tokens. */

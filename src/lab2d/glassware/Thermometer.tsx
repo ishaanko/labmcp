@@ -27,7 +27,7 @@ export function Thermometer(props: InstrumentProps) {
   const fillY = TUBE_BOTTOM - fillHeight;
 
   return (
-    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label="Thermometer" hovered={false}>
+    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.attached ? "" : "Thermometer"} hovered={false}>
       <defs>
         <clipPath id={clipId}>
           <rect x={52} y={TUBE_TOP} width={16} height={TUBE_BOTTOM - TUBE_TOP} rx={8} />

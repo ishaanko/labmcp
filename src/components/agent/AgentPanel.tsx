@@ -65,7 +65,9 @@ export interface AgentPanelProps {
 
 /**
  * The in-app lab partner: a right-hand sheet that runs `runAgent` against the live store, so the
- * human can watch it call the same WebMCP tools ChatGPT would. `open`/`onOpenChange` mirror
+ * human can watch it call the same WebMCP tools ChatGPT would. The sheet is non-modal with no
+ * backdrop: the bench stays visible and clickable while the agent works, and only Escape or the
+ * close button dismiss it. `open`/`onOpenChange` mirror
  * `ui.agentPanelOpen`/`toggleAgentPanel`; the caller (LabShell) owns that wiring, same as it
  * does for every other dialog. Keyboard shortcut A toggles the panel via `useKeyboard`.
  */
@@ -104,8 +106,8 @@ export function AgentPanel({ open, onOpenChange }: AgentPanelProps) {
   const stop = () => abortRef.current?.abort();
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="gap-0 p-0 data-[side=right]:w-[380px] data-[side=right]:sm:max-w-[380px]">
+    <Sheet open={open} onOpenChange={onOpenChange} modal={false} disablePointerDismissal>
+      <SheetContent side="right" overlay={false} className="gap-0 p-0 data-[side=right]:w-[380px] data-[side=right]:sm:max-w-[380px]">
         <SheetHeader className="flex-row items-center gap-2 border-b border-hairline py-3 pr-10 pl-3">
           <Sparkles size={14} className="text-amber" />
           <SheetTitle>Lab partner</SheetTitle>

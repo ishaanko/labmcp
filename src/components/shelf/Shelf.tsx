@@ -16,7 +16,7 @@ export function Shelf() {
   const indicators = useLabStore(selectPublic).indicatorsAvailable;
 
   return (
-    <div className="pointer-events-auto flex h-24 max-w-[min(980px,calc(100vw-360px))] items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 shadow-lg">
+    <div data-shelf="" className="pointer-events-auto flex h-24 max-w-[min(980px,calc(100vw-360px))] items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 shadow-lg">
       <ReagentGhost />
       <ScrollArea className="min-w-0">
         <div className="flex items-center gap-1.5 py-1">

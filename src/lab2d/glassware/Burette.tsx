@@ -18,13 +18,13 @@ export function Burette(props: VesselProps) {
   const outlineWidth = props.selected ? OUTLINE_WIDTH_SELECTED : OUTLINE_WIDTH;
 
   return (
-    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered}>
+    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered} selected={props.selected}>
       <defs>
         <clipPath id={clipId}>
           <polygon points={GEO.clipPoints} />
         </clipPath>
       </defs>
-      <SelectionRing x={GEO.left - 4} y={12} width={GEO.right - GEO.left + 8} height={238} agentActive={props.agentActive} />
+      <SelectionRing x={GEO.left - 4} y={12} width={GEO.right - GEO.left + 8} height={238} selected={props.selected} agentActive={props.agentActive} />
       {/* Tube */}
       <rect
         x={GEO.left}
@@ -39,7 +39,7 @@ export function Burette(props: VesselProps) {
       {TICK_YS.map((y) => (
         <line key={y} x1={GEO.left} y1={y} x2={GEO.left + 5} y2={y} stroke="rgba(230,230,238,0.4)" strokeWidth={1} />
       ))}
-      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.55)} clipId={clipId} />
+      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.45)} clipId={clipId} />
       {/* Stopcock */}
       <rect x={54} y={GEO.bottomY - 2} width={12} height={10} rx={2} fill={GLASS_FILL} stroke={outline} strokeWidth={outlineWidth} />
       <line x1={40} y1={GEO.bottomY + 3} x2={80} y2={GEO.bottomY + 3} stroke={outline} strokeWidth={outlineWidth} strokeLinecap="round" />

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { assertNever, rgbaToCss, type InstrumentReading, type PublicContainer } from "@/engine";
+import { assertNever, describeColor, rgbaToCss, type InstrumentReading, type PublicContainer } from "@/engine";
 import { Instrument as InstrumentGlass, Vessel } from "@/lab2d/glassware/Glassware";
 import type { VesselPrecipitate } from "@/lab2d/glassware/types";
 import { fmtC, fmtMl, fmtPh } from "@/lib/format";
@@ -14,10 +14,12 @@ import { useBenchDrag } from "./useBenchDrag";
 
 const VESSEL_SIZE = 104;
 const INSTRUMENT_STANDALONE_SIZE = 84;
-const INSTRUMENT_DOCKED_SIZE = 52;
+const INSTRUMENT_DOCKED_SIZE = 64;
 
 /** A liquid's fill floor: engine colors read too faint to see against true black below this alpha. */
-const LIQUID_ALPHA_FLOOR = 0.55;
+const LIQUID_ALPHA_FLOOR = 0.45;
+/** Flat water blue for every colorless solution (the dock's `--role-water`); the engine's own base tint is a grey on black. */
+const WATER_RGB = { r: 90, g: 210, b: 255 } as const;
 
 const TILT_DEG = 20;
 const PULSE_TRANSITION = { duration: 0.8, ease: "easeInOut" } as const;
@@ -26,7 +28,8 @@ const TILT_TRANSITION = { duration: 0.4, ease: "easeInOut" } as const;
 function liquidCss(container: PublicContainer): string {
   if (container.volumeMl <= 0) return rgbaToCss(container.color);
   const alpha = Math.max(container.color.a, LIQUID_ALPHA_FLOOR);
-  return rgbaToCss({ ...container.color, a: alpha });
+  const rgb = describeColor(container.color) === "colorless" ? WATER_RGB : container.color;
+  return rgbaToCss({ ...rgb, a: alpha });
 }
 
 function precipitateFor(container: PublicContainer): VesselPrecipitate | null {
@@ -47,6 +50,12 @@ function formatReading(reading: InstrumentReading | null): string | null {
     default:
       return assertNever(reading);
   }
+}
+
+/** Stacking: a hotplate sits under the container standing on it; every other instrument docks above glass. */
+function zIndexFor(kind: "container" | "instrument", type: string): number {
+  if (kind === "container") return 10;
+  return type === "hotplate" ? 5 : 20;
 }
 
 export interface BenchObjectProps {
@@ -94,7 +103,7 @@ export function BenchObject({ id }: BenchObjectProps) {
     <motion.div
       data-object-id={id}
       className="pointer-events-none absolute left-0 top-0 touch-none select-none"
-      style={{ zIndex: drag.dragging ? 30 : object.kind === "instrument" ? 20 : 10 }}
+      style={{ zIndex: drag.dragging ? 30 : zIndexFor(object.kind, object.type) }}
       animate={{ x: pos.x, y: pos.y, scale: drag.dragging ? 1.03 : 1 }}
       transition={drag.dragging ? { duration: 0 } : { type: "spring", visualDuration: 0.35, bounce: drag.justReleased ? 0.2 : 0 }}
       onPointerDown={drag.onPointerDown}

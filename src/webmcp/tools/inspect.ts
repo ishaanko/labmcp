@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getMoles, isSpeciesIdShape, publicView, REAGENTS, reactionsIfAdded, ruleById, RULES, speciesKeys, type PublicContainer } from "@/engine";
-import { err, errFromLabError, eventStrings, findContainer, ok, unknownObjectError } from "../runtime";
+import { err, errFromLabError, eventStrings, findContainer, missingContainerError, ok } from "../runtime";
 import { ContainerIdSchema } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
 
@@ -27,7 +27,7 @@ const inspectContents: ToolDef<{ container_id: string }> = {
   examples: [{ label: "Inspect c_1", input: { container_id: "c_1" } }],
   handler: async (input, ctx) => {
     const container = findContainer(ctx.getState().lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
 
     const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "contents" }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
@@ -76,7 +76,7 @@ const predictSupportedReactionsTool: ToolDef<{ container_id: string }> = {
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
     const container = findContainer(lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
 
     const pub = publicContainer(lab, container.id);
     if (!pub || pub.contents.kind === "hidden") {
@@ -116,7 +116,7 @@ const calculateMoles: ToolDef<{ container_id: string; species_id: string }> = {
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
     const container = findContainer(lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
 
     const pub = publicContainer(lab, container.id);
     const isTitrantException = lab.scenario.kind === "titration" && TITRANT_EXCEPTION_SPECIES.has(input.species_id);

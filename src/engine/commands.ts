@@ -325,7 +325,7 @@ export function validate(state: LabState, command: LabCommand): Result<LabComman
       const containerRes = requireContainer(state, command.containerId);
       if (!containerRes.ok) return containerRes;
       if (!state.indicatorsAvailable.includes(command.indicator)) {
-        return err({ kind: "UNSUPPORTED_INDICATOR", requested: command.indicator, suggestions: suggestIndicators(command.indicator) });
+        return err({ kind: "UNSUPPORTED_INDICATOR", requested: command.indicator, suggestions: suggestIndicators(command.indicator, state.indicatorsAvailable) });
       }
       const def = indicatorDef(command.indicator);
       const dropsRes = checkAmount("drops", command.drops ?? def?.defaultDrops ?? 2, MAX_INDICATOR_DROPS);

@@ -1,5 +1,5 @@
 import type { Container, Instrument, InstrumentType, LabError, LabState } from "@/engine";
-import { parseContainerId, publicView } from "@/engine";
+import { constants, parseContainerId, publicView } from "@/engine";
 import { feedId } from "@/lib/ids";
 import { safeObservationLine, summarizeLab, visibleObservationEvents } from "@/lib/summary";
 import { useLabStore } from "@/store/labStore";
@@ -23,6 +23,12 @@ export function eventStrings(getState: () => LabStore, dr: Extract<DispatchResul
 /** The engine's own "id not found" shape, for ids that never made it into the lab. */
 export function unknownObjectError(id: string): LabError {
   return { kind: "UNKNOWN_OBJECT", id, hint: "reread_lab_state" };
+}
+
+/** Why `findContainer` came back empty: an instrument's id was given, or nothing has that id. */
+export function missingContainerError(lab: LabState, raw: string): LabError {
+  const other = lab.objects.find((o) => o.id === raw);
+  return other ? { kind: "WRONG_OBJECT_TYPE", id: other.id, expected: constants.CONTAINER_TYPES } : unknownObjectError(raw);
 }
 
 /** Resolves a raw id string to a Container, or undefined when malformed or absent from the bench. */

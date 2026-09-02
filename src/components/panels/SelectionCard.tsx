@@ -2,6 +2,7 @@
 
 import { Pipette, Waves, Trash2, Unlink } from "lucide-react";
 import { emitToast } from "@/lib/events";
+import { formatFormula } from "@/lib/format";
 import { labelFor } from "@/lib/labels";
 import { useLabStore } from "@/store/labStore";
 import { selectContainers } from "@/store/selectors";
@@ -71,7 +72,7 @@ function ContainerCard({ container }: { container: PublicContainer }) {
           <ul className="mt-1 flex flex-wrap gap-1.5">
             {Object.keys(container.contents.species).map((species) => (
               <Badge key={species} variant="outline">
-                {species}
+                {formatFormula(species)}
               </Badge>
             ))}
             {Object.keys(container.contents.species).length === 0 ? <span className="text-sm text-muted-foreground">Empty</span> : null}
@@ -88,7 +89,7 @@ function ContainerCard({ container }: { container: PublicContainer }) {
             {container.solids.map((solid, i) => (
               <li key={solid.kind === "identified" ? solid.species : `redacted-${i}`} className="flex items-center gap-1.5 text-sm text-foreground">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: `rgba(${solid.color.r}, ${solid.color.g}, ${solid.color.b}, ${solid.color.a})` }} aria-hidden />
-                {solid.kind === "identified" ? speciesDef(solid.species).name : <span>{describeColor(solid.color)} precipitate, {solid.scale}</span>}
+                {solid.kind === "identified" ? `${formatFormula(solid.species)} ${speciesDef(solid.species).name}` : <span>{describeColor(solid.color)} precipitate, {solid.scale}</span>}
                 <span className="text-muted-foreground">{solid.suspended > 0.5 ? "suspended" : "settled"}</span>
               </li>
             ))}

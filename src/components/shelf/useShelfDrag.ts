@@ -2,7 +2,8 @@
 
 import { useCallback, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { constants, isIndicatorIdShape, isReagentId, type EquipmentType } from "@/engine";
+import { constants, isIndicatorIdShape, isReagentId, type EquipmentType, type Vec2 } from "@/engine";
+import { nearestFreeCell, pxToCell, type GridOccupant } from "@/lab2d/grid";
 import { hitTestObject } from "@/lab2d/objectDom";
 import { useLabStore } from "@/store/labStore";
 import type { XY } from "@/store/types";
@@ -11,62 +12,31 @@ const THRESHOLD_PX = 6;
 /** Above this release speed (px/s) the ghost's return trip gets a small overshoot bounce. */
 const FLICK_PX_PER_S = 900;
 
-/** id on the bench's own scroll/clip viewport, set by `LabShell`; equipment drops snap to a
- * grid cell computed from the pointer's fraction across this rect, so placement never needs
- * the bench's internal DOM layout, only its outer box. */
+/** id on the bench's own scroll/clip viewport, set by `LabShell`: the drop zone for equipment tiles. */
 export const BENCH_VIEWPORT_ID = "lab2d-viewport";
+/** The dock's root (`Shelf`); a release over it, though inside the viewport box, is a miss. */
+const SHELF_SELECTOR = "[data-shelf]";
+const BENCH_WORKSPACE_SELECTOR = "[data-bench-workspace]";
 
-interface GridCell {
-  readonly x: number;
-  readonly y: number;
-}
-
-function cellKey(cell: GridCell): string {
-  return `${cell.x},${cell.y}`;
-}
-
-/** Occupied grid cells (containers only; an instrument does not block a drop), for snapping a new drop. */
-function occupiedCells(): ReadonlySet<string> {
-  const set = new Set<string>();
-  for (const o of useLabStore.getState().lab.objects) {
-    if (o.kind === "container") set.add(cellKey({ x: o.position.x, y: o.position.y }));
-  }
-  return set;
+function gridOccupants(): ReadonlyArray<GridOccupant> {
+  return useLabStore.getState().lab.objects.map((o) => ({ id: o.id, kind: o.kind, type: o.type, position: o.position }));
 }
 
 /**
- * Finds the nearest unoccupied cell to `from`, spiralling outward ring by ring and clamped to
- * the engine's grid. Used when a dropped object's target cell is already taken.
+ * Fractional grid cell under a client point, from the scrolled workspace's own rect (the same
+ * mapping `useBenchDrag` uses), or `null` off the viewport or over the dock. Snapping and
+ * occupancy are `nearestFreeCell`'s job.
  */
-function nearestFreeCell(occupied: ReadonlySet<string>, from: GridCell): GridCell {
-  const { cols, rows, minX, minY } = constants.GRID;
-  const maxX = minX + cols - 1;
-  const maxY = minY + rows - 1;
-  const start: GridCell = { x: Math.min(maxX, Math.max(minX, from.x)), y: Math.min(maxY, Math.max(minY, from.y)) };
-  if (!occupied.has(cellKey(start))) return start;
-
-  const maxRadius = cols + rows;
-  for (let radius = 1; radius <= maxRadius; radius++) {
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
-        const candidate: GridCell = { x: start.x + dx, y: start.y + dy };
-        if (candidate.x < minX || candidate.x > maxX || candidate.y < minY || candidate.y > maxY) continue;
-        if (!occupied.has(cellKey(candidate))) return candidate;
-      }
-    }
-  }
-  return start;
+function cellUnderPointer(x: number, y: number): Vec2 | null {
+  const viewport = document.getElementById(BENCH_VIEWPORT_ID)?.getBoundingClientRect();
+  if (!viewport || x < viewport.left || x > viewport.right || y < viewport.top || y > viewport.bottom) return null;
+  if (document.elementsFromPoint(x, y).some((el) => el.closest(SHELF_SELECTOR))) return null;
+  const workspace = document.querySelector(BENCH_WORKSPACE_SELECTOR)?.getBoundingClientRect();
+  return workspace ? pxToCell({ x: x - workspace.left, y: y - workspace.top }) : null;
 }
 
-/** Grid cell under `(x, y)`, from its fraction across the bench viewport's box; `null` off the bench. */
-function cellUnderPointer(x: number, y: number): GridCell | null {
-  const rect = document.getElementById(BENCH_VIEWPORT_ID)?.getBoundingClientRect();
-  if (!rect || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
-  const { cols, rows, minX, minY } = constants.GRID;
-  const col = Math.min(cols - 1, Math.max(0, Math.floor(((x - rect.left) / rect.width) * cols)));
-  const row = Math.min(rows - 1, Math.max(0, Math.floor(((y - rect.top) / rect.height) * rows)));
-  return { x: minX + col, y: minY + row };
+function isContainerType(type: EquipmentType): boolean {
+  return constants.CONTAINER_TYPES.some((t) => t === type);
 }
 
 type Candidate =
@@ -160,7 +130,8 @@ export function useShelfDrag(): ShelfDragHandlers {
         const pointer: XY = { x, y };
         if (candidate.kind === "equipment") {
           const under = cellUnderPointer(x, y);
-          const cell = under ? nearestFreeCell(occupiedCells(), under) : null;
+          const type = candidate.equipmentType;
+          const cell = under ? nearestFreeCell(gridOccupants(), under, { id: "", kind: isContainerType(type) ? "container" : "instrument", type }) : null;
           setDrag({ kind: "equipment", equipmentType: candidate.equipmentType, pointer, cell });
           return;
         }

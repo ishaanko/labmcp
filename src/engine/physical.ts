@@ -18,6 +18,7 @@ import {
   type InstrumentType,
   type LabCommand,
   type LabEvent,
+  type LabObject,
   type LabState,
   type Vec2,
 } from "./types";
@@ -35,18 +36,53 @@ const GRID_XS: ReadonlyArray<number> = Array.from({ length: GRID.cols }, (_, i) 
 const GRID_YS: ReadonlyArray<number> = Array.from({ length: GRID.rows }, (_, i) => GRID.minY + i);
 
 /**
- * First free bench cell for `objectType`, scanning back row to front row, left to right within a
- * row. validate()'s `hasFreeCell` already rejected PLACE_OBJECT before this runs when no explicit
- * position was given, so the {0,0} fallback below is unreachable in practice; kept only so this
- * stays total.
+ * Free bench cell for `objectType` nearest the centroid of the objects already on the bench (the
+ * grid center on an empty bench), so an agent's new glassware lands beside the work, not in the
+ * far corner behind a side panel. Ties go to the back row, then left. validate()'s `hasFreeCell`
+ * already rejected PLACE_OBJECT before this runs when no explicit position was given, so the
+ * {0,0} fallback below is unreachable in practice; kept only so this stays total.
  */
 function nextFreeCell(state: LabState, objectType: EquipmentType): Vec2 {
+  const anchors = state.objects.map((o) => o.position);
+  const focus =
+    anchors.length > 0
+      ? { x: anchors.reduce((acc, a) => acc + a.x, 0) / anchors.length, y: anchors.reduce((acc, a) => acc + a.y, 0) / anchors.length }
+      : { x: 0, y: 0 };
+  let best: Vec2 | null = null;
+  let bestDistance = Infinity;
   for (const y of GRID_YS) {
     for (const x of GRID_XS) {
-      if (isSlotFree(state, { x, y }, objectType)) return { x, y };
+      if (!isSlotFree(state, { x, y }, objectType)) continue;
+      const distance = (x - focus.x) ** 2 + (y - focus.y) ** 2;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { x, y };
+      }
     }
   }
-  return { x: 0, y: 0 };
+  return best ?? { x: 0, y: 0 };
+}
+
+function hotplateAt(objects: ReadonlyArray<LabObject>, position: Vec2): boolean {
+  return objects.some((o) => o.kind === "instrument" && o.type === "hotplate" && o.position.x === position.x && o.position.y === position.y);
+}
+
+/**
+ * A heating container that a move or removal separated from the hotplate under it goes idle
+ * (passive cooling toward ambient). Heating set with no hotplate under the container (an agent's
+ * heat call only needs a hotplate somewhere on the bench) is left alone.
+ */
+function coolSeparated(before: ReadonlyArray<LabObject>, after: ReadonlyArray<LabObject>): { objects: ReadonlyArray<LabObject>; events: LabEvent[] } {
+  const events: LabEvent[] = [];
+  const objects = after.map((o) => {
+    if (o.kind !== "container" || o.thermal.kind !== "heating") return o;
+    const prior = before.find((b) => b.id === o.id);
+    if (!prior || !hotplateAt(before, prior.position) || hotplateAt(after, o.position)) return o;
+    const cooled: Container = { ...o, thermal: { kind: "idle" } };
+    events.push({ kind: "THERMAL_SET", containerId: o.id, thermal: cooled.thermal });
+    return cooled;
+  });
+  return { objects, events };
 }
 
 const capacityFor = (type: ContainerType): number => CAPACITY_ML[type];
@@ -148,10 +184,11 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
       return { state: { ...state, objects, nextSeq: seq + 1 }, touched: [], events };
     }
     case "REMOVE_OBJECT": {
-      const objects = state.objects
+      const remaining = state.objects
         .filter((o) => o.id !== command.objectId)
         .map((o) => (o.kind === "instrument" && o.attachedTo === command.objectId ? { ...o, attachedTo: null } : o));
-      return { state: { ...state, objects }, touched: [], events: [{ kind: "OBJECT_REMOVED", objectId: command.objectId }] };
+      const { objects, events } = coolSeparated(state.objects, remaining);
+      return { state: { ...state, objects }, touched: [], events: [{ kind: "OBJECT_REMOVED", objectId: command.objectId }, ...events] };
     }
     case "ATTACH_INSTRUMENT": {
       const objects = state.objects.map((o) => (o.kind === "instrument" && o.id === command.instrumentId ? { ...o, attachedTo: command.containerId } : o));
@@ -247,8 +284,9 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
       return { state: { ...state, objects }, touched: [container.id], events: [{ kind: "DISPOSED", containerId: container.id, volumeMl }] };
     }
     case "MOVE_OBJECT": {
-      const objects = state.objects.map((o) => (o.id === command.objectId ? { ...o, position: command.position } : o));
-      return { state: { ...state, objects }, touched: [], events: [{ kind: "OBJECT_MOVED", objectId: command.objectId, position: command.position }] };
+      const moved = state.objects.map((o) => (o.id === command.objectId ? { ...o, position: command.position } : o));
+      const { objects, events } = coolSeparated(state.objects, moved);
+      return { state: { ...state, objects }, touched: [], events: [{ kind: "OBJECT_MOVED", objectId: command.objectId, position: command.position }, ...events] };
     }
     case "TICK":
     case "UNDO":

@@ -13,9 +13,15 @@ export function getObjectElement(id: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(selectorFor(id));
 }
 
-/** Viewport-space bounding box for a bench object, for popover anchoring. */
+/**
+ * Viewport-space bounding box of a bench object's drawn body, for popover anchoring. The root is a
+ * zero-size point at the cell center (its body is a -50% translated child), so a popover placed
+ * beside the root would overlap the glass.
+ */
 export function objectRect(id: string): DOMRect | null {
-  return getObjectElement(id)?.getBoundingClientRect() ?? null;
+  const root = getObjectElement(id);
+  if (!root) return null;
+  return (root.firstElementChild ?? root).getBoundingClientRect();
 }
 
 /**

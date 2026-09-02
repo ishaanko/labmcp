@@ -16,13 +16,13 @@ export function Beaker(props: VesselProps) {
   const outlineWidth = props.selected ? OUTLINE_WIDTH_SELECTED : OUTLINE_WIDTH;
 
   return (
-    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered}>
+    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered} selected={props.selected}>
       <defs>
         <clipPath id={clipId}>
           <polygon points={GEO.clipPoints} />
         </clipPath>
       </defs>
-      <SelectionRing x={20} y={36} width={80} height={108} agentActive={props.agentActive} />
+      <SelectionRing x={20} y={36} width={80} height={108} selected={props.selected} agentActive={props.agentActive} />
       <rect
         x={20}
         y={36}
@@ -42,7 +42,7 @@ export function Beaker(props: VesselProps) {
         strokeLinejoin="round"
         style={{ transition: "stroke 200ms" }}
       />
-      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.55)} clipId={clipId} />
+      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.45)} clipId={clipId} />
       {props.precipitate && <PrecipitateBed precipitate={props.precipitate} left={GEO.left + 2} right={GEO.right - 2} floorY={GEO.bottomY} />}
       <Bubbles intensity={props.bubbleIntensity} left={GEO.left + 4} right={GEO.right - 4} floorY={GEO.bottomY - 2} ceilingY={GEO.topY + 6} />
       {props.stirring && rect.height > 8 && <StirSwirl x={60} y={rect.y + 6} />}

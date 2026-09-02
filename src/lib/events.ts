@@ -5,6 +5,7 @@ import {
   titrationCurve,
   type Actor,
   type LabCommand,
+  type LabelLookup,
   type LabEvent,
   type LabState,
   type Observation,
@@ -151,11 +152,16 @@ export function targetOfCommand(command: LabCommand): string | undefined {
 
 // ---------- summarizeEvents ----------
 
-/** Adapts a dispatch's `Observation[]` batch (already one command's worth) to `mergeObservationLines`. */
-export function summarizeEvents(pub: PublicLabState, events: ReadonlyArray<Observation>): string {
+/**
+ * Adapts a dispatch's `Observation[]` batch (already one command's worth) to `mergeObservationLines`.
+ * `labels` defaults to `pub`'s own; a removal passes the pre-dispatch lookup, since the removed
+ * object no longer exists to name itself.
+ */
+export function summarizeEvents(pub: PublicLabState, events: ReadonlyArray<Observation>, labels?: LabelLookup): string {
   return mergeObservationLines(
     pub,
     events.map((o) => o.event),
+    labels,
   );
 }
 

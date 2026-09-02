@@ -196,12 +196,19 @@ function haystackFor(reagent: ReagentDef): string {
     : `${reagent.id} ${reagent.label} ${reagent.formula}`.toLowerCase();
 }
 
-/** Substring match on id/label/formula among the given ids; falls back to the 3 closest by edit distance. */
+/**
+ * Substring match on id/label/formula among the given ids; falls back to the 3 closest by edit
+ * distance. A scenario's hidden stocks ("unknown_acid", "unknown_a") are not in the registry and
+ * match on their id alone, so the shelf list an agent gets back is complete.
+ */
 export function suggestReagents(query: string, available: ReadonlyArray<ReagentId>): ReadonlyArray<ReagentId> {
   const q = query.trim().toLowerCase();
-  const pool = available.map((id) => REAGENTS_BY_ID.get(id)).filter((r): r is ReagentDef => r !== undefined);
   if (q.length === 0) return [];
-  const substringHits = pool.filter((r) => haystackFor(r).includes(q));
+  const pool = available.map((id) => {
+    const def = REAGENTS_BY_ID.get(id);
+    return { id, haystack: def ? haystackFor(def) : id.toLowerCase().replace(/_/g, " ") };
+  });
+  const substringHits = pool.filter((r) => r.haystack.includes(q));
   if (substringHits.length > 0) return substringHits.map((r) => r.id);
   return pool
     .map((r) => ({ id: r.id, dist: editDistance(q, r.id.toLowerCase()) }))
@@ -210,13 +217,15 @@ export function suggestReagents(query: string, available: ReadonlyArray<ReagentI
     .map((r) => r.id);
 }
 
-/** Same fuzzy-match rule as suggestReagents, applied to indicator ids/labels. */
-export function suggestIndicators(query: string): ReadonlyArray<IndicatorId> {
+/** Same fuzzy-match rule as suggestReagents, applied to indicator ids/labels; `available` narrows the pool to a scenario's stock. */
+export function suggestIndicators(query: string, available: ReadonlyArray<IndicatorId> = INDICATOR_IDS): ReadonlyArray<IndicatorId> {
   const q = query.trim().toLowerCase();
   if (q.length === 0) return [];
-  const substringHits = INDICATORS.filter((i) => `${i.id} ${i.label}`.toLowerCase().includes(q));
+  const pool = INDICATORS.filter((i) => available.includes(i.id));
+  const substringHits = pool.filter((i) => `${i.id} ${i.label}`.toLowerCase().includes(q));
   if (substringHits.length > 0) return substringHits.map((i) => i.id);
-  return INDICATORS.map((i) => ({ id: i.id, dist: editDistance(q, i.id.toLowerCase()) }))
+  return pool
+    .map((i) => ({ id: i.id, dist: editDistance(q, i.id.toLowerCase()) }))
     .sort((a, b) => a.dist - b.dist)
     .slice(0, 3)
     .map((i) => i.id);

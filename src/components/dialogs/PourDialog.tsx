@@ -12,7 +12,7 @@ import { useAnchorRect } from "./useAnchorRect";
 
 /**
  * Pour prompt for a `transfer` dialog: vessel-on-vessel drops land here too, since both lanes
- * share `ui.dialog`. Anchored to the destination container; slider range is
+ * share `ui.dialog`. Anchored beside the destination container, so it stays in view; slider range is
  * `min(source volume, target free capacity)`.
  */
 export function PourDialog() {
@@ -22,7 +22,7 @@ export function PourDialog() {
 
   return (
     <Popover open={dialog !== null} onOpenChange={(open) => !open && openDialog(null)}>
-      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="top" align="center" sideOffset={12} className="w-64">
+      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="right" align="start" sideOffset={16} className="w-72">
         {dialog ? (
           <PourDialogContent key={`${dialog.sourceId}:${dialog.destinationId}`} sourceId={dialog.sourceId} destinationId={dialog.destinationId} maxMl={dialog.maxMl} />
         ) : null}

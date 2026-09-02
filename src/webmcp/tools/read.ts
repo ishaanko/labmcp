@@ -3,7 +3,7 @@ import { constants, INDICATORS, REAGENTS } from "@/engine";
 
 const { CAPACITY_ML } = constants;
 import { notebookRows, renderNotebookMarkdown } from "@/lib/notebook";
-import { errFromLabError, eventStrings, findBenchInstrument, findContainer, ok, unknownObjectError } from "../runtime";
+import { errFromLabError, eventStrings, findBenchInstrument, findContainer, missingContainerError, ok } from "../runtime";
 import { ContainerIdSchema, EmptyInput } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
 
@@ -96,7 +96,7 @@ const measurePh: ToolDef<{ container_id: string }> = {
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
     const container = findContainer(lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
 
     const meter = findBenchInstrument(lab, "ph_meter");
     if (!meter) {
@@ -136,7 +136,7 @@ const measureTemperature: ToolDef<{ container_id: string }> = {
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
     const container = findContainer(lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
 
     const thermometer = findBenchInstrument(lab, "thermometer");
     if (!thermometer) {
@@ -169,7 +169,7 @@ const measureVolume: ToolDef<{ container_id: string }> = {
   examples: [{ label: "Measure volume of c_1", input: { container_id: "c_1" } }],
   handler: async (input, ctx) => {
     const container = findContainer(ctx.getState().lab, input.container_id);
-    if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
+    if (!container) return errFromLabError(ctx.getState, missingContainerError(ctx.getState().lab, input.container_id));
     const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "volume" }, "agent");
     if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     return ok(

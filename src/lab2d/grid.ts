@@ -35,10 +35,13 @@ export function pxToCell(px: XY): Vec2 {
   };
 }
 
-/** Where an attached instrument docks: the top-right corner of its container's cell. */
+/**
+ * Where an attached instrument docks: at the right edge of its container's cell, level with the
+ * vessel's shoulder, so it sits beside the neck and clear of a burette tip hanging in from behind.
+ */
 export function dockedInstrumentPx(containerCell: Vec2): XY {
   const c = cellToPx(containerCell);
-  return { x: c.x + CELL_W / 2 - 26, y: c.y - CELL_H / 2 + 26 };
+  return { x: c.x + CELL_W / 2 - 8, y: c.y - CELL_H / 2 + 44 };
 }
 
 /**

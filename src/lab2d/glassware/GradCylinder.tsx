@@ -17,13 +17,13 @@ export function GradCylinder(props: VesselProps) {
   const outlineWidth = props.selected ? OUTLINE_WIDTH_SELECTED : OUTLINE_WIDTH;
 
   return (
-    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered}>
+    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered} selected={props.selected}>
       <defs>
         <clipPath id={clipId}>
           <polygon points={GEO.clipPoints} />
         </clipPath>
       </defs>
-      <SelectionRing x={38} y={16} width={44} height={132} agentActive={props.agentActive} />
+      <SelectionRing x={38} y={16} width={44} height={132} selected={props.selected} agentActive={props.agentActive} />
       <rect
         x={42}
         y={20}
@@ -46,7 +46,7 @@ export function GradCylinder(props: VesselProps) {
       {TICK_YS.map((y) => (
         <line key={y} x1={42} y1={y} x2={48} y2={y} stroke="rgba(230,230,238,0.4)" strokeWidth={1} />
       ))}
-      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.55)} clipId={clipId} />
+      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.45)} clipId={clipId} />
       {props.precipitate && <PrecipitateBed precipitate={props.precipitate} left={GEO.left + 2} right={GEO.right - 2} floorY={GEO.bottomY} />}
       <Bubbles intensity={props.bubbleIntensity} left={GEO.left + 4} right={GEO.right - 4} floorY={GEO.bottomY - 3} ceilingY={GEO.topY + 6} />
       {props.stirring && rect.height > 8 && <StirSwirl x={60} y={rect.y + 5} />}
