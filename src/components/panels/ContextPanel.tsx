@@ -11,7 +11,7 @@ import { TitrationReadouts } from "./TitrationReadouts";
 import { TitrationCurve } from "./TitrationCurve";
 import { BuretteCard } from "./BuretteCard";
 import { HotplateCard } from "./HotplateCard";
-import { Button } from "@/components/ui-legacy/Button";
+import { Button } from "@/components/ui/button";
 
 function panelKeyFor(selectedId: string | undefined, inTitration: boolean): string {
   if (selectedId) return selectedId;
@@ -41,7 +41,7 @@ function PanelContent() {
   return <BenchSummary />;
 }
 
-/** Persistent right panel (C2, C7 §6): selected object, else the titration objective, else a bench summary. */
+/** Persistent 320px right panel: selected object, else the titration objective, else a bench summary. */
 export function ContextPanel() {
   const selected = useLabStore(selectSelected);
   const scenarioKind = useLabStore((s) => s.lab.scenario.kind);
@@ -49,7 +49,7 @@ export function ContextPanel() {
   const key = panelKeyFor(selected?.id, scenarioKind === "titration");
 
   return (
-    <div className="material pointer-events-auto relative flex max-h-full w-[300px] max-[1100px]:w-[280px] flex-col overflow-y-auto p-4">
+    <div className="pointer-events-auto flex w-80 shrink-0 flex-col overflow-y-auto border-l border-border bg-card p-4">
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.div
           key={key}

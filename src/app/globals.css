@@ -29,7 +29,7 @@
   --warn: oklch(0.75 0.16 60);
   --danger: oklch(0.62 0.2 25);
 
-  /* Chemistry observation colors, shared with the 3D layer (toneMapped=false). */
+  /* Chemistry observation colors. */
   --phenol-pink: #f26fb0;
   --cu-blue: #3f8fd8;
   --agcl-white: #f4f2ee;
@@ -37,10 +37,16 @@
   --cuoh2-blue: #5a9be0;
   --water: rgba(190, 214, 232, 0.35);
 
-  /* Bench colors, read by the scene via getComputedStyle on theme change. */
-  --bench-tile: #eceae4;
-  --bench-grout: #dcd9d1;
-  --bench-wall: #e4e7ec;
+  /* Reagent-role palette (Little Alchemy tile fills), same in light and dark: these are
+     chemistry-role colors, not surface tokens. */
+  --role-acid: #ff6b6b;
+  --role-base: #4cc9f0;
+  --role-salt: #b8b8ff;
+  --role-carbonate: #7ae582;
+  --role-water: #5ad2ff;
+  --role-indicator-pink: #f26fb0;
+  --role-indicator-violet: #b48cff;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -93,26 +99,24 @@
   --accent-ink: oklch(0.84 0.14 75);
   --accent-soft: oklch(0.8 0.15 72 / 0.16);
   --accent-ring: oklch(0.8 0.15 72 / 0.6);
-  --bench-tile: #0b0b0c;
-  --bench-grout: #151517;
-  --bench-wall: #050506;
-  --background: oklch(0 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --background: #000000;
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.14 0 0);
+  --card-foreground: oklch(1 0 0);
+  --popover: oklch(0.14 0 0);
+  --popover-foreground: oklch(1 0 0);
+  /* Vibrant violet primary, black foreground for contrast on the fill. */
+  --primary: #b48cff;
+  --primary-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.22 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.2 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: var(--amber);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -147,6 +151,13 @@
   --color-warn: var(--warn);
   --color-danger: var(--danger);
   --color-phenol-pink: var(--phenol-pink);
+  --color-role-acid: var(--role-acid);
+  --color-role-base: var(--role-base);
+  --color-role-salt: var(--role-salt);
+  --color-role-carbonate: var(--role-carbonate);
+  --color-role-water: var(--role-water);
+  --color-role-indicator-pink: var(--role-indicator-pink);
+  --color-role-indicator-violet: var(--role-indicator-violet);
 
   --font-sans: var(--font-sans);
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
@@ -253,47 +264,33 @@ body {
 }
 
 /*
- * The bench canvas repaints continuously (frameloop="always"), and a backdrop-filter
- * recomputes every time the content behind it changes. Blurring here would run the filter
- * at display refresh rate forever, so these surfaces use a solid background instead, the
- * same fallback the prefers-reduced-transparency media query already used.
- *
- * Panels read square-ish and flat: a hairline border carries the edge, not a drop shadow.
+ * No backdrop-filter anywhere: a blurred surface over content that repaints every frame would
+ * resample at display refresh rate forever. Every panel uses a solid `bg-card`/`bg-popover`
+ * instead.
  *
  * These live in Tailwind's `components` layer (lower priority than `utilities`), so a caller
- * can still override one property, e.g. `rounded-full` on a pill built from `.material-thin`.
- * Unlayered CSS always beats layered CSS regardless of source order, so without this an
- * un-layered rule here would silently win over every Tailwind utility with equal specificity.
+ * can still override one property. Unlayered CSS always beats layered CSS regardless of source
+ * order, so without this an un-layered rule here would silently win over every Tailwind utility
+ * with equal specificity.
  */
 @layer components {
-  .material {
-    background: var(--surface-solid);
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
-  }
-  .material-thin {
-    background: var(--surface-solid);
-    border: 1px solid var(--hairline);
-    border-radius: 8px;
-  }
-  .material-thick {
-    background: var(--surface-solid);
-    border: 1px solid var(--hairline-strong);
-    border-radius: 8px;
-  }
-
-  /* Top bar: a flat strip spanning the viewport, not a floating card. */
-  .topbar {
-    background: var(--surface-solid);
-    border-bottom: 1px solid var(--hairline);
-  }
-
   /* Pressable elements confirm the press instantly. */
   .pressable {
     transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-press) var(--ease-hover);
   }
   .pressable:active {
     transform: scale(0.97);
+  }
+
+  /* Little Alchemy tile hover: a 2px lift, transform only, well under 250ms. */
+  .tile-lift {
+    transition: transform 120ms var(--ease-out);
+  }
+  .tile-lift:hover {
+    transform: translateY(-2px);
+  }
+  .tile-lift:active {
+    transform: translateY(-1px) scale(0.97);
   }
 
   .tabular {

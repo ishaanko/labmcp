@@ -4,10 +4,10 @@ import { Droplets } from "lucide-react";
 import type { PublicContainer } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { containerInFrontOf, selectContainers } from "@/store/selectors";
-import { Readout } from "@/components/ui-legacy/Readout";
-import { ChipButton } from "@/components/ui-legacy/Chip";
-import { Button } from "@/components/ui-legacy/Button";
-import { observe } from "@/components/ui-legacy/toasts";
+import { Readout } from "./Readout";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { observe } from "@/components/ui/toasts";
 
 export interface BuretteCardProps {
   readonly container: PublicContainer;
@@ -15,7 +15,7 @@ export interface BuretteCardProps {
 
 const INCREMENTS = [0.1, 0.5, 1, 5] as const;
 
-/** Right-panel card for a selected burette (C4.5): remaining volume, dispense increment, and a
+/** Right-panel card for a selected burette: remaining volume, dispense increment, and a
  * Dispense button that targets whatever container sits one cell in front of it. */
 export function BuretteCard({ container }: BuretteCardProps) {
   const dispatch = useLabStore((s) => s.dispatch);
@@ -35,29 +35,29 @@ export function BuretteCard({ container }: BuretteCardProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div>
-        <h2 className="text-md font-semibold text-ink">{container.label}</h2>
-        <p className="text-2xs text-ink-3">burette</p>
+        <h2 className="text-base font-semibold text-foreground">{container.label}</h2>
+        <p className="text-xs text-muted-foreground">burette</p>
       </div>
 
       <Readout label="Remaining" value={container.volumeMl} unit="mL" digits={2} size="lg" />
 
       <div>
-        <p className="text-2xs text-ink-3">Increment</p>
-        <div className="mt-1 flex gap-1.5">
+        <p className="text-xs text-muted-foreground">Increment</p>
+        <ToggleGroup value={[String(increment)]} onValueChange={(values) => { const v = values[0]; if (v) setIncrement(Number(v)); }} className="mt-1">
           {INCREMENTS.map((ml) => (
-            <ChipButton key={ml} active={increment === ml} onClick={() => setIncrement(ml)}>
+            <ToggleGroupItem key={ml} value={String(ml)} size="sm">
               {ml} mL
-            </ChipButton>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </div>
 
-      <div className="mt-auto flex flex-col items-start gap-1.5 border-t border-hairline pt-3">
+      <div className="mt-auto flex flex-col items-start gap-1.5 border-t border-border pt-3">
         <Button size="sm" onClick={dispense} disabled={container.volumeMl <= 0}>
           <Droplets size={13} />
           Dispense
         </Button>
-        <p className="text-2xs text-ink-3">Press D</p>
+        <p className="text-xs text-muted-foreground">Press D</p>
       </div>
     </div>
   );

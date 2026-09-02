@@ -64,10 +64,10 @@ function Row({
       transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
       className={clsx(
         "flex gap-2 border-l-2 py-1.5 pl-2.5 text-sm",
-        accent === "agent" ? "border-amber" : accent === "human" ? "border-ink-3" : "border-transparent",
+        accent === "agent" ? "border-amber" : accent === "human" ? "border-muted-foreground" : "border-transparent",
       )}
     >
-      <span className="mt-0.5 shrink-0 text-ink-3">{icon}</span>
+      <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>
       <div className="min-w-0 flex-1">{children}</div>
     </motion.li>
   );
@@ -117,18 +117,18 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
   const title = titleFor(entry.tool, targetLabel);
 
   return (
-    <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-ink-3" : "text-accent-ink"} />}>
+    <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-muted-foreground" : "text-amber"} />}>
       {collapsed ? (
-        <p className="truncate text-ink-3">
+        <p className="truncate text-muted-foreground">
           {title} · {entry.resultSummary ? stripRawIds(entry.resultSummary) : "ok"}
         </p>
       ) : (
         <>
-          <p className="text-ink">{title}</p>
+          <p className="text-foreground">{title}</p>
           {running ? (
-            <p className="mt-0.5 text-ink-3">Running…</p>
+            <p className="mt-0.5 text-muted-foreground">Running…</p>
           ) : entry.resultSummary ? (
-            <SummaryLine text={stripRawIds(entry.resultSummary)} tone={entry.ok === false ? "text-danger" : "text-ink-2"} />
+            <SummaryLine text={stripRawIds(entry.resultSummary)} tone={entry.ok === false ? "text-destructive" : "text-foreground/70"} />
           ) : null}
         </>
       )}
@@ -139,8 +139,8 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
 function ActionRow({ entry }: { entry: Extract<FeedEntryData, { kind: "action" }> }) {
   return (
     <Row accent="human" icon={<Hand size={13} />}>
-      <p className="text-ink">{entry.label}</p>
-      <SummaryLine text={stripRawIds(entry.observation)} tone={entry.ok ? "text-ink-3" : "text-danger"} />
+      <p className="text-foreground">{entry.label}</p>
+      <SummaryLine text={stripRawIds(entry.observation)} tone={entry.ok ? "text-muted-foreground" : "text-destructive"} />
     </Row>
   );
 }
@@ -160,7 +160,7 @@ function SummaryLine({ text, tone }: { text: string; tone: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-0.5 text-2xs text-ink-3 hover:text-ink-2 hover:underline"
+          className="mt-0.5 text-xs text-muted-foreground hover:text-foreground/70 hover:underline"
         >
           {expanded ? "less" : "more"}
         </button>
@@ -172,7 +172,7 @@ function SummaryLine({ text, tone }: { text: string; tone: string }) {
 function MeasurementRow({ entry }: { entry: Extract<FeedEntryData, { kind: "measurement" }> }) {
   return (
     <Row accent={entry.source === "agent" ? "agent" : entry.source === "human" ? "human" : "system"} icon={<Cog size={13} />}>
-      <p className="text-ink">
+      <p className="text-foreground">
         {entry.label}: <span className="tabular">{entry.value.toFixed(2)}</span> {entry.unit}
       </p>
     </Row>
@@ -182,7 +182,7 @@ function MeasurementRow({ entry }: { entry: Extract<FeedEntryData, { kind: "meas
 function NoteRow({ entry }: { entry: Extract<FeedEntryData, { kind: "note" }> }) {
   return (
     <Row accent="system" icon={<Cog size={13} />}>
-      <p className="text-ink-3">{entry.text}</p>
+      <p className="text-muted-foreground">{entry.text}</p>
     </Row>
   );
 }

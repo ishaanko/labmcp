@@ -112,19 +112,19 @@ export function DevConsole(): React.JSX.Element | null {
   };
 
   return (
-    <div className="material-thick pointer-events-auto fixed bottom-4 right-4 z-50 flex h-[520px] w-[420px] flex-col overflow-hidden text-xs font-mono text-ink">
-      <div className="flex items-center justify-between border-b border-hairline px-3 py-2">
-        <span className="font-semibold">WebMCP dev console</span>
-        <button type="button" onClick={toggle} className="text-ink-3 hover:text-ink" aria-label="Close dev console">
+    <div className="pointer-events-auto fixed bottom-4 right-4 z-50 flex h-[520px] w-[420px] flex-col overflow-hidden rounded-xl border border-border bg-popover text-xs font-mono text-foreground shadow-lg">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="font-semibold text-foreground">WebMCP dev console</span>
+        <button type="button" onClick={toggle} className="text-muted-foreground hover:text-foreground" aria-label="Close dev console">
           ×
         </button>
       </div>
 
-      <div className="flex border-b border-hairline text-[11px]">
-        <button type="button" onClick={() => setTab("call")} className={`px-3 py-1.5 ${tab === "call" ? "text-ink" : "text-ink-3"}`}>
+      <div className="flex border-b border-border text-[11px]">
+        <button type="button" onClick={() => setTab("call")} className={`px-3 py-1.5 ${tab === "call" ? "text-foreground" : "text-muted-foreground"}`}>
           Call
         </button>
-        <button type="button" onClick={() => setTab("script")} className={`px-3 py-1.5 ${tab === "script" ? "text-ink" : "text-ink-3"}`}>
+        <button type="button" onClick={() => setTab("script")} className={`px-3 py-1.5 ${tab === "script" ? "text-foreground" : "text-muted-foreground"}`}>
           Script
         </button>
       </div>
@@ -138,7 +138,7 @@ export function DevConsole(): React.JSX.Element | null {
               const def = tools.find((t) => t.name === e.target.value);
               setInputText(JSON.stringify(def?.examples?.[0]?.input ?? {}, null, 2));
             }}
-            className="rounded border border-hairline bg-surface px-2 py-1"
+            className="rounded border border-border bg-background px-2 py-1"
           >
             {tools.map((t) => (
               <option key={t.name} value={t.name}>
@@ -154,7 +154,7 @@ export function DevConsole(): React.JSX.Element | null {
                 const example = selected.examples?.find((ex) => ex.label === e.target.value);
                 if (example) setInputText(JSON.stringify(example.input, null, 2));
               }}
-              className="rounded border border-hairline bg-surface px-2 py-1"
+              className="rounded border border-border bg-background px-2 py-1"
             >
               <option value="" disabled>
                 Presets…
@@ -170,26 +170,26 @@ export function DevConsole(): React.JSX.Element | null {
           <textarea
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
-            className="h-24 resize-none rounded border border-hairline bg-surface p-2"
+            className="h-24 resize-none rounded border border-border bg-background p-2"
             spellCheck={false}
           />
 
-          <button type="button" onClick={runOne} className="rounded bg-amber px-2 py-1 text-accent-ink">
+          <button type="button" onClick={runOne} className="rounded bg-amber px-2 py-1 text-background">
             Run
           </button>
 
-          {error ? <p className="text-danger">{error}</p> : null}
+          {error ? <p className="text-destructive">{error}</p> : null}
 
-          <div className="flex-1 overflow-auto rounded border border-hairline bg-surface p-2">
+          <div className="flex-1 overflow-auto rounded border border-border bg-background p-2">
             {record ? (
               <>
-                <p className={record.ok ? "text-ok" : "text-danger"}>
+                <p className={record.ok ? "text-emerald-400" : "text-destructive"}>
                   {record.tool} · {record.ok ? "ok" : "error"} · {record.durationMs.toFixed(0)}ms
                 </p>
                 <pre className="whitespace-pre-wrap">{JSON.stringify(record.result, null, 2)}</pre>
               </>
             ) : (
-              <p className="text-ink-3">No call yet.</p>
+              <p className="text-muted-foreground">No call yet.</p>
             )}
           </div>
         </div>
@@ -198,20 +198,20 @@ export function DevConsole(): React.JSX.Element | null {
           <textarea
             value={scriptText}
             onChange={(e) => setScriptText(e.target.value)}
-            className="h-28 resize-none rounded border border-hairline bg-surface p-2"
+            className="h-28 resize-none rounded border border-border bg-background p-2"
             spellCheck={false}
           />
-          <button type="button" onClick={runScript} className="rounded bg-amber px-2 py-1 text-accent-ink">
+          <button type="button" onClick={runScript} className="rounded bg-amber px-2 py-1 text-background">
             Run script
           </button>
-          {error ? <p className="text-danger">{error}</p> : null}
-          <div className="flex-1 space-y-2 overflow-auto rounded border border-hairline bg-surface p-2">
+          {error ? <p className="text-destructive">{error}</p> : null}
+          <div className="flex-1 space-y-2 overflow-auto rounded border border-border bg-background p-2">
             {scriptRecords.length === 0 ? (
-              <p className="text-ink-3">No script run yet.</p>
+              <p className="text-muted-foreground">No script run yet.</p>
             ) : (
               scriptRecords.map((r, i) => (
                 <div key={`${r.tool}-${i}`}>
-                  <p className={r.ok ? "text-ok" : "text-danger"}>
+                  <p className={r.ok ? "text-emerald-400" : "text-destructive"}>
                     {i + 1}. {r.tool} · {r.ok ? "ok" : "error"} · {r.durationMs.toFixed(0)}ms
                   </p>
                   <pre className="whitespace-pre-wrap">{JSON.stringify(r.result, null, 2)}</pre>

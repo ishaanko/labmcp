@@ -24,6 +24,7 @@ function initialUi(): UiState {
     devConsoleOpen: false,
     activityOpen: false,
     explainOpen: false,
+    agentPanelOpen: false,
     dispenseIncrementMl: 1,
     webmcp: { provider: "none", toolCount: 0 },
     theme: "dark",
@@ -145,6 +146,9 @@ export const useLabStore = create<LabStore>()(
     },
     setExplainOpen(v) {
       set((s) => ({ ui: { ...s.ui, explainOpen: v } }));
+    },
+    toggleAgentPanel() {
+      set((s) => ({ ui: { ...s.ui, agentPanelOpen: !s.ui.agentPanelOpen } }));
     },
     setDispenseIncrement(ml) {
       set((s) => ({ ui: { ...s.ui, dispenseIncrementMl: ml } }));

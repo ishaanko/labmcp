@@ -4,21 +4,22 @@ import { useRef, useState } from "react";
 import { Flame, Snowflake } from "lucide-react";
 import type { Container, Instrument } from "@/engine";
 import { useLabStore } from "@/store/labStore";
-import { Readout } from "@/components/ui-legacy/Readout";
-import { ChipButton } from "@/components/ui-legacy/Chip";
-import { Slider } from "@/components/ui-legacy/Slider";
-import { observe } from "@/components/ui-legacy/toasts";
+import { Readout } from "./Readout";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Slider } from "@/components/ui/slider";
+import { observe } from "@/components/ui/toasts";
 
 export interface HotplateCardProps {
   readonly instrument: Instrument;
 }
 
-const PRESETS: ReadonlyArray<{ readonly label: string; readonly targetC: number | null }> = [
-  { label: "Off", targetC: null },
-  { label: "40", targetC: 40 },
-  { label: "60", targetC: 60 },
-  { label: "80", targetC: 80 },
-  { label: "100", targetC: 100 },
+const OFF = "off";
+const PRESETS: ReadonlyArray<{ readonly label: string; readonly value: string; readonly targetC: number | null }> = [
+  { label: "Off", value: OFF, targetC: null },
+  { label: "40", value: "40", targetC: 40 },
+  { label: "60", value: "60", targetC: 60 },
+  { label: "80", value: "80", targetC: 80 },
+  { label: "100", value: "100", targetC: 100 },
 ];
 
 const SLIDER_MIN = 20;
@@ -29,20 +30,20 @@ function isContainer(o: Container | Instrument): o is Container {
 }
 
 /**
- * Right-panel card for a selected hotplate (C4.7): target chips and a slider heat the
- * container currently sitting in the hotplate's cell. With nothing in the cell, both toast
- * instead of dispatching.
+ * Right-panel card for a selected hotplate: target presets and a slider heat the container
+ * currently sitting in the hotplate's cell. With nothing in the cell, both toast instead of
+ * dispatching.
  */
 export function HotplateCard({ instrument }: HotplateCardProps) {
   const dispatch = useLabStore((s) => s.dispatch);
-  const container = useLabStore((s) => s.lab.objects.find((o) => isContainer(o) && o.position.x === instrument.position.x && o.position.y === instrument.position.y)) as
+  const container = useLabStore((s) => (s.lab.objects.find((o) => isContainer(o) && o.position.x === instrument.position.x && o.position.y === instrument.position.y))) as
     | Container
     | undefined;
 
   const thermal = container?.thermal ?? { kind: "idle" as const };
   const dialTargetC = thermal.kind === "idle" ? SLIDER_MIN : thermal.targetC;
   const [sliderValue, setSliderValue] = useState(dialTargetC);
-  // Re-syncs the slider's local echo when the engine's own target moves (dial commit, chip
+  // Re-syncs the slider's local echo when the engine's own target moves (dial commit, preset
   // press, or an agent tool call) without an effect-driven cascading render.
   const lastDialTargetC = useRef(dialTargetC);
   if (lastDialTargetC.current !== dialTargetC) {
@@ -59,38 +60,43 @@ export function HotplateCard({ instrument }: HotplateCardProps) {
     else void dispatch({ kind: "HEAT", containerId: container.id, targetC }, "human");
   };
 
+  const activeValue = thermal.kind === "idle" ? OFF : String(thermal.targetC);
+
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="text-md font-semibold text-ink">Hotplate</h2>
-        <p className="text-2xs text-ink-3">{container ? `Heating ${container.label}` : "Empty"}</p>
+        <h2 className="text-base font-semibold text-foreground">Hotplate</h2>
+        <p className="text-xs text-muted-foreground">{container ? `Heating ${container.label}` : "Empty"}</p>
       </div>
 
       <Readout label="Plate temperature" value={container?.temperatureC ?? null} unit="°C" digits={1} />
 
-      <div className="flex flex-wrap gap-1.5">
+      <ToggleGroup
+        value={[activeValue]}
+        onValueChange={(values) => {
+          const v = values[0];
+          if (!v) return;
+          applyTarget(v === OFF ? null : Number(v));
+        }}
+      >
         {PRESETS.map((preset) => (
-          <ChipButton
-            key={preset.label}
-            active={preset.targetC === null ? thermal.kind === "idle" : thermal.kind !== "idle" && thermal.targetC === preset.targetC}
-            onClick={() => applyTarget(preset.targetC)}
-          >
+          <ToggleGroupItem key={preset.value} value={preset.value} size="sm">
             {preset.targetC === null ? <Snowflake size={12} /> : <Flame size={12} />}
             {preset.label}
-          </ChipButton>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
 
       <div>
-        <p className="text-2xs text-ink-3">Target: {sliderValue.toFixed(0)} °C</p>
+        <p className="text-xs text-muted-foreground">Target: {sliderValue.toFixed(0)} °C</p>
         <Slider
           aria-label="Hotplate target temperature"
           value={sliderValue}
           min={SLIDER_MIN}
           max={SLIDER_MAX}
           step={1}
-          onChange={setSliderValue}
-          onCommit={(v) => applyTarget(Math.round(v))}
+          onValueChange={setSliderValue}
+          onValueCommitted={(v) => applyTarget(Math.round(v))}
         />
       </div>
     </div>

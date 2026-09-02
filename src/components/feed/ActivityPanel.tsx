@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Sparkles, Hand, Cog } from "lucide-react";
-import { clsx } from "clsx";
+import { Sparkles, Hand, Cog, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
 import type { FeedEntry as FeedEntryData } from "@/store/types";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { FeedEntry } from "./FeedEntry";
 import { Notebook } from "./Notebook";
 
@@ -13,12 +15,11 @@ const SPRING_PANEL = { type: "spring", visualDuration: 0.4, bounce: 0 } as const
 const PANEL_EXIT = { transform: "translateX(-24px)", opacity: 0, transition: { duration: 0.16, ease: [0.23, 1, 0.32, 1] } } as const;
 const PILL_ICON = { agent: Sparkles, human: Hand, system: Cog } as const;
 
-/** Collapsible left panel: 44px pill closed, 300px with Activity/Notebook tabs open (C2). */
+/** Left column: a collapsed rail closed, a 300px Activity/Notebook tab set open. */
 export function ActivityPanel() {
   const open = useLabStore((s) => s.ui.activityOpen);
   const toggleActivity = useLabStore((s) => s.toggleActivity);
   const feed = useLabStore((s) => s.feed);
-  const [tab, setTab] = useState<"activity" | "notebook">("activity");
   const autoOpened = useRef(false);
 
   useEffect(() => {
@@ -32,16 +33,17 @@ export function ActivityPanel() {
   const latest: FeedEntryData | undefined = feed[0];
 
   return (
-    <div className="pointer-events-none absolute top-0 left-0 bottom-14 w-[300px]">
+    <div className="pointer-events-auto flex h-full shrink-0 flex-col border-r border-border bg-card">
       <AnimatePresence initial={false} mode="popLayout">
         {!open ? (
           <button
-            key="tab"
+            key="rail"
             type="button"
             onClick={toggleActivity}
             aria-label="Open activity panel"
-            className="material-thin pointer-events-auto relative -ml-3 flex h-8 items-center gap-1.5 rounded-l-none border-l-0 pr-2.5 pl-2 text-xs text-ink-2"
+            className="flex h-full w-11 flex-col items-center gap-2 pt-3 text-muted-foreground hover:text-foreground"
           >
+            <PanelLeftOpen size={16} />
             <AnimatePresence initial={false}>
               <motion.span
                 key={latest?.source ?? "empty"}
@@ -49,10 +51,8 @@ export function ActivityPanel() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
-                className="flex items-center gap-1.5"
               >
                 {latest ? <SourceIcon entry={latest} /> : <Cog size={13} />}
-                Activity
               </motion.span>
             </AnimatePresence>
           </button>
@@ -63,36 +63,32 @@ export function ActivityPanel() {
             animate={{ transform: "translateX(0px)", opacity: 1 }}
             exit={PANEL_EXIT}
             transition={SPRING_PANEL}
-            className="material pointer-events-auto flex h-full w-[300px] flex-col overflow-hidden"
+            className="flex h-full w-[300px] flex-col overflow-hidden"
           >
-            <div className="flex h-11 shrink-0 items-center gap-1 border-b border-hairline px-2">
-              <TabButton active={tab === "activity"} onClick={() => setTab("activity")}>
-                Activity
-              </TabButton>
-              <TabButton active={tab === "notebook"} onClick={() => setTab("notebook")}>
-                Notebook
-              </TabButton>
-              <div className="flex-1" />
-              <button
-                type="button"
-                onClick={toggleActivity}
-                aria-label="Collapse activity panel"
-                className="pressable h-7 w-7 rounded-xs text-ink-3 hover:bg-surface-thin hover:text-ink"
-              >
-                ⟨
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-2">
-              {tab === "activity" ? (
-                <ul className="flex flex-col gap-0.5">
-                  {feed.map((entry) => (
-                    <FeedEntry key={entry.id} entry={entry} />
-                  ))}
-                </ul>
-              ) : (
+            <Tabs defaultValue="activity" className="flex h-full min-h-0 flex-col gap-0">
+              <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border px-2">
+                <TabsList variant="line">
+                  <TabsTrigger value="activity">Activity</TabsTrigger>
+                  <TabsTrigger value="notebook">Notebook</TabsTrigger>
+                </TabsList>
+                <div className="flex-1" />
+                <Button variant="ghost" size="icon-sm" onClick={toggleActivity} aria-label="Collapse activity panel">
+                  <PanelLeftClose size={15} />
+                </Button>
+              </div>
+              <TabsContent value="activity" className="min-h-0 flex-1">
+                <ScrollArea className="h-full p-2">
+                  <ul className="flex flex-col gap-0.5">
+                    {feed.map((entry) => (
+                      <FeedEntry key={entry.id} entry={entry} />
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="notebook" className="flex min-h-0 flex-1 flex-col p-2">
                 <Notebook />
-              )}
-            </div>
+              </TabsContent>
+            </Tabs>
           </motion.div>
         )}
       </AnimatePresence>
@@ -103,19 +99,4 @@ export function ActivityPanel() {
 function SourceIcon({ entry }: { entry: FeedEntryData }) {
   const Icon = PILL_ICON[entry.source];
   return <Icon size={13} />;
-}
-
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx(
-        "pressable h-7 rounded-xs px-2 text-xs font-medium",
-        active ? "bg-surface-thin text-ink" : "text-ink-3 hover:text-ink-2",
-      )}
-    >
-      {children}
-    </button>
-  );
 }

@@ -5,13 +5,13 @@ import { clsx } from "clsx";
 import { checkTitrationAnswer, estimateEquivalenceMl, titrationSolution } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectObjectiveSteps, selectPublic, selectTitration, type ObjectiveStep } from "@/store/selectors";
-import { Button } from "@/components/ui-legacy/Button";
+import { Button } from "@/components/ui/button";
 
 const CHECK_PATH_LENGTH = 20;
 
 /**
- * Right-panel titration guide (C7): 4-step checklist and the reveal moment. Shown when nothing
- * is selected in the titration scenario; the goal sentence itself lives in `ObjectiveChip`.
+ * Right-panel titration guide: 4-step checklist and the reveal moment. Shown when nothing is
+ * selected in the titration scenario; the goal sentence itself lives in `ObjectiveChip`.
  */
 export function ObjectiveCard() {
   const steps = useLabStore(selectObjectiveSteps);
@@ -37,7 +37,7 @@ export function ObjectiveCard() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h2 className="text-md font-semibold text-ink">Objective</h2>
+      <h2 className="text-base font-semibold text-foreground">Objective</h2>
 
       <ul className="flex flex-col gap-2">
         {steps.map((step) => (
@@ -46,20 +46,20 @@ export function ObjectiveCard() {
       </ul>
 
       {!revealed ? (
-        <Button variant={endpointDone ? "primary" : "ghost"} size="sm" disabled={revealing} onClick={reveal} className="w-fit">
+        <Button variant={endpointDone ? "default" : "ghost"} size="sm" disabled={revealing} onClick={reveal} className="w-fit">
           {endpointDone ? "Reveal result" : "Reveal anyway"}
         </Button>
       ) : (
-        <div className="rounded-md border border-hairline bg-surface-thin p-3">
-          <p className="text-2xs text-ink-3">True concentration</p>
-          <p className="tabular text-readout text-ink">{solution ? solution.analyteM.toFixed(4) : "–"} M</p>
+        <div className="rounded-lg border border-border bg-muted/40 p-3">
+          <p className="text-xs text-muted-foreground">True concentration</p>
+          <p className="tabular text-2xl text-foreground">{solution ? solution.analyteM.toFixed(4) : "–"} M</p>
           {verdict && claimedM !== null ? (
-            <p className={clsx("mt-1 text-sm", verdict.correct ? "text-ok" : "text-danger")}>
+            <p className={clsx("mt-1 text-sm", verdict.correct ? "text-emerald-400" : "text-destructive")}>
               Curve estimate {claimedM.toFixed(4)} M, {(verdict.relError * 100).toFixed(1)}% off.
               {verdict.correct ? " Within tolerance." : " Outside tolerance."}
             </p>
           ) : (
-            <p className="mt-1 text-sm text-ink-3">No equivalence estimate yet; dispense past the endpoint to get one.</p>
+            <p className="mt-1 text-sm text-muted-foreground">No equivalence estimate yet; dispense past the endpoint to get one.</p>
           )}
         </div>
       )}
@@ -71,21 +71,14 @@ function StepRow({ step }: { step: ObjectiveStep }) {
   return (
     <li className="flex items-center gap-2.5 text-sm">
       <svg viewBox="0 0 16 16" width={16} height={16} className="shrink-0" aria-hidden="true">
-        <circle
-          cx={8}
-          cy={8}
-          r={7}
-          fill="none"
-          strokeWidth={1.5}
-          className={step.done ? "stroke-ok" : "stroke-hairline-strong"}
-        />
+        <circle cx={8} cy={8} r={7} fill="none" strokeWidth={1.5} className={step.done ? "stroke-emerald-400" : "stroke-border"} />
         <path
           d="M4.5 8.3 L7 10.8 L11.5 5.5"
           fill="none"
           strokeWidth={1.75}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className="stroke-ok"
+          className="stroke-emerald-400"
           style={{
             strokeDasharray: CHECK_PATH_LENGTH,
             strokeDashoffset: step.done ? 0 : CHECK_PATH_LENGTH,
@@ -93,7 +86,7 @@ function StepRow({ step }: { step: ObjectiveStep }) {
           }}
         />
       </svg>
-      <span className={step.done ? "text-ink-3 line-through" : "text-ink"}>{step.label}</span>
+      <span className={step.done ? "text-muted-foreground line-through" : "text-foreground"}>{step.label}</span>
     </li>
   );
 }

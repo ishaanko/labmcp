@@ -4,11 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { animate } from "motion/react";
 import { clsx } from "clsx";
-import { constants, indicatorDef, isIndicatorIdShape, type EquipmentType } from "@/engine";
+import { constants, indicatorDef, isIndicatorIdShape, isReagentId, reagentDef, type EquipmentType } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import type { DragState, XY } from "@/store/types";
-import { EQUIPMENT_ICON, EQUIPMENT_LABEL } from "./EquipmentButton";
-import { REAGENT_DEFAULT_TINT, REAGENT_TINT } from "./ReagentChip";
+import { EQUIPMENT_COLOR, EQUIPMENT_ICON, EQUIPMENT_LABEL } from "./EquipmentButton";
+import { ROLE_HEX, indicatorRole, reagentRole } from "./roleColor";
+import { BottleIcon, DropletIcon, DropperIcon } from "./TileIcon";
+import { TileFace } from "./Tile";
 import { takeDragOutcome } from "./useShelfDrag";
 
 type GhostDrag = Extract<DragState, { kind: "reagent" | "indicator" | "equipment" }>;
@@ -27,33 +29,47 @@ function labelFor(drag: GhostDrag, shelf: ReadonlyArray<{ reagentId: string; lab
   return isEquipmentType(drag.equipmentType) ? EQUIPMENT_LABEL[drag.equipmentType] : drag.equipmentType;
 }
 
+function colorFor(drag: GhostDrag): string {
+  if (drag.kind === "equipment") return EQUIPMENT_COLOR;
+  if (drag.kind === "indicator") {
+    const kind = isIndicatorIdShape(drag.indicatorId) ? indicatorDef(drag.indicatorId)?.kind : undefined;
+    return ROLE_HEX[indicatorRole(kind ?? "phenolphthalein")];
+  }
+  return isReagentId(drag.reagentId) ? ROLE_HEX[reagentRole(drag.reagentId)] : ROLE_HEX.water;
+}
+
+function iconFor(drag: GhostDrag) {
+  if (drag.kind === "equipment") {
+    const Icon = isEquipmentType(drag.equipmentType) ? EQUIPMENT_ICON[drag.equipmentType] : null;
+    return Icon ? <Icon size={20} strokeWidth={1.75} /> : null;
+  }
+  if (drag.kind === "indicator") return <DropperIcon />;
+  return isReagentId(drag.reagentId) && reagentDef(drag.reagentId)?.kind === "water" ? <DropletIcon /> : <BottleIcon />;
+}
+
 function targetSuffix(drag: GhostDrag, containerLabel: string | null): string | null {
-  if (drag.kind === "equipment") return drag.cell ? "→ bench" : null;
+  if (drag.kind === "equipment") return drag.cell ? "Drop to place" : null;
   return drag.overId ? `→ ${containerLabel ?? drag.overId}` : null;
 }
 
-/** How a ghost leaves: fading in place where it landed, or springing back to its shelf chip. */
+/** How a ghost leaves: fading in place where it landed, or springing back to its shelf tile. */
 type GhostExitMotion = { readonly kind: "fade" } | { readonly kind: "spring"; readonly to: XY; readonly flicked: boolean };
 
-/** A ghost on its way out. */
 interface GhostExit {
   readonly ghost: GhostDrag;
-  /** Where the ghost is drawn while the exit runs (the release point). */
   readonly at: XY;
   readonly motion: GhostExitMotion;
 }
 
-/** Wide enough for "Phenolphthalein → Flask" without truncation. */
-const GHOST_W = 188;
-const GHOST_H = 32;
+const GHOST_W = 64;
+const GHOST_H = 76;
 
 /**
- * The floating chip that follows the pointer during a shelf drag (C4.3). Position is written
- * as a raw `translate3d()` transform string every render (never through motion's `x`/`y`
- * props), since `ui.drag.pointer` already arrives rAF-throttled from `useShelfDrag`. Only the
- * unsuccessful-release return trip is a real spring; a landed drop instead fades the ghost out
- * in place over 120ms. Both run imperatively with `motion`'s `animate`, and both snap instantly
- * under `ui.reducedMotion`.
+ * The tile clone that follows the pointer during a shelf drag: position is a raw
+ * `translate3d()` transform string every render (never `motion`'s `x`/`y` props), since
+ * `ui.drag.pointer` already arrives rAF-throttled from `useShelfDrag`. A landed drop fades the
+ * ghost out in place over 120ms; an unsuccessful release springs it back to its dock tile. Both
+ * snap instantly under `ui.reducedMotion`.
  */
 export function ReagentGhost() {
   const drag = useLabStore((s) => s.ui.drag);
@@ -64,7 +80,6 @@ export function ReagentGhost() {
   const returnControls = useRef<ReturnType<typeof animate> | null>(null);
   const [returning, setReturning] = useState<GhostExit | null>(null);
 
-  // Phase 1: when the drag ends, decide how the ghost leaves (fade in place or spring home).
   useEffect(() => {
     if (isGhostDrag(drag)) {
       prevDrag.current = drag;
@@ -80,11 +95,6 @@ export function ReagentGhost() {
     setReturning({ ghost: last, at: last.pointer, motion });
   }, [drag]);
 
-  // Phase 2: run the exit once the ghost is mounted for it. Split from phase 1 because on the
-  // render where `drag` goes null the element is not in the DOM yet (nothing to animate), and a
-  // ghost whose exit never starts stays stuck on screen. Under reduced motion every exit still
-  // runs through `animate` (so the same finish/cleanup path applies) but with zero duration, so
-  // it snaps to its end state on the next frame instead of fading or springing.
   useEffect(() => {
     const el = ref.current;
     if (!returning || !el) return;
@@ -113,28 +123,28 @@ export function ReagentGhost() {
   const pointer = live ? live.pointer : (returning?.at ?? { x: 0, y: 0 });
   const overContainer = active.kind !== "equipment" && active.overId ? objects.find((o) => o.id === active.overId) : undefined;
   const containerLabel = overContainer && overContainer.kind === "container" ? overContainer.label : null;
-
-  const Icon = active.kind === "equipment" && isEquipmentType(active.equipmentType) ? EQUIPMENT_ICON[active.equipmentType] : null;
-  const tint = active.kind === "reagent" ? (REAGENT_TINT[active.reagentId] ?? REAGENT_DEFAULT_TINT) : "var(--phenol-pink)";
   const suffix = targetSuffix(active, containerLabel);
   const hovering = active.kind !== "equipment" ? active.overId !== null : active.cell !== null;
 
   return createPortal(
     <div
       ref={ref}
-      className={clsx(
-        "material-thick pointer-events-none fixed top-0 left-0 z-50 flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs whitespace-nowrap text-ink shadow-[var(--shadow-popover)]",
-        hovering && "ring-2 ring-accent-ring",
-      )}
+      className="pointer-events-none fixed top-0 left-0 z-50 flex flex-col items-center"
       style={{
         width: GHOST_W,
-        transform: `translate3d(${pointer.x - GHOST_W / 2}px, ${pointer.y - GHOST_H / 2}px, 0) scale(1.04)`,
+        transform: `translate3d(${pointer.x - GHOST_W / 2}px, ${pointer.y - GHOST_H / 2}px, 0) scale(1.06)`,
         willChange: "transform",
       }}
     >
-      {Icon ? <Icon size={14} /> : <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: tint }} aria-hidden />}
-      <span className="truncate">{labelFor(active, shelf)}</span>
-      {suffix ? <span className="text-ink-3">{suffix}</span> : null}
+      <TileFace
+        color={colorFor(active)}
+        label={labelFor(active, shelf)}
+        icon={iconFor(active)}
+        className={clsx("rounded-2xl border border-border bg-card shadow-lg", hovering && "ring-2 ring-primary")}
+      />
+      {suffix ? (
+        <span className="mt-1 rounded-full bg-card px-2 py-0.5 text-2xs whitespace-nowrap text-foreground shadow-lg">{suffix}</span>
+      ) : null}
     </div>,
     document.body,
   );

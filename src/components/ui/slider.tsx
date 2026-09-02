@@ -2,14 +2,19 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider"
 
 import { cn } from "@/lib/utils"
 
-function Slider({
+/**
+ * `Value` is forwarded from the call site instead of left at its `number | readonly number[]`
+ * default, so a caller that passes a plain `number` for `value` gets `onValueChange`/
+ * `onValueCommitted` typed as `(value: number, ...) => void`, not the wider union.
+ */
+function Slider<Value extends number | readonly number[] = number>({
   className,
   defaultValue,
   value,
   min = 0,
   max = 100,
   ...props
-}: SliderPrimitive.Root.Props) {
+}: SliderPrimitive.Root.Props<Value>) {
   const _values = Array.isArray(value)
     ? value
     : Array.isArray(defaultValue)

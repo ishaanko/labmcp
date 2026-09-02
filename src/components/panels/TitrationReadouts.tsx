@@ -2,11 +2,11 @@
 
 import { useLabStore } from "@/store/labStore";
 import { selectContainer, selectTitration } from "@/store/selectors";
-import { Readout } from "@/components/ui-legacy/Readout";
+import { Readout } from "./Readout";
 
 /**
- * Always-visible titration readouts (C7): titrant delivered, pH, flask volume, flask temperature.
- * A 2 x 2 grid: two `--text-readout` values fit the 268px panel width, three do not.
+ * Always-visible titration readouts: titrant delivered, pH, flask volume, flask temperature.
+ * A 2 x 2 grid: two large values fit the panel width, three do not.
  */
 export function TitrationReadouts() {
   const titration = useLabStore(selectTitration);

@@ -2,16 +2,72 @@
 
 import { useCallback, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { isIndicatorIdShape, isReagentId, type EquipmentType } from "@/engine";
-import { groundPointAt, pickObjectAt } from "@/scene/sceneRefs";
-import { GRID_BOUNDS, worldToGrid } from "@/components/bench/Bench";
-import { cellKey, nearestFreeCell } from "@/scene/picking";
+import { constants, isIndicatorIdShape, isReagentId, type EquipmentType } from "@/engine";
+import { hitTestObject } from "@/lab2d/objectDom";
 import { useLabStore } from "@/store/labStore";
 import type { XY } from "@/store/types";
 
 const THRESHOLD_PX = 6;
 /** Above this release speed (px/s) the ghost's return trip gets a small overshoot bounce. */
 const FLICK_PX_PER_S = 900;
+
+/** id on the bench's own scroll/clip viewport, set by `LabShell`; equipment drops snap to a
+ * grid cell computed from the pointer's fraction across this rect, so placement never needs
+ * the bench's internal DOM layout, only its outer box. */
+export const BENCH_VIEWPORT_ID = "lab2d-viewport";
+
+interface GridCell {
+  readonly x: number;
+  readonly y: number;
+}
+
+function cellKey(cell: GridCell): string {
+  return `${cell.x},${cell.y}`;
+}
+
+/** Occupied grid cells (containers only; an instrument does not block a drop), for snapping a new drop. */
+function occupiedCells(): ReadonlySet<string> {
+  const set = new Set<string>();
+  for (const o of useLabStore.getState().lab.objects) {
+    if (o.kind === "container") set.add(cellKey({ x: o.position.x, y: o.position.y }));
+  }
+  return set;
+}
+
+/**
+ * Finds the nearest unoccupied cell to `from`, spiralling outward ring by ring and clamped to
+ * the engine's grid. Used when a dropped object's target cell is already taken.
+ */
+function nearestFreeCell(occupied: ReadonlySet<string>, from: GridCell): GridCell {
+  const { cols, rows, minX, minY } = constants.GRID;
+  const maxX = minX + cols - 1;
+  const maxY = minY + rows - 1;
+  const start: GridCell = { x: Math.min(maxX, Math.max(minX, from.x)), y: Math.min(maxY, Math.max(minY, from.y)) };
+  if (!occupied.has(cellKey(start))) return start;
+
+  const maxRadius = cols + rows;
+  for (let radius = 1; radius <= maxRadius; radius++) {
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dy = -radius; dy <= radius; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+        const candidate: GridCell = { x: start.x + dx, y: start.y + dy };
+        if (candidate.x < minX || candidate.x > maxX || candidate.y < minY || candidate.y > maxY) continue;
+        if (!occupied.has(cellKey(candidate))) return candidate;
+      }
+    }
+  }
+  return start;
+}
+
+/** Grid cell under `(x, y)`, from its fraction across the bench viewport's box; `null` off the bench. */
+function cellUnderPointer(x: number, y: number): GridCell | null {
+  const rect = document.getElementById(BENCH_VIEWPORT_ID)?.getBoundingClientRect();
+  if (!rect || x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
+  const { cols, rows, minX, minY } = constants.GRID;
+  const col = Math.min(cols - 1, Math.max(0, Math.floor(((x - rect.left) / rect.width) * cols)));
+  const row = Math.min(rows - 1, Math.max(0, Math.floor(((y - rect.top) / rect.height) * rows)));
+  return { x: minX + col, y: minY + row };
+}
 
 type Candidate =
   | { kind: "reagent"; reagentId: string }
@@ -44,15 +100,6 @@ function containerHasLiquid(id: string): boolean {
 function isContainer(id: string): boolean {
   const obj = useLabStore.getState().lab.objects.find((o) => o.id === id);
   return obj !== undefined && obj.kind === "container";
-}
-
-/** Occupied grid cells (containers only; an instrument does not block a drop), for snapping a new drop. */
-function occupiedCells(): ReadonlySet<string> {
-  const set = new Set<string>();
-  for (const o of useLabStore.getState().lab.objects) {
-    if (o.kind === "container") set.add(cellKey({ x: o.position.x, y: o.position.y }));
-  }
-  return set;
 }
 
 /** `min(stock remaining ?? Infinity, capacity - volume)` (C4.3/C4.4). */
@@ -112,12 +159,12 @@ export function useShelfDrag(): ShelfDragHandlers {
       const applyMove = (x: number, y: number): void => {
         const pointer: XY = { x, y };
         if (candidate.kind === "equipment") {
-          const ground = groundPointAt(x, y);
-          const cell = ground ? nearestFreeCell(occupiedCells(), worldToGrid(ground.x, ground.z), GRID_BOUNDS) : null;
+          const under = cellUnderPointer(x, y);
+          const cell = under ? nearestFreeCell(occupiedCells(), under) : null;
           setDrag({ kind: "equipment", equipmentType: candidate.equipmentType, pointer, cell });
           return;
         }
-        const hitId = pickObjectAt(x, y);
+        const hitId = hitTestObject(x, y);
         const valid = hitId !== null && isContainer(hitId) && (candidate.kind === "reagent" || containerHasLiquid(hitId));
         if (candidate.kind === "reagent") setDrag({ kind: "reagent", reagentId: candidate.reagentId, pointer, overId: valid ? hitId : null });
         else setDrag({ kind: "indicator", indicatorId: candidate.indicatorId, pointer, overId: valid ? hitId : null });

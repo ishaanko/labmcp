@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  // `const { omitted: _omitted, ...rest } = obj` is how the engine drops keys; do not flag the omitted binding.
+  { rules: { "@typescript-eslint/no-unused-vars": ["warn", { ignoreRestSiblings: true }] } },
 ]);
 
 export default eslintConfig;

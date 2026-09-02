@@ -29,6 +29,7 @@ export interface UiState {
   devConsoleOpen: boolean;
   activityOpen: boolean;
   explainOpen: boolean;
+  agentPanelOpen: boolean;
   /** 0.1 | 0.5 | 1 | 5 */
   dispenseIncrementMl: number;
   webmcp: { provider: WebMcpProvider; toolCount: number };
@@ -105,6 +106,7 @@ export interface LabStore {
   toggleDevConsole(): void;
   toggleActivity(): void;
   setExplainOpen(v: boolean): void;
+  toggleAgentPanel(): void;
   setDispenseIncrement(ml: number): void;
   setWebmcp(v: UiState["webmcp"]): void;
   setAgentBusy(v: boolean): void;

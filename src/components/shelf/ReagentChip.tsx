@@ -1,38 +1,31 @@
 "use client";
 
-import { clsx } from "clsx";
+import { reagentDef, type ReagentId } from "@/engine";
 import { useLabStore } from "@/store/labStore";
+import { ROLE_HEX, reagentRole } from "./roleColor";
+import { BottleIcon, DropletIcon } from "./TileIcon";
+import { Tile } from "./Tile";
 import { useShelfDrag } from "./useShelfDrag";
 
-/** Tint dot per reagent. Only CuSO4 reads distinctly blue on the shelf; everything else reads as water. */
-export const REAGENT_TINT: Readonly<Record<string, string>> = { cuso4: "var(--cu-blue)" };
-export const REAGENT_DEFAULT_TINT = "var(--water)";
-
 export interface ReagentChipProps {
-  reagentId: string;
+  reagentId: ReagentId;
   label: string;
 }
 
-/** Shelf reagent chip. Pointer-down arms the drag (C4.3); `useShelfDrag` owns the gesture. */
+/** Dock reagent tile: a droplet for water, a bottle for every stock solution, tinted by role. */
 export function ReagentChip({ reagentId, label }: ReagentChipProps) {
   const { onReagentPointerDown } = useShelfDrag();
   const dragging = useLabStore((s) => s.ui.drag?.kind === "reagent" && s.ui.drag.reagentId === reagentId);
+  const isWater = reagentDef(reagentId)?.kind === "water";
+  const color = ROLE_HEX[reagentRole(reagentId)];
 
   return (
-    <button
-      type="button"
+    <Tile
       onPointerDown={onReagentPointerDown(reagentId)}
-      className={clsx(
-        "pressable flex h-full shrink-0 items-center gap-1.5 px-2.5 text-xs text-ink-2 hover:bg-surface-thin hover:text-ink",
-        dragging && "opacity-40",
-      )}
-    >
-      <span
-        className="h-1.5 w-1.5 shrink-0 rounded-full"
-        style={{ background: REAGENT_TINT[reagentId] ?? REAGENT_DEFAULT_TINT }}
-        aria-hidden
-      />
-      {label}
-    </button>
+      color={color}
+      label={label}
+      dragging={dragging}
+      icon={isWater ? <DropletIcon /> : <BottleIcon />}
+    />
   );
 }

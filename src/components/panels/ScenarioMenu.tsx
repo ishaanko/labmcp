@@ -2,7 +2,8 @@
 
 import { ChevronDown } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
-import { Menu } from "@/components/ui-legacy/Menu";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ScenarioId } from "@/engine";
 
 const SCENARIOS: ReadonlyArray<{ value: ScenarioId; label: string }> = [
@@ -20,17 +21,22 @@ export function ScenarioMenu() {
   const current = SCENARIOS.find((s) => s.value === scenarioId) ?? SCENARIOS[0];
 
   return (
-    <Menu
-      trigger={
-        <button className="pressable flex h-7 items-center gap-1 rounded-sm px-2 text-sm font-semibold text-ink hover:bg-surface-thin">
-          ChemLab
-          <span className="text-ink-3">·</span>
-          {current?.label}
-          <ChevronDown size={13} className="text-ink-3" />
-        </button>
-      }
-      options={SCENARIOS}
-      onSelect={(value) => void dispatch({ kind: "LOAD_SCENARIO", scenarioId: value, seed: SEED }, "human")}
-    />
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button variant="ghost" size="sm" className="gap-1 font-semibold">
+            {current?.label}
+            <ChevronDown size={13} className="text-muted-foreground" />
+          </Button>
+        }
+      />
+      <DropdownMenuContent>
+        {SCENARIOS.map((option) => (
+          <DropdownMenuItem key={option.value} onClick={() => void dispatch({ kind: "LOAD_SCENARIO", scenarioId: option.value, seed: SEED }, "human")}>
+            {option.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

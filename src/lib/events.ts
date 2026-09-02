@@ -48,9 +48,9 @@ export function emitToast(t: ToastMessage): void {
 }
 
 // ---------- animation sink ----------
-// Same pattern for the scene: src/scene/animationQueue.ts calls setAnimationSink(enqueue) once
-// on mount. The batch carries both states so the scene can diff, or clear and rebuild on
-// RESET / LOAD_SCENARIO by checking the event kinds itself.
+// Same pattern for the bench: src/lab2d/effectsStore.ts registers via attachEffectsSink() once
+// on mount (Providers). The batch carries both states so the bench can diff, or clear and
+// rebuild on RESET / LOAD_SCENARIO by checking the event kinds itself.
 
 export interface AnimationBatch {
   readonly prev: LabState;

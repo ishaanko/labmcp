@@ -31,7 +31,7 @@ function selectedContainer(): Container | undefined {
 /**
  * Global bench shortcuts (C4.8): Cmd/Ctrl+Z undo, D dispense from the first burette, Esc
  * close/deselect, Delete/Backspace dispose the selection (with an undo toast), S stir it, R
- * opens the reset confirmation. Ignored while an input/textarea/contenteditable has focus so
+ * opens the reset confirmation, A toggles the agent panel. Ignored while an input/textarea/contenteditable has focus so
  * typing in a dialog never triggers one, and a held key does not auto-repeat D/S/R/Delete: a 1 s
  * hold would otherwise dispense 30 mL.
  */
@@ -66,6 +66,10 @@ export function useKeyboard(): void {
         case "r":
         case "R":
           store.openDialog({ kind: "confirm_reset" });
+          return;
+        case "a":
+        case "A":
+          store.toggleAgentPanel();
           return;
         case "Escape":
           if (store.ui.dialog) store.openDialog(null);

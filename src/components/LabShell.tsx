@@ -1,48 +1,50 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { Bench } from "@/lab2d/Bench";
+import { AgentPanel } from "@/components/agent/AgentPanel";
 import { WebMcpBoot } from "@/webmcp/WebMcpBoot";
 import { DevConsole } from "@/webmcp/DevConsole";
 import { TopBar } from "@/components/panels/TopBar";
 import { ContextPanel } from "@/components/panels/ContextPanel";
 import { ActivityPanel } from "@/components/feed/ActivityPanel";
 import { Shelf } from "@/components/shelf/Shelf";
-import { ResetDialog } from "@/components/ui-legacy/ResetDialog";
-import { Dialogs } from "@/components/ui-legacy/Dialogs";
+import { BENCH_VIEWPORT_ID } from "@/components/shelf/useShelfDrag";
+import { Dialogs } from "@/components/dialogs/Dialogs";
 import { ExplainSheet } from "@/components/panels/ExplainSheet";
-
-// The R3F canvas touches WebGL and `document`, so it is client-only and loaded after hydration.
-const LabCanvas = dynamic(() => import("./bench/LabCanvas").then((m) => m.LabCanvas), {
-  ssr: false,
-  loading: () => <div className="absolute inset-0 bg-bg" />,
-});
+import { useKeyboard } from "@/hooks/useKeyboard";
+import { useLabStore } from "@/store/labStore";
 
 /**
- * Full-viewport lab: the 3D bench underneath, translucent chrome floating above it as
- * pointer-events-auto islands over a pointer-events-none overlay, so the canvas still
- * receives clicks everywhere chrome doesn't cover (C2).
+ * Full-viewport lab: a flat top bar, a left activity rail, the 2D bench filling the center with
+ * the reagent dock floating over its bottom edge, and a fixed-width right context panel. The
+ * agent panel and every dialog mount alongside, each gating on its own store flag.
  */
 export function LabShell() {
-  return (
-    <div className="relative h-full w-full overflow-hidden bg-bg">
-      <LabCanvas />
+  const agentPanelOpen = useLabStore((s) => s.ui.agentPanelOpen);
+  const toggleAgentPanel = useLabStore((s) => s.toggleAgentPanel);
+  useKeyboard();
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col">
-        <div className="pointer-events-auto">
-          <TopBar />
-        </div>
-        <div className="pointer-events-none relative min-h-0 flex-1 p-3">
-          <ActivityPanel />
-          <div className="pointer-events-none absolute top-0 right-0 bottom-14 flex flex-col items-end">
-            <ContextPanel />
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background text-foreground">
+      <TopBar />
+
+      <div className="flex min-h-0 flex-1">
+        <ActivityPanel />
+
+        <div className="relative min-h-0 flex-1">
+          <div id={BENCH_VIEWPORT_ID} className="absolute inset-0 overflow-hidden">
+            <Bench />
           </div>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-1 pr-[300px] max-[1100px]:pr-[280px]">
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
             <Shelf />
           </div>
         </div>
+
+        <ContextPanel />
       </div>
 
-      <ResetDialog />
+      <AgentPanel open={agentPanelOpen} onOpenChange={toggleAgentPanel} />
+
       <Dialogs />
       <ExplainSheet />
       <WebMcpBoot />

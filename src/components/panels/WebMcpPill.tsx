@@ -29,9 +29,9 @@ export function WebMcpPill() {
   }, [lastAgentCallId]);
 
   return (
-    <span ref={ref} className="inline-flex h-7 items-center gap-1.5 text-xs text-ink-2">
+    <span ref={ref} className="inline-flex h-7 items-center gap-1.5 text-xs text-foreground/80">
       <span
-        className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", webmcp.provider === "none" ? "bg-warn" : "bg-ok")}
+        className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", webmcp.provider === "none" ? "bg-amber-500" : "bg-emerald-400")}
         aria-hidden
       />
       {webmcp.toolCount} tools · {PROVIDER_LABEL[webmcp.provider]}

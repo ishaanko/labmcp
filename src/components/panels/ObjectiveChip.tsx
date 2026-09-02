@@ -18,10 +18,10 @@ export function ObjectiveChip() {
   const done = steps.filter((step) => step.done).length;
 
   return (
-    <p className="hidden min-w-0 items-center gap-1.5 truncate text-sm text-ink-2 sm:flex">
+    <p className="hidden min-w-0 items-center gap-1.5 truncate text-sm text-foreground/80 sm:flex">
       {scenarioObjective(scenarioId)}
       {steps.length > 0 ? (
-        <span className="tabular shrink-0 text-ink-3">
+        <span className="tabular shrink-0 text-muted-foreground">
           {done}/{steps.length}
         </span>
       ) : null}
