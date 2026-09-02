@@ -59,11 +59,17 @@ function queueFor(id: string): ScheduledAction[] {
   return q;
 }
 
-/** Backpressure (C5): >3 pending actions doubles new ones' speed, >6 drops straight to final. */
+/**
+ * Backpressure (C5): >3 pending actions doubles new ones' speed, >6 flushes straight to final.
+ * Flushing runs every pending action instead of dropping it: jobs only ever call `setTarget`, so
+ * running them is cheap and idempotent, and it's the only way the queue's own terminators
+ * (`stirring: 0`, `bubbleIntensity: 0`, `dropVisual`) are guaranteed to still land.
+ */
 const schedule: Schedule = (id, delayMs, run) => {
   const q = queueFor(id);
   if (q.length > 6) {
-    q.length = 0;
+    const pending = q.splice(0, q.length).sort((a, b) => a.atMs - b.atMs);
+    for (const action of pending) action.run();
     run();
     return;
   }

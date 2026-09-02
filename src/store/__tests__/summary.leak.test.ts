@@ -5,15 +5,24 @@ const SECRET_SOLID = "AgCl(s)";
 const KNOWN_SPECIES = "Cl-";
 
 vi.mock("@/engine", () => ({
+  constants: { EQUIPMENT_TYPES: ["beaker", "flask", "test_tube", "graduated_cylinder", "burette", "ph_meter", "thermometer", "hotplate"] },
   publicView: (lab: { pub: unknown }) => lab.pub,
   scenarioObjective: () => "Find the concentration of the unknown acid.",
-  describeEvent: (e: { kind: string }) =>
-    e.kind === "REACTION" ? `Reaction produced ${SECRET_SPECIES}` : e.kind === "PRECIPITATE_FORMED" ? `${SECRET_SOLID} formed` : `desc:${e.kind}`,
+  describeEvent: (e: { kind: string; from?: number; to?: number; cause?: string }) =>
+    e.kind === "REACTION"
+      ? `Reaction produced ${SECRET_SPECIES}`
+      : e.kind === "PRECIPITATE_FORMED"
+        ? `${SECRET_SOLID} formed`
+        : e.kind === "PH_CHANGE"
+          ? `c_1 pH changed from ${e.from} to ${e.to}.`
+          : e.kind === "TEMPERATURE_CHANGE"
+            ? `c_1 temperature changed (${e.cause}).`
+            : `desc:${e.kind}`,
 }));
 
 import { summarizeLab } from "../../lib/summary";
 
-function hiddenContainer() {
+function hiddenContainer(overrides: { pH?: number | null } = {}) {
   return {
     kind: "container",
     id: "c_1",
@@ -30,6 +39,7 @@ function hiddenContainer() {
     thermal: { kind: "idle" },
     contents: { kind: "hidden", reason: "unrevealed" },
     colorName: "colorless",
+    pH: overrides.pH ?? null,
   };
 }
 
@@ -53,13 +63,16 @@ function visibleContainer() {
   };
 }
 
-function labWith(observations: ReadonlyArray<{ event: { kind: string; containerId?: string } }>) {
+function labWith(
+  observations: ReadonlyArray<{ event: { kind: string; containerId?: string } }>,
+  hiddenPh: number | null = null,
+) {
   return {
     observations,
     pub: {
       clockS: 10,
       ambientC: 22,
-      objects: [hiddenContainer(), visibleContainer()],
+      objects: [hiddenContainer({ pH: hiddenPh }), visibleContainer()],
       shelf: [{ reagentId: "unknown_acid_1", label: "Unknown acid", concentrationM: null }],
       indicatorsAvailable: ["phenolphthalein"],
       scenario: { kind: "unknown_id", revealed: false },
@@ -96,5 +109,23 @@ describe("summary.leak", () => {
     const summary = summarizeLab(labWith([]), 1);
     expect(summary.scenario.objective).toContain("unknown acid");
     expect(summary.equipmentTypes).toContain("ph_meter");
+  });
+
+  it("drops PH_CHANGE for a hidden container with no pH meter attached", () => {
+    const lab = labWith([{ event: { kind: "PH_CHANGE", containerId: "c_1" } }], null);
+    const summary = summarizeLab(lab, 1);
+    expect(summary.lastObservations.some((line) => line.includes("pH"))).toBe(false);
+  });
+
+  it("keeps PH_CHANGE for a hidden container once a pH meter is attached", () => {
+    const lab = labWith([{ event: { kind: "PH_CHANGE", containerId: "c_1" } }], 1.15);
+    const summary = summarizeLab(lab, 1);
+    expect(summary.lastObservations.some((line) => line.includes("pH"))).toBe(true);
+  });
+
+  it("strips the reaction cause from a hidden container's TEMPERATURE_CHANGE", () => {
+    const lab = labWith([{ event: { kind: "TEMPERATURE_CHANGE", containerId: "c_1", cause: "reaction", fromC: 22, toC: 24 } as never }]);
+    const summary = summarizeLab(lab, 1);
+    expect(summary.lastObservations.some((line) => line.includes("reaction"))).toBe(false);
   });
 });

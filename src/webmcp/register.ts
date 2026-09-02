@@ -39,7 +39,11 @@ export function registerLabTools(): () => void {
         { signal: ac.signal },
       )
       .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) throw error;
+        // A polyfill can reject with a plain Error named AbortError rather than a DOMException;
+        // check the name on any Error. Anything else is logged with the tool name for context
+        // instead of rethrown into an unhandled rejection nobody is awaiting.
+        if (error instanceof Error && error.name === "AbortError") return;
+        console.error(`registerLabTools: registerTool("${def.name}") failed:`, error);
       });
   }
 

@@ -29,7 +29,7 @@ import {
   type ScenarioState,
   type StirState,
 } from "./types";
-import { replaceObject, validate } from "./commands";
+import { isScenarioRevealed, replaceObject, validate } from "./commands";
 import { applyPhysical } from "./physical";
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
@@ -131,8 +131,16 @@ function applyUndo(state: LabState, actor: Actor): Result<Applied, LabError> {
   const entry = state.history[state.history.length - 1];
   if (!entry) return err({ kind: "NOTHING_TO_UNDO" });
   const seq = state.nextSeq;
-  const observation: Observation = { seq, clockS: state.clockS, actor, event: { kind: "UNDONE", undoneCommand: entry.command } };
-  const next: LabState = { ...entry.snapshot, observations: [...state.observations, observation], nextSeq: seq + 1 };
+  const observation: Observation = {
+    seq,
+    clockS: state.clockS,
+    actor,
+    event: { kind: "UNDONE", undoneCommand: entry.command, undoneSeq: entry.seq, undoneActor: entry.actor },
+  };
+  // REVEAL isn't a history entry (A2), so restoring an older snapshot must not silently re-hide a
+  // challenge that was revealed after that snapshot was taken.
+  const scenario = withRevealed(entry.snapshot.scenario, isScenarioRevealed(state.scenario));
+  const next: LabState = { ...entry.snapshot, scenario, observations: [...state.observations, observation], nextSeq: seq + 1 };
   return ok({ state: next, events: [observation], historyEntry: null });
 }
 
@@ -144,20 +152,20 @@ function applyLoadScenario(state: LabState, scenarioId: ScenarioId, seed: number
   return ok({ state: next, events: [observation], historyEntry: null });
 }
 
-function withRevealed(scenario: ScenarioState): ScenarioState {
+function withRevealed(scenario: ScenarioState, revealed: boolean): ScenarioState {
   switch (scenario.kind) {
     case "sandbox":
       return scenario;
     case "titration":
     case "unknown_id":
-      return { ...scenario, revealed: true };
+      return { ...scenario, revealed };
     default:
       return assertNever(scenario);
   }
 }
 
 function applyReveal(state: LabState, actor: Actor): Result<Applied, LabError> {
-  const scenario = withRevealed(state.scenario);
+  const scenario = withRevealed(state.scenario, true);
   const seq = state.nextSeq;
   const observation: Observation = { seq, clockS: state.clockS, actor, event: { kind: "SCENARIO_REVEALED", scenarioId: state.scenario.kind } };
   const next: LabState = { ...state, scenario, observations: [...state.observations, observation], nextSeq: seq + 1 };

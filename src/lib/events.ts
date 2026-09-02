@@ -6,9 +6,11 @@ import {
   type LabEvent,
   type LabState,
   type Observation,
+  type PublicLabState,
 } from "@/engine";
 import type { FeedEntry } from "@/store/types";
 import { fmtMl } from "./format";
+import { safeObservationLine } from "./summary";
 
 /**
  * Adapter between the engine's Observation/LabEvent shapes and the store, toasts, and feed.
@@ -147,9 +149,15 @@ export function targetOfCommand(command: LabCommand): string | undefined {
 
 // ---------- summarizeEvents ----------
 
-/** Joins describeEvent lines into the one-line "observation" attached to feed entries and tool results. */
-export function summarizeEvents(events: ReadonlyArray<Observation>): string {
-  const lines = events.map((o) => describeEvent(o.event)).filter((line) => line.length > 0);
+/**
+ * Joins redacted describeEvent lines into the one-line "observation" attached to feed entries and
+ * tool results. Routed through the same safeObservationLine as lastObservations/get_notebook, so a
+ * hidden container's pH or reaction chemistry never reaches this string either.
+ */
+export function summarizeEvents(pub: PublicLabState, events: ReadonlyArray<Observation>): string {
+  const lines = events
+    .map((o) => safeObservationLine(pub, o.event))
+    .filter((line): line is string => line !== null && line.length > 0);
   return lines.length > 0 ? lines.join(" ") : "Nothing changed.";
 }
 

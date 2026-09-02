@@ -79,4 +79,13 @@ describe("webmcp tool schemas", () => {
     const reagentIdProp = schema.properties?.["reagent_id"];
     expect(reagentIdProp?.enum).toBeTruthy();
   });
+
+  it("every example input parses against its own tool's schema", () => {
+    for (const tool of tools) {
+      for (const example of tool.examples ?? []) {
+        const result = tool.input.safeParse(example.input);
+        expect(result.success, `${tool.name} example "${example.label}": ${result.success ? "" : JSON.stringify(result.error.issues)}`).toBe(true);
+      }
+    }
+  });
 });

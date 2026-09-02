@@ -122,18 +122,21 @@ export function reagentDef(id: ReagentId): ReagentDef | undefined {
 export const INDICATORS: ReadonlyArray<IndicatorDef> = [
   {
     id: mintIndicatorId("phenolphthalein"),
+    kind: "phenolphthalein",
     label: "Phenolphthalein",
     defaultDrops: 2,
     ranges: "colorless below pH 8.2, pink above pH 10",
   },
   {
     id: mintIndicatorId("universal"),
+    kind: "universal",
     label: "Universal indicator",
     defaultDrops: 2,
     ranges: "red (acidic) through green (neutral) to purple (basic)",
   },
   {
     id: mintIndicatorId("litmus"),
+    kind: "litmus",
     label: "Litmus",
     defaultDrops: 2,
     ranges: "red below pH 7, blue at or above pH 7",

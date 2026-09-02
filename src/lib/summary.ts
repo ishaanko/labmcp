@@ -1,4 +1,5 @@
 import {
+  constants,
   describeEvent,
   publicView,
   scenarioObjective,
@@ -55,8 +56,6 @@ export interface LabSummary {
   readonly lastObservations: ReadonlyArray<string>;
 }
 
-/** Fixed catalog surfaced to agents; independent of what happens to be on the bench right now. */
-const EQUIPMENT_TYPES = ["beaker", "flask", "test_tube", "graduated_cylinder", "burette", "ph_meter", "thermometer", "hotplate"] as const;
 
 function toHex(c: Rgba): string {
   const ch = (x: number) => Math.round(Math.min(255, Math.max(0, x))).toString(16).padStart(2, "0");
@@ -129,13 +128,19 @@ function eventContainerId(event: LabEvent): string | null {
   }
 }
 
+/** The container a PH_CHANGE/TEMPERATURE_CHANGE event names, or undefined off-bench. */
+function findPublicContainer(pub: PublicLabState, containerId: string): PublicContainer | undefined {
+  const found = pub.objects.find((o) => o.kind === "container" && o.id === containerId);
+  return found && found.kind === "container" ? found : undefined;
+}
+
 /**
- * Species and reaction identity are only permitted evidence once a container's contents are
- * visible; color, precipitate scale, bubbling, and temperature are always fair game. Hidden
- * containers get a generic line instead of the real one so lastObservations never leaks a
- * challenge answer.
+ * Species, reaction identity, and pH are only permitted evidence once a container's contents are
+ * visible (pH is also allowed the moment a pH meter is attached, same as publicView.pH); color,
+ * precipitate scale, bubbling, and temperature are always fair game. Hidden containers get a
+ * generic line instead of the real one so lastObservations never leaks a challenge answer.
  */
-function safeObservationLine(pub: PublicLabState, event: LabEvent): string | null {
+export function safeObservationLine(pub: PublicLabState, event: LabEvent): string | null {
   if (!eventContainerHidden(pub, event)) return describeEvent(event);
   switch (event.kind) {
     case "REACTION":
@@ -154,6 +159,16 @@ function safeObservationLine(pub: PublicLabState, event: LabEvent): string | nul
       return "Temperature setting changed.";
     case "CONTENTS_INSPECTED":
       return null;
+    case "PH_CHANGE": {
+      const container = findPublicContainer(pub, event.containerId);
+      // Matches publicView.pH: a pH meter attached to a hidden container still reveals its pH.
+      return container && container.pH !== null ? describeEvent(event) : null;
+    }
+    case "TEMPERATURE_CHANGE":
+      // The `(reaction)` cause would itself reveal that a reaction fired; the ΔT alone is fine.
+      return event.cause === "reaction"
+        ? `${event.containerId} temperature changed from ${event.fromC.toFixed(1)} °C to ${event.toC.toFixed(1)} °C.`
+        : describeEvent(event);
     default:
       return describeEvent(event);
   }
@@ -194,7 +209,7 @@ export function summarizeLab(lab: LabState, stateVersion: number): LabSummary {
     instruments: instruments.map((i) => ({ id: i.id, type: i.type, attachedTo: i.attachedTo })),
     shelf: pub.shelf.map((s) => ({ reagentId: s.reagentId, label: s.label, concentrationM: s.concentrationM })),
     indicatorsAvailable: pub.indicatorsAvailable,
-    equipmentTypes: [...EQUIPMENT_TYPES],
+    equipmentTypes: [...constants.EQUIPMENT_TYPES],
     lastObservations,
   };
 }

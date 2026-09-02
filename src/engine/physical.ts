@@ -63,7 +63,7 @@ function isContainerObjectType(t: EquipmentType): t is ContainerType {
   }
 }
 
-const capacityFor = (type: ContainerType): number => CAPACITY_ML[type] ?? 250;
+const capacityFor = (type: ContainerType): number => CAPACITY_ML[type];
 const defaultLabel = (type: EquipmentType, seq: number): string =>
   `${type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ${seq}`;
 

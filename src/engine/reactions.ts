@@ -1,4 +1,4 @@
-import { GAS_FULL_M, MAX_REACTION_DT_C, MIN_EXTENT_MOL, PRECIPITATE_OPAQUE_M, WATER_J_PER_ML_C } from "./constants";
+import { GAS_FULL_M, MAX_REACTION_DT_C, MIN_EXTENT_MOL, WATER_J_PER_ML_C } from "./constants";
 import { mintReactionRuleId, type ReactionRuleId, type SpeciesId } from "./ids";
 import { addMoles, getMoles, SP } from "./species";
 import type { Container, GasEffect, PrecipitateScale, ReactionRule, ReagentDef, SolidDeposit, Stoich } from "./types";
@@ -156,12 +156,6 @@ export function precipitateScale(massG: number): PrecipitateScale {
   if (massG < 0.02) return "small";
   if (massG < 0.2) return "moderate";
   return "heavy";
-}
-
-/** Suspension/opacity readout for a precipitate: how concentrated the solid is relative to its volume. */
-export function precipitateIntensity(extentMol: number, volumeMl: number): number {
-  const liters = volumeMl / 1000;
-  return liters > 0 ? clamp(extentMol / (liters * PRECIPITATE_OPAQUE_M), 0, 1) : 0;
 }
 
 export interface FiredReaction {

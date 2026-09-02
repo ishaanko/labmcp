@@ -1,9 +1,9 @@
 "use client";
 
 import type { PointerEvent } from "react";
+import { constants } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectPublic } from "@/store/selectors";
-import { EQUIPMENT_TYPES } from "@/webmcp/schemas";
 import { ReagentChip } from "./ReagentChip";
 import { EquipmentButton } from "./EquipmentButton";
 
@@ -37,7 +37,7 @@ export function Shelf() {
       </div>
       <div className="h-7 w-px shrink-0 bg-hairline-strong" aria-hidden />
       <div className="flex items-center gap-0.5">
-        {EQUIPMENT_TYPES.map((type) => (
+        {constants.EQUIPMENT_TYPES.map((type) => (
           <EquipmentButton key={type} equipmentType={type} />
         ))}
       </div>

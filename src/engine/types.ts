@@ -194,8 +194,12 @@ export type ReagentDef =
       readonly maxM: number;
     };
 
+/** Which color-response curve an indicator follows; color.ts switches on this instead of the id. */
+export type IndicatorKind = "phenolphthalein" | "universal" | "litmus";
+
 export interface IndicatorDef {
   readonly id: IndicatorId;
+  readonly kind: IndicatorKind;
   readonly label: string;
   readonly defaultDrops: number;
   /** Human-readable color ranges, used in tool descriptions. */

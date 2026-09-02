@@ -42,9 +42,9 @@ export function ActivityPanel() {
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
               key={latest?.id ?? "empty"}
-              initial={{ opacity: 0, filter: "blur(2px)" }}
-              animate={{ opacity: 1, filter: "blur(0px)" }}
-              exit={{ opacity: 0, filter: "blur(2px)" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
               className="flex items-center justify-center text-ink-2"
             >

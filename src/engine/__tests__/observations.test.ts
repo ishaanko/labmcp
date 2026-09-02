@@ -52,7 +52,7 @@ const eventFixtures: ReadonlyArray<LabEvent> = [
   { kind: "NO_REACTION", containerId, description: "Mixed, no visible reaction." },
   { kind: "SOLIDS_SETTLED", containerId },
   { kind: "DISPOSED", containerId, volumeMl: 50 },
-  { kind: "UNDONE", undoneCommand: { kind: "RESET" } },
+  { kind: "UNDONE", undoneCommand: { kind: "RESET" }, undoneSeq: 3, undoneActor: "human" },
   { kind: "RESET" },
   { kind: "SCENARIO_LOADED", scenarioId: "sandbox", seed: 1 },
   { kind: "SCENARIO_REVEALED", scenarioId: "titration" },

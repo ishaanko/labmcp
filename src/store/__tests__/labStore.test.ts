@@ -14,6 +14,7 @@ vi.mock("@/engine", () => {
     loadScenario: vi.fn(() => baseLab()),
     createEmptyState: vi.fn(() => baseLab()),
     applyCommand: vi.fn(),
+    publicView: (state: LabState) => ({ ...state, scenario: state.scenario }),
   };
 });
 

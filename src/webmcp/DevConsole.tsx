@@ -1,10 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { z } from "zod";
 import { useLabStore } from "@/store/labStore";
 import { runTool } from "./runtime";
 import { toolRegistry } from "./register";
 import type { AnyToolDef } from "./types";
+
+const ScriptSchema = z.array(z.object({ tool: z.string(), input: z.unknown() }));
+
+/** True when a keydown's target is somewhere the user could be typing a literal backtick. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable;
+}
 
 /** True when the dev console is allowed to exist at all: non-production build, or ?console=1. */
 function consoleAllowed(): boolean {
@@ -51,7 +60,7 @@ export function DevConsole(): React.JSX.Element | null {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "`" && !e.metaKey && !e.ctrlKey && !e.altKey) toggle();
+      if (e.key === "`" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) toggle();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -76,13 +85,19 @@ export function DevConsole(): React.JSX.Element | null {
 
   const runScript = async () => {
     setError(null);
-    let steps: ReadonlyArray<{ tool: string; input: unknown }>;
+    let parsedJson: unknown;
     try {
-      steps = JSON.parse(scriptText);
+      parsedJson = JSON.parse(scriptText);
     } catch {
       setError("Script is not valid JSON.");
       return;
     }
+    const parsed = ScriptSchema.safeParse(parsedJson);
+    if (!parsed.success) {
+      setError(`Script must be an array of { tool, input }: ${parsed.error.issues[0]?.message ?? "invalid shape"}.`);
+      return;
+    }
+    const steps = parsed.data;
     const results: RunRecord[] = [];
     for (const step of steps) {
       const def = tools.find((t) => t.name === step.tool);

@@ -49,15 +49,17 @@ describe("targetOfCommand", () => {
   });
 });
 
+const emptyPub = { objects: [] } as unknown as Parameters<typeof summarizeEvents>[0];
+
 describe("summarizeEvents", () => {
   it("joins describeEvent lines", () => {
-    expect(summarizeEvents([obs({ kind: "STIR_STARTED" }), obs({ kind: "SOLIDS_SETTLED" })])).toBe(
+    expect(summarizeEvents(emptyPub, [obs({ kind: "STIR_STARTED" }), obs({ kind: "SOLIDS_SETTLED" })])).toBe(
       "desc:STIR_STARTED desc:SOLIDS_SETTLED",
     );
   });
 
   it("has a fallback line for an empty batch", () => {
-    expect(summarizeEvents([])).toBe("Nothing changed.");
+    expect(summarizeEvents(emptyPub, [])).toBe("Nothing changed.");
   });
 });
 

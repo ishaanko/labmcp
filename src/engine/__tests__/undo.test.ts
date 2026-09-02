@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mintReagentId } from "../ids";
 import { applyCommand } from "../reducer";
+import { loadScenario } from "../scenarios";
 import type { LabState } from "../types";
 import { applyOk, placeBeakers, sandboxState } from "./helpers";
 
@@ -54,5 +55,22 @@ describe("UNDO", () => {
     expect(undone.ok).toBe(true);
     if (!undone.ok) throw new Error("unreachable");
     expect(undone.value.state.clockS).toBe(0);
+  });
+
+  it("REVEAL is not itself a history entry, so it survives an UNDO of an earlier command", () => {
+    const titration = loadScenario("titration", 1);
+    if (titration.scenario.kind !== "titration") throw new Error("unreachable");
+    const flaskId = titration.scenario.flaskId;
+
+    const afterAdd = applyOk(titration, { kind: "ADD_REAGENT", containerId: flaskId, reagentId: mintReagentId("water"), volumeMl: 1 });
+    const revealed = applyOk(afterAdd, { kind: "REVEAL" });
+    if (revealed.scenario.kind !== "titration") throw new Error("unreachable");
+    expect(revealed.scenario.revealed).toBe(true);
+
+    const undone = applyCommand(revealed, { kind: "UNDO" });
+    expect(undone.ok).toBe(true);
+    if (!undone.ok) throw new Error("unreachable");
+    if (undone.value.state.scenario.kind !== "titration") throw new Error("unreachable");
+    expect(undone.value.state.scenario.revealed).toBe(true);
   });
 });

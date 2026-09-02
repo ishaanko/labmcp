@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { constants, mintIndicatorId, mintReagentId, parseObjectId, publicView, REAGENT_IDS, reagentDef, type PublicContainer } from "@/engine";
+import { constants, mintIndicatorId, mintReagentId, parseObjectId, publicView, REAGENT_IDS, reagentDef, type LabEvent, type PublicContainer } from "@/engine";
 import { err, errFromLabError, eventStrings, findContainer, ok, unknownObjectError } from "../runtime";
 import { ContainerIdSchema, EquipmentTypeSchema, INDICATOR_IDS, ObjectIdSchema, SlotSchema, TemperatureCSchema, VolumeMlSchema } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
@@ -8,6 +8,16 @@ import type { AnyToolDef, ToolDef } from "../types";
 function publicContainer(lab: Parameters<typeof publicView>[0], id: string): PublicContainer | undefined {
   const found = publicView(lab).objects.find((o) => o.kind === "container" && o.id === id);
   return found && found.kind === "container" ? found : undefined;
+}
+
+/**
+ * Reports that a reaction fired without naming it unless the container it fired in is currently
+ * visible; the rule id and net ionic equation are exactly what a hidden challenge sample hides.
+ */
+function reactionResult(events: ReadonlyArray<LabEvent>, container: PublicContainer | undefined): { readonly occurred: true; readonly id?: string; readonly netIonic?: string } | undefined {
+  const fired = events.find((e) => e.kind === "REACTION");
+  if (!fired || fired.kind !== "REACTION") return undefined;
+  return container?.contents.kind === "visible" ? { occurred: true, id: fired.ruleId, netIonic: fired.netIonic } : { occurred: true };
 }
 
 const AddContainerInput = z
@@ -38,7 +48,7 @@ const addContainer: ToolDef<z.infer<typeof AddContainerInput>> = {
       },
       "agent",
     );
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not place the object.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     const placedEvent = dr.events.map((o) => o.event).find((e) => e.kind === "OBJECT_PLACED");
     if (!placedEvent || placedEvent.kind !== "OBJECT_PLACED") return err(ctx.getState, "ENGINE_ERROR", "Object placed but its id was not reported.");
     const placed = ctx.getState().lab.objects.find((o) => o.id === placedEvent.objectId);
@@ -46,7 +56,7 @@ const addContainer: ToolDef<z.infer<typeof AddContainerInput>> = {
       ctx.getState,
       { id: placedEvent.objectId, type: placedEvent.objectType, position: placed?.position ?? null },
       dr.observation,
-      eventStrings(dr),
+      eventStrings(ctx.getState, dr),
     );
   },
 };
@@ -81,17 +91,17 @@ const addReagent: ToolDef<z.infer<typeof AddReagentInput>> = {
       { kind: "ADD_REAGENT", containerId: container.id, reagentId: input.reagent_id, volumeMl: input.volume_ml, concentrationM: input.concentration_m },
       "agent",
     );
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not add the reagent.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
 
-    const reactionEvent = dr.events.map((o) => o.event).find((e) => e.kind === "REACTION");
-    const reaction = reactionEvent && reactionEvent.kind === "REACTION" ? { id: reactionEvent.ruleId, netIonic: reactionEvent.netIonic } : undefined;
-    const updated = findContainer(ctx.getState().lab, input.container_id);
+    const updatedLab = ctx.getState().lab;
+    const reaction = reactionResult(dr.events.map((o) => o.event), publicContainer(updatedLab, container.id));
+    const updated = findContainer(updatedLab, input.container_id);
     const concentrationM = input.concentration_m ?? (def && def.kind === "solution" ? def.defaultM : null);
     return ok(
       ctx.getState,
       { containerId: container.id, addedMl: input.volume_ml, reagentId: input.reagent_id, concentrationM, newVolumeMl: updated?.volumeMl ?? container.volumeMl, reaction },
       dr.observation,
-      eventStrings(dr),
+      eventStrings(ctx.getState, dr),
     );
   },
 };
@@ -115,17 +125,17 @@ const transfer: ToolDef<{ source_id: string; destination_id: string; volume_ml: 
     if (!destination) return errFromLabError(ctx.getState, unknownObjectError(input.destination_id));
 
     const dr = await ctx.dispatch({ kind: "TRANSFER_LIQUID", fromId: source.id, toId: destination.id, volumeMl: input.volume_ml }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Transfer failed.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
 
-    const reactionEvent = dr.events.map((o) => o.event).find((e) => e.kind === "REACTION");
-    const reaction = reactionEvent && reactionEvent.kind === "REACTION" ? { id: reactionEvent.ruleId, netIonic: reactionEvent.netIonic } : undefined;
-    const updatedSource = findContainer(ctx.getState().lab, input.source_id) ?? source;
-    const updatedDestination = findContainer(ctx.getState().lab, input.destination_id) ?? destination;
+    const updatedLab = ctx.getState().lab;
+    const reaction = reactionResult(dr.events.map((o) => o.event), publicContainer(updatedLab, destination.id));
+    const updatedSource = findContainer(updatedLab, input.source_id) ?? source;
+    const updatedDestination = findContainer(updatedLab, input.destination_id) ?? destination;
     return ok(
       ctx.getState,
       { sourceId: source.id, destinationId: destination.id, movedMl: input.volume_ml, source: { volumeMl: updatedSource.volumeMl }, destination: { volumeMl: updatedDestination.volumeMl }, reaction },
       dr.observation,
-      eventStrings(dr),
+      eventStrings(ctx.getState, dr),
     );
   },
 };
@@ -152,13 +162,15 @@ const dispense: ToolDef<{ burette_id: string; destination_id: string; volume_ml:
     if (!destination) return errFromLabError(ctx.getState, unknownObjectError(input.destination_id));
 
     const dr = await ctx.dispatch({ kind: "DISPENSE", buretteId: burette.id, toId: destination.id, volumeMl: input.volume_ml }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Dispense failed.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
 
     const updatedLab = ctx.getState().lab;
     const updatedBurette = findContainer(updatedLab, input.burette_id) ?? burette;
     const updatedDestination = findContainer(updatedLab, input.destination_id) ?? destination;
     const pub = publicContainer(updatedLab, input.destination_id);
-    const cumulativeDispensedMl = updatedLab.scenario.kind === "titration" ? (updatedLab.scenario.curve.at(-1)?.titrantMl ?? updatedBurette.capacityMl - updatedBurette.volumeMl) : updatedBurette.capacityMl - updatedBurette.volumeMl;
+    // `capacityMl - volumeMl` only equals cumulative titrant delivered if the burette started full;
+    // the titration curve is the only place that's actually tracked, so report null elsewhere.
+    const cumulativeDispensedMl = updatedLab.scenario.kind === "titration" ? (updatedLab.scenario.curve.at(-1)?.titrantMl ?? null) : null;
     return ok(
       ctx.getState,
       {
@@ -171,7 +183,7 @@ const dispense: ToolDef<{ burette_id: string; destination_id: string; volume_ml:
         ph: pub?.pH ?? null,
       },
       dr.observation,
-      eventStrings(dr),
+      eventStrings(ctx.getState, dr),
     );
   },
 };
@@ -188,8 +200,8 @@ const stir: ToolDef<{ container_id: string; duration_s?: number }> = {
     const container = findContainer(ctx.getState().lab, input.container_id);
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
     const dr = await ctx.dispatch({ kind: "STIR", containerId: container.id, durationS: input.duration_s }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not stir.");
-    return ok(ctx.getState, { containerId: container.id, durationS: input.duration_s }, dr.observation, eventStrings(dr));
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
+    return ok(ctx.getState, { containerId: container.id, durationS: input.duration_s }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 
@@ -206,9 +218,9 @@ const heat: ToolDef<{ container_id: string; target_c: number }> = {
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
     const currentC = container.temperatureC;
     const dr = await ctx.dispatch({ kind: "HEAT", containerId: container.id, targetC: input.target_c }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not heat.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     const estimatedSeconds = Math.abs(input.target_c - currentC) / constants.HEAT_RATE_C_PER_S;
-    return ok(ctx.getState, { containerId: container.id, currentC, targetC: input.target_c, estimatedSeconds }, dr.observation, eventStrings(dr));
+    return ok(ctx.getState, { containerId: container.id, currentC, targetC: input.target_c, estimatedSeconds }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 
@@ -227,9 +239,9 @@ const cool: ToolDef<{ container_id: string; target_c?: number }> = {
     const currentC = container.temperatureC;
     const targetC = input.target_c ?? lab.ambientC;
     const dr = await ctx.dispatch({ kind: "COOL", containerId: container.id, targetC: input.target_c }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not cool.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     const estimatedSeconds = Math.abs(targetC - currentC) / constants.HEAT_RATE_C_PER_S;
-    return ok(ctx.getState, { containerId: container.id, currentC, targetC, estimatedSeconds }, dr.observation, eventStrings(dr));
+    return ok(ctx.getState, { containerId: container.id, currentC, targetC, estimatedSeconds }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 
@@ -256,9 +268,9 @@ const addIndicator: ToolDef<{ container_id: string; indicator_id: string; drops?
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
     const indicatorId = mintIndicatorId(input.indicator_id);
     const dr = await ctx.dispatch({ kind: "ADD_INDICATOR", containerId: container.id, indicator: indicatorId, drops: input.drops }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not add the indicator.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     const pub = publicContainer(ctx.getState().lab, input.container_id);
-    return ok(ctx.getState, { containerId: container.id, indicatorId, color: pub?.colorName ?? null }, dr.observation, eventStrings(dr));
+    return ok(ctx.getState, { containerId: container.id, indicatorId, color: pub?.colorName ?? null }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 
@@ -274,8 +286,8 @@ const removeContainer: ToolDef<{ object_id: string }> = {
     const objectId = parseObjectId(input.object_id);
     if (!objectId) return errFromLabError(ctx.getState, unknownObjectError(input.object_id));
     const dr = await ctx.dispatch({ kind: "REMOVE_OBJECT", objectId }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Could not remove the object.");
-    return ok(ctx.getState, { removedId: objectId }, dr.observation, eventStrings(dr));
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
+    return ok(ctx.getState, { removedId: objectId }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 

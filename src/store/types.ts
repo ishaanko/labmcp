@@ -68,15 +68,22 @@ export type FeedEntry =
   | { id: string; ts: number; source: Actor; kind: "measurement"; containerId: string; label: string; value: number; unit: string }
   | { id: string; ts: number; source: "system"; kind: "note"; text: string };
 
-export interface DispatchResult {
-  readonly ok: boolean;
-  readonly stateVersion: number;
-  readonly events: ReadonlyArray<Observation>;
-  readonly historyEntry?: HistoryEntry | null;
-  readonly error?: LabError;
-  /** Human-readable summary of what happened, from the engine's describeEvent lines. */
-  readonly observation: string;
-}
+export type DispatchResult =
+  | {
+      readonly ok: true;
+      readonly stateVersion: number;
+      readonly events: ReadonlyArray<Observation>;
+      readonly historyEntry: HistoryEntry | null;
+      /** Human-readable summary of what happened, from the engine's describeEvent lines. */
+      readonly observation: string;
+    }
+  | {
+      readonly ok: false;
+      readonly stateVersion: number;
+      readonly error: LabError;
+      /** Human-readable summary of what happened, from the engine's describeEvent lines. */
+      readonly observation: string;
+    };
 
 export interface LabStore {
   lab: LabState;

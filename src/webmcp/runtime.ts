@@ -1,15 +1,22 @@
 import type { Container, Instrument, LabError, LabState } from "@/engine";
-import { describeEvent, parseContainerId } from "@/engine";
+import { parseContainerId, publicView } from "@/engine";
 import { feedId } from "@/lib/ids";
-import { summarizeLab } from "@/lib/summary";
+import { safeObservationLine, summarizeLab } from "@/lib/summary";
 import { useLabStore } from "@/store/labStore";
 import type { DispatchResult, FeedEntry, LabStore } from "@/store/types";
 import { mapLabError } from "./errors";
 import type { AnyToolDef, ToolErr, ToolErrorCode, ToolOk, ToolResponse } from "./types";
 
-/** The per-event `describeEvent` lines produced by a dispatch, for the tool response's `events`. */
-export function eventStrings(dr: DispatchResult): ReadonlyArray<string> {
-  return dr.events.map((o) => describeEvent(o.event));
+/**
+ * The per-event `describeEvent` lines produced by a successful dispatch, for the tool response's
+ * `events`. Redacted through the current publicView, same as `dr.observation` and lastObservations,
+ * so a hidden container's pH or reaction chemistry never reaches an agent through this path either.
+ */
+export function eventStrings(getState: () => LabStore, dr: Extract<DispatchResult, { ok: true }>): ReadonlyArray<string> {
+  const pub = publicView(getState().lab);
+  return dr.events
+    .map((o) => safeObservationLine(pub, o.event))
+    .filter((line): line is string => line !== null && line.length > 0);
 }
 
 /** The engine's own "id not found" shape, for ids that never made it into the lab. */

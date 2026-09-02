@@ -75,4 +75,18 @@ describe("derivePh", () => {
     expect(ph).toBeLessThanOrEqual(14);
     expect(ph).toBeGreaterThan(13);
   });
+
+  it("never reads lower after a trace of strong base is added to a carbonate solution", () => {
+    const carbonate = containerWith("na2co3", 50, 0.1);
+    const before = derivePh(carbonate) ?? NaN;
+
+    const drop = containerWith("naoh", 0.05, 0.1);
+    const species = combine(carbonate.species, drop.species);
+    const after = makeContainer({ volumeMl: carbonate.volumeMl + drop.volumeMl, species });
+    const afterPh = derivePh(after) ?? NaN;
+
+    // A trace of base must not measurably acidify the buffer; allow only the negligible dip from
+    // the drop's own dilution (the pre-fix bug dropped this by ~1.7 units).
+    expect(afterPh).toBeGreaterThan(before - 0.01);
+  });
 });

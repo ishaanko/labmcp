@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { mintContainerId, SP, type Container, type LabState, type PublicLabState } from "@/engine";
+import { mintContainerId, mintReactionRuleId, SP, type Container, type LabState, type PublicLabState } from "@/engine";
+import type { DispatchResult } from "@/store/types";
 
 function toPublicContainer(container: Container, revealed: boolean) {
   const hidden = container.containsUnknown && !revealed;
@@ -85,7 +86,7 @@ const { fakeStore } = vi.hoisted(() => ({
     pushFeed: vi.fn(() => "f_1"),
     patchFeed: vi.fn(),
     setAgentBusy: vi.fn(),
-    dispatch: vi.fn(async () => ({ ok: true, stateVersion: 2, events: [], historyEntry: null, observation: "measured" })),
+    dispatch: vi.fn(async (): Promise<DispatchResult> => ({ ok: true, stateVersion: 2, events: [], historyEntry: null, observation: "measured" })),
   },
 }));
 
@@ -94,8 +95,10 @@ vi.mock("@/store/labStore", () => ({ useLabStore: { getState: () => fakeStore } 
 const { runTool } = await import("../runtime");
 const { readTools } = await import("../tools/read");
 const { inspectTools } = await import("../tools/inspect");
+const { mutateTools } = await import("../tools/mutate");
+const { metaTools } = await import("../tools/meta");
 
-const tools = [...readTools, ...inspectTools];
+const tools = [...readTools, ...inspectTools, ...mutateTools, ...metaTools];
 const tool = (name: string) => {
   const def = tools.find((t) => t.name === name);
   if (!def) throw new Error(`missing tool: ${name}`);
@@ -220,5 +223,75 @@ describe("challenge permission policy", () => {
     expect(inspect.ok).toBe(true);
     const moles = await runTool(tool("calculate_moles"))({ container_id: FLASK, species_id: "H+" }, { signal: new AbortController().signal });
     expect(moles.ok).toBe(true);
+  });
+
+  it("titration, unrevealed: add_reagent strips pH and reaction chemistry for the hidden flask", async () => {
+    fakeStore.lab = titrationLab(false);
+    fakeStore.dispatch.mockImplementationOnce(async () => ({
+      ok: true as const,
+      stateVersion: 3,
+      historyEntry: null,
+      observation: "added",
+      events: [
+        {
+          seq: 1,
+          clockS: 0,
+          actor: "agent" as const,
+          event: {
+            kind: "REACTION" as const,
+            containerId: FLASK,
+            ruleId: mintReactionRuleId("neutralization"),
+            extentMol: 0.0005,
+            limiting: SP.OH,
+            netIonic: "H+ + OH- -> H2O",
+          },
+        },
+        { seq: 2, clockS: 0, actor: "agent" as const, event: { kind: "PH_CHANGE" as const, containerId: FLASK, from: 0.98, to: 1.15 } },
+      ],
+    }));
+
+    const response = await runTool(tool("add_reagent"))(
+      { container_id: FLASK, reagent_id: "agno3", volume_ml: 1 },
+      { signal: new AbortController().signal },
+    );
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+    const joined = response.events.join(" ");
+    expect(joined).not.toContain("pH");
+    expect(joined).not.toContain("->");
+    expect(joined).not.toContain("mmol");
+    const result = response.result as { reaction?: { id?: string; netIonic?: string } };
+    expect(result.reaction).toEqual({ occurred: true });
+  });
+});
+
+describe("undo_last_action reports what the UNDO actually undid", () => {
+  it("reads seq/actor off the UNDONE event, not a pre-dispatch snapshot that another actor could race", async () => {
+    fakeStore.lab = sandboxLab();
+    // A stale pre-dispatch read would report the wrong entry; the fix reads it off the event.
+    fakeStore.dispatch.mockImplementationOnce(async () => ({
+      ok: true as const,
+      stateVersion: 4,
+      historyEntry: null,
+      observation: "Undid: add reagent.",
+      events: [
+        {
+          seq: 9,
+          clockS: 5,
+          actor: "agent" as const,
+          event: {
+            kind: "UNDONE" as const,
+            undoneCommand: { kind: "ADD_REAGENT", containerId: FLASK, reagentId: "hcl", volumeMl: 5 } as never,
+            undoneSeq: 7,
+            undoneActor: "human" as const,
+          },
+        },
+      ],
+    }));
+
+    const response = await runTool(tool("undo_last_action"))({}, { signal: new AbortController().signal });
+    expect(response.ok).toBe(true);
+    if (!response.ok) return;
+    expect(response.result).toEqual({ undone: { seq: 7, label: "add reagent", actor: "human" } });
   });
 });

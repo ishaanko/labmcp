@@ -3,7 +3,7 @@
  * helpers shared with reducer.ts's applyPhysical (which performs the actual state change once a
  * command has passed validate()).
  */
-import { DEFAULT_STIR_S, EPS_ML, MAX_ADD_ML, MAX_DT_S, MAX_INDICATOR_DROPS, MAX_STIR_S, MAX_TEMP_C, MIN_TEMP_C } from "./constants";
+import { CONTAINER_TYPES, DEFAULT_STIR_S, EPS_ML, INSTRUMENT_TYPES, MAX_ADD_ML, MAX_DT_S, MAX_INDICATOR_DROPS, MAX_STIR_S, MAX_TEMP_C, MIN_TEMP_C } from "./constants";
 import { mintReagentId, type ContainerId, type InstrumentId, type ReagentId } from "./ids";
 import { indicatorDef, reagentDef, suggestIndicators, suggestReagents } from "./reagents";
 import {
@@ -11,7 +11,6 @@ import {
   err,
   ok,
   type Container,
-  type ContainerType,
   type Instrument,
   type InstrumentType,
   type LabCommand,
@@ -29,20 +28,17 @@ export function findObject(state: LabState, id: string): LabObject | undefined {
   return state.objects.find((o) => o.id === id);
 }
 
-const ALL_CONTAINER_TYPES: ReadonlyArray<ContainerType> = ["beaker", "flask", "test_tube", "graduated_cylinder", "burette"];
-const ALL_INSTRUMENT_TYPES: ReadonlyArray<InstrumentType> = ["ph_meter", "thermometer", "hotplate"];
-
 export function requireContainer(state: LabState, id: ContainerId): Result<Container, LabError> {
   const obj = findObject(state, id);
   if (!obj) return err({ kind: "UNKNOWN_OBJECT", id, hint: "reread_lab_state" });
-  if (obj.kind !== "container") return err({ kind: "WRONG_OBJECT_TYPE", id: obj.id, expected: ALL_CONTAINER_TYPES });
+  if (obj.kind !== "container") return err({ kind: "WRONG_OBJECT_TYPE", id: obj.id, expected: CONTAINER_TYPES });
   return ok(obj);
 }
 
 export function requireInstrument(state: LabState, id: InstrumentId): Result<Instrument, LabError> {
   const obj = findObject(state, id);
   if (!obj) return err({ kind: "UNKNOWN_OBJECT", id, hint: "reread_lab_state" });
-  if (obj.kind !== "instrument") return err({ kind: "WRONG_OBJECT_TYPE", id: obj.id, expected: ALL_INSTRUMENT_TYPES });
+  if (obj.kind !== "instrument") return err({ kind: "WRONG_OBJECT_TYPE", id: obj.id, expected: INSTRUMENT_TYPES });
   return ok(obj);
 }
 
@@ -204,6 +200,13 @@ export function validate(state: LabState, command: LabCommand): Result<LabComman
       const toRes = requireContainer(state, command.toId);
       if (!toRes.ok) return toRes;
       if (command.fromId === command.toId) return err({ kind: "SAME_CONTAINER", containerId: command.fromId });
+      if (state.scenario.kind === "titration" && command.fromId === state.scenario.buretteId) {
+        return err({
+          kind: "RESTRICTED_BY_CHALLENGE",
+          action: "transfer from the titration burette",
+          reason: "use dispense instead, so every titrant addition is recorded on the titration curve",
+        });
+      }
       const volRes = checkAmount("volumeMl", command.volumeMl, MAX_ADD_ML);
       if (!volRes.ok) return volRes;
       const from = fromRes.value;

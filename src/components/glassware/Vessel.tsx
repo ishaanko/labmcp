@@ -43,6 +43,8 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
   const glassFrontMatRef = useRef<GlassRimMaterial>(null);
   const restPose = useRef<readonly [number, number, number]>(position);
   const fill = useRef({ v: 0 });
+  // Reused every frame instead of allocating a THREE.Color per vessel per frame in `apply`.
+  const liquidColor = useRef(new THREE.Color());
 
   // Kept current for the `apply` callback below, which runs on a later animation frame, never
   // during this render.
@@ -88,7 +90,7 @@ export function Vessel({ id, profile, wall = 0.02, position, rotationY = 0, chil
         dampValue(fill.current, "v", heightForVolume(profile, v.displayedVolumeMl), SMOOTH_TIME.fillLocal, dt);
         const fillY = fill.current.v;
         const color01 = v.displayedColor;
-        const color = new THREE.Color(color01.r / 255, color01.g / 255, color01.b / 255);
+        const color = liquidColor.current.setRGB(color01.r / 255, color01.g / 255, color01.b / 255);
 
         const liquidMat = liquidMatRef.current;
         if (liquidMat) {

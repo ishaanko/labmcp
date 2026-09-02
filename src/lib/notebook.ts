@@ -11,7 +11,7 @@ export interface NotebookRow {
   readonly text: string;
 }
 
-function rowKindFor(kind: string): NotebookRowKind {
+export function rowKindFor(kind: string): NotebookRowKind {
   if (kind === "MEASUREMENT") return "measurement";
   if (kind === "UNDONE") return "action";
   return "observation";

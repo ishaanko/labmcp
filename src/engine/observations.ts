@@ -77,7 +77,7 @@ function colorWord(rgb: Rgba): string {
   return "colored";
 }
 
-const capitalize = (s: string): string => (s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1));
+const capitalize = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
  * Events produced directly by fired reactions: REACTION per rule, PRECIPITATE_FORMED/BUBBLES for

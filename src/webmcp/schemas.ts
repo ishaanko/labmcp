@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { constants } from "@/engine";
 
 /**
  * Shared zod fragments for tool inputs. Every field carries a description because the
@@ -29,13 +30,11 @@ export const SlotSchema = z
   .strict()
   .describe("Bench grid slot. Omit to use the next free slot.");
 
-export const CONTAINER_TYPES = ["beaker", "flask", "test_tube", "graduated_cylinder", "burette"] as const;
-export const INSTRUMENT_TYPES = ["ph_meter", "thermometer", "hotplate"] as const;
-export const EQUIPMENT_TYPES = [...CONTAINER_TYPES, ...INSTRUMENT_TYPES] as const;
-
-export const ContainerTypeSchema = z.enum(CONTAINER_TYPES).describe("Glassware type.");
+// The equipment catalog itself lives in engine/constants.ts (CONTAINER_TYPES/INSTRUMENT_TYPES/
+// EQUIPMENT_TYPES) so the engine, this schema, and the UI's Shelf all read the same list.
+export const ContainerTypeSchema = z.enum(constants.CONTAINER_TYPES).describe("Glassware type.");
 export const EquipmentTypeSchema = z
-  .enum(EQUIPMENT_TYPES)
+  .enum(constants.EQUIPMENT_TYPES)
   .describe(
     "Equipment type. beaker 250 mL, flask 250 mL (Erlenmeyer), test_tube 20 mL, graduated_cylinder 100 mL, burette 50 mL, ph_meter, thermometer, hotplate.",
   );

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { applyCommand, createEmptyState, describeError, loadScenario, type Actor, type LabCommand, type LabState } from "@/engine";
+import { applyCommand, describeError, loadScenario, publicView, type Actor, type LabCommand, type LabState } from "@/engine";
 import { describeCommand, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, summarizeEvents, targetOfCommand } from "@/lib/events";
 import { feedId } from "@/lib/ids";
 import { enqueue } from "./commandQueue";
@@ -10,12 +10,7 @@ const DEMO_SEED = 42;
 const FEED_CAP = 300;
 
 function initialLab(): LabState {
-  try {
-    return loadScenario("titration", DEMO_SEED);
-  } catch {
-    // The engine may still be a stub early in development; fall back to an empty bench.
-    return createEmptyState(DEMO_SEED);
-  }
+  return loadScenario("titration", DEMO_SEED);
 }
 
 function initialUi(): UiState {
@@ -84,12 +79,12 @@ export const useLabStore = create<LabStore>()(
               targetId: targetOfCommand(command),
             });
           }
-          return { ok: false, stateVersion: get().stateVersion, events: [], error: res.error, observation };
+          return { ok: false, stateVersion: get().stateVersion, error: res.error, observation };
         }
 
         const { state: next, events, historyEntry } = res.value;
         const version = get().stateVersion + 1;
-        const observation = summarizeEvents(events);
+        const observation = summarizeEvents(publicView(next), events);
         const reset = isResetCommand(command);
 
         set((s) => ({
@@ -118,7 +113,7 @@ export const useLabStore = create<LabStore>()(
           });
         }
 
-        return { ok: true, stateVersion: version, events, historyEntry: historyEntry ?? undefined, observation };
+        return { ok: true, stateVersion: version, events, historyEntry, observation };
       });
     },
 

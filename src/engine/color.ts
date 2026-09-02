@@ -1,7 +1,8 @@
 import type { IndicatorId } from "./ids";
 import { derivePh } from "./ph";
+import { indicatorDef } from "./reagents";
 import { getMoles, speciesDef, speciesKeys } from "./species";
-import type { Container, Rgba } from "./types";
+import { assertNever, type Container, type IndicatorKind, type Rgba } from "./types";
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
@@ -71,37 +72,56 @@ function universalRgb(pH: number): Rgba {
   return last.rgb;
 }
 
-/** Which band an indicator currently reads as, for detecting endpoint crossings. */
-export function indicatorBand(indicator: IndicatorId, pH: number): number {
-  if (indicator === "phenolphthalein") {
-    if (pH < 8.2) return 0;
-    if (pH <= 10.0) return 1;
-    return 2;
-  }
-  if (indicator === "universal") {
-    for (let i = UNIVERSAL_STOPS.length - 1; i >= 0; i--) {
-      const stop = UNIVERSAL_STOPS[i];
-      if (stop && pH >= stop.pH) return i;
-    }
-    return 0;
-  }
-  // litmus
-  return pH < 7 ? 0 : 1;
+/** The color-response kind of a known indicator id; throws on an id missing from the registry. */
+function kindOf(indicator: IndicatorId): IndicatorKind {
+  const def = indicatorDef(indicator);
+  if (!def) throw new Error(`unreachable: unknown indicator id ${indicator}`);
+  return def.kind;
 }
 
-function indicatorColor(indicator: IndicatorId, pH: number, drops: number): Rgba {
-  const doseFactor = clamp01(drops / 2);
-  if (indicator === "phenolphthalein") {
-    const t = smoothstep((pH - 8.2) / (10.0 - 8.2));
-    return { r: 236, g: 64, b: 160, a: 0.85 * t * doseFactor };
+/** Which band an indicator currently reads as, for detecting endpoint crossings. */
+export function indicatorBand(indicator: IndicatorId, pH: number): number {
+  const kind = kindOf(indicator);
+  switch (kind) {
+    case "phenolphthalein":
+      if (pH < 8.2) return 0;
+      if (pH <= 10.0) return 1;
+      return 2;
+    case "universal":
+      for (let i = UNIVERSAL_STOPS.length - 1; i >= 0; i--) {
+        const stop = UNIVERSAL_STOPS[i];
+        if (stop && pH >= stop.pH) return i;
+      }
+      return 0;
+    case "litmus":
+      return pH < 7 ? 0 : 1;
+    default:
+      return assertNever(kind);
   }
-  if (indicator === "universal") {
-    const rgb = universalRgb(pH);
-    return { ...rgb, a: 0.6 * doseFactor };
+}
+
+/** 2 drops fully saturate a 100 mL solution; below that ratio, intensity scales down with concentration. */
+const REFERENCE_DROPS_PER_ML = 2 / 100;
+
+function indicatorColor(indicator: IndicatorId, pH: number, drops: number, volumeMl: number): Rgba {
+  const doseFactor = volumeMl > 0 ? clamp01(drops / volumeMl / REFERENCE_DROPS_PER_ML) : 0;
+  const kind = kindOf(indicator);
+  switch (kind) {
+    case "phenolphthalein": {
+      const t = smoothstep((pH - 8.2) / (10.0 - 8.2));
+      return { r: 236, g: 64, b: 160, a: 0.85 * t * doseFactor };
+    }
+    case "universal": {
+      const rgb = universalRgb(pH);
+      return { ...rgb, a: 0.6 * doseFactor };
+    }
+    case "litmus": {
+      const rgb = pH < 7 ? { r: 200, g: 40, b: 60 } : { r: 70, g: 80, b: 200 };
+      return { ...rgb, a: 0.5 };
+    }
+    default:
+      return assertNever(kind);
   }
-  // litmus
-  const rgb = pH < 7 ? { r: 200, g: 40, b: 60 } : { r: 70, g: 80, b: 200 };
-  return { ...rgb, a: 0.5 };
 }
 
 /** Standard Porter-Duff "over": top painted on top of bottom. */
@@ -117,7 +137,7 @@ export function deriveColor(container: Container): Rgba {
   const pH = derivePh(container) ?? 7.0;
   let color = liquidTint(container);
   for (const dose of container.indicators) {
-    const top = indicatorColor(dose.indicator, pH, dose.drops);
+    const top = indicatorColor(dose.indicator, pH, dose.drops, container.volumeMl);
     color = compositeOver(top, color);
   }
   return color;
@@ -146,7 +166,9 @@ const PALETTE: ReadonlyArray<PaletteEntry> = [
 
 /** Nearest palette name by channel distance, with a "colorless"/"faint" reading at low alpha. */
 export function describeColor(color: Rgba): string {
-  if (color.a < 0.08) return "colorless";
+  // Every liquid carries BASE_TINT.a even with nothing dissolved; exclude it from the colorless
+  // test so plain water and untinted species read "colorless" instead of "faint yellow".
+  if (color.a - BASE_TINT.a < 0.08) return "colorless";
   let best: PaletteEntry | null = null;
   let bestDist = Infinity;
   for (const entry of PALETTE) {

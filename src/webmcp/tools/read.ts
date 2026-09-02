@@ -1,8 +1,11 @@
 import { z } from "zod";
-import { constants, describeEvent, INDICATORS, REAGENTS } from "@/engine";
+import { constants, INDICATORS, publicView, REAGENTS } from "@/engine";
 
 const { CAPACITY_ML } = constants;
-import { err, errFromLabError, eventStrings, findBenchPhMeter, findContainer, ok, unknownObjectError } from "../runtime";
+import { renderNotebookMarkdown, rowKindFor, type NotebookRow } from "@/lib/notebook";
+import { safeObservationLine } from "@/lib/summary";
+import { round2 } from "@/lib/format";
+import { errFromLabError, eventStrings, findBenchPhMeter, findContainer, ok, unknownObjectError } from "../runtime";
 import { ContainerIdSchema, EmptyInput } from "../schemas";
 import type { AnyToolDef, ToolDef } from "../types";
 
@@ -108,15 +111,15 @@ const measurePh: ToolDef<{ container_id: string }> = {
     }
     if (meter.attachedTo !== container.id) {
       const attached = await ctx.dispatch({ kind: "ATTACH_INSTRUMENT", instrumentId: meter.id, containerId: container.id }, "agent");
-      if (!attached.ok) return attached.error ? errFromLabError(ctx.getState, attached.error) : err(ctx.getState, "ENGINE_ERROR", "Could not attach the pH meter.");
+      if (!attached.ok) return errFromLabError(ctx.getState, attached.error);
     }
 
     const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "ph", instrumentId: meter.id }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Measurement failed unexpectedly.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
 
     const updatedMeter = ctx.getState().lab.objects.find((o) => o.kind === "instrument" && o.id === meter.id);
     const ph = updatedMeter && updatedMeter.kind === "instrument" && updatedMeter.lastReading?.kind === "ph" ? updatedMeter.lastReading.value : null;
-    return ok(ctx.getState, { containerId: container.id, ph, instrumentId: meter.id }, dr.observation, eventStrings(dr));
+    return ok(ctx.getState, { containerId: container.id, ph, instrumentId: meter.id }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 
@@ -135,9 +138,9 @@ const measureTemperature: ToolDef<{ container_id: string }> = {
     const container = findContainer(ctx.getState().lab, input.container_id);
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
     const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "temperature" }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Measurement failed.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     const updated = findContainer(ctx.getState().lab, input.container_id) ?? container;
-    return ok(ctx.getState, { containerId: container.id, temperatureC: updated.temperatureC, thermal: updated.thermal.kind }, dr.observation, eventStrings(dr));
+    return ok(ctx.getState, { containerId: container.id, temperatureC: updated.temperatureC, thermal: updated.thermal.kind }, dr.observation, eventStrings(ctx.getState, dr));
   },
 };
 
@@ -153,12 +156,12 @@ const measureVolume: ToolDef<{ container_id: string }> = {
     const container = findContainer(ctx.getState().lab, input.container_id);
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
     const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "volume" }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Measurement failed.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
     return ok(
       ctx.getState,
       { containerId: container.id, volumeMl: container.volumeMl, capacityMl: container.capacityMl, fillFraction: container.volumeMl / container.capacityMl },
       dr.observation,
-      eventStrings(dr),
+      eventStrings(ctx.getState, dr),
     );
   },
 };
@@ -203,9 +206,15 @@ const getNotebook: ToolDef<{ last_n?: number }> = {
   ],
   handler: async (input, ctx) => {
     const lab = ctx.getState().lab;
-    const all = lab.observations.map((o) => ({ seq: o.seq, clockS: o.clockS, actor: o.actor, text: describeEvent(o.event) }));
+    const pub = publicView(lab);
+    const all: NotebookRow[] = [];
+    for (const o of lab.observations) {
+      const text = safeObservationLine(pub, o.event);
+      if (text === null) continue;
+      all.push({ seq: o.seq, clockS: round2(o.clockS), actor: o.actor, kind: rowKindFor(o.event.kind), text });
+    }
     const entries = input.last_n ? all.slice(-input.last_n) : all;
-    const markdown = entries.map((e) => `- t=${e.clockS.toFixed(1)}s [${e.actor}] ${e.text}`).join("\n");
+    const markdown = renderNotebookMarkdown(entries);
     return ok(ctx.getState, { entries, markdown }, `Read ${entries.length} notebook entr${entries.length === 1 ? "y" : "ies"}.`, []);
   },
 };

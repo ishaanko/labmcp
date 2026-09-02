@@ -110,13 +110,15 @@ function loadTitration(seed: number): LabState {
   const buretteId = mintContainerId(2);
   // Bench cells follow the C3.2 titration layout: burette stand at the back, flask in front of it,
   // probe holder to the right. Column -4.5 is outside the locked camera's frame.
-  const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask ?? 250, { x: -2.5, y: -0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
-  const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette ?? 50, { x: -2.5, y: -1.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
+  const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask, { x: -2.5, y: -0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
+  const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette, { x: -2.5, y: -1.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
   const phMeter: Instrument = { kind: "instrument", id: mintInstrumentId(3), type: "ph_meter", position: { x: 0.5, y: -1.5 }, attachedTo: null, lastReading: null };
 
+  // No naoh entry here: the only titrant path is the burette (via dispense), so every base
+  // addition is recorded on the titration curve. TRANSFER_LIQUID out of the burette is also
+  // blocked in commands.ts for the same reason.
   const shelf: ReadonlyArray<ShelfStock> = [
     { reagentId: mintReagentId("water"), label: "Water", concentrationM: null, remainingMl: null },
-    { reagentId: mintReagentId("naoh"), label: "Sodium hydroxide", concentrationM: 0.1, remainingMl: null },
     { reagentId: mintReagentId("unknown_acid"), label: "Unknown acid", concentrationM: null, remainingMl: null },
   ];
 

@@ -91,4 +91,47 @@ describe("colorDistance / describeColor", () => {
   it("prefixes faint for low-alpha tints", () => {
     expect(describeColor({ r: 40, g: 120, b: 220, a: 0.2 })).toBe("faint blue");
   });
+
+  it("reads plain water and untinted solutions as colorless, not faint yellow", () => {
+    expect(describeColor(deriveColor(makeContainer({ volumeMl: 50 })))).toBe("colorless");
+    expect(describeColor(deriveColor(containerWith("nacl", 50, 0.1)))).toBe("colorless");
+  });
+});
+
+describe("indicator dose scales with concentration, not absolute drops", () => {
+  it("transferring liquid leaves both halves at the same intensity", () => {
+    const source = deriveColor(
+      makeContainer({
+        volumeMl: 60,
+        species: containerWith("naoh", 60, 0.1).species,
+        indicators: [{ indicator: phenolphthalein, drops: 2 }],
+      }),
+    );
+    const halfVolume = deriveColor(
+      makeContainer({
+        volumeMl: 30,
+        species: containerWith("naoh", 30, 0.1).species,
+        indicators: [{ indicator: phenolphthalein, drops: 1 }],
+      }),
+    );
+    expect(approx(source.a, halfVolume.a, 1e-6)).toBe(true);
+  });
+
+  it("diluting with water fades the indicator", () => {
+    const concentrated = deriveColor(
+      makeContainer({
+        volumeMl: 60,
+        species: containerWith("naoh", 60, 0.1).species,
+        indicators: [{ indicator: phenolphthalein, drops: 2 }],
+      }),
+    );
+    const diluted = deriveColor(
+      makeContainer({
+        volumeMl: 180,
+        species: containerWith("naoh", 60, 0.1).species,
+        indicators: [{ indicator: phenolphthalein, drops: 2 }],
+      }),
+    );
+    expect(diluted.a).toBeLessThan(concentrated.a);
+  });
 });

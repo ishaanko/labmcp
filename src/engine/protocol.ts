@@ -4,7 +4,7 @@
  * so every module keeps importing from "./types".
  */
 import type { ContainerId, IndicatorId, InstrumentId, ObjectId, ReactionRuleId, ReagentId, SpeciesId } from "./ids";
-import type { EquipmentType, InstrumentReading, InstrumentType, Rgba, ScenarioId, SpeciesMoles, ThermalState, Vec2 } from "./types";
+import type { Actor, EquipmentType, InstrumentReading, InstrumentType, Rgba, ScenarioId, SpeciesMoles, ThermalState, Vec2 } from "./types";
 
 // ---------- events ----------
 
@@ -75,7 +75,13 @@ export type LabEvent =
   | { readonly kind: "NO_REACTION"; readonly containerId: ContainerId; readonly description: string }
   | { readonly kind: "SOLIDS_SETTLED"; readonly containerId: ContainerId }
   | { readonly kind: "DISPOSED"; readonly containerId: ContainerId; readonly volumeMl: number }
-  | { readonly kind: "UNDONE"; readonly undoneCommand: LabCommand }
+  | {
+      readonly kind: "UNDONE";
+      readonly undoneCommand: LabCommand;
+      /** seq/actor of the history entry that was undone, so a caller can report it without racing a re-read of history. */
+      readonly undoneSeq: number;
+      readonly undoneActor: Actor;
+    }
   | { readonly kind: "RESET" }
   | { readonly kind: "SCENARIO_LOADED"; readonly scenarioId: ScenarioId; readonly seed: number }
   | { readonly kind: "SCENARIO_REVEALED"; readonly scenarioId: ScenarioId }

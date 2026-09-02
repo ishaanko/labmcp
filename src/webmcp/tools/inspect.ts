@@ -30,7 +30,7 @@ const inspectContents: ToolDef<{ container_id: string }> = {
     if (!container) return errFromLabError(ctx.getState, unknownObjectError(input.container_id));
 
     const dr = await ctx.dispatch({ kind: "MEASURE", containerId: container.id, quantity: "contents" }, "agent");
-    if (!dr.ok) return dr.error ? errFromLabError(ctx.getState, dr.error) : err(ctx.getState, "ENGINE_ERROR", "Inspection failed.");
+    if (!dr.ok) return errFromLabError(ctx.getState, dr.error);
 
     const pub = publicContainer(ctx.getState().lab, container.id);
     if (!pub || pub.contents.kind === "hidden") {
@@ -53,7 +53,7 @@ const inspectContents: ToolDef<{ container_id: string }> = {
       ctx.getState,
       { containerId: container.id, volumeMl: pub.volumeMl, temperatureC: pub.temperatureC, species, solids, indicators: pub.indicators.map((d) => d.indicator), reactionsOccurred },
       dr.observation,
-      eventStrings(dr),
+      eventStrings(ctx.getState, dr),
     );
   },
 };

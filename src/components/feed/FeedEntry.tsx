@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Sparkles, Hand, Cog, Loader2 } from "lucide-react";
+import { Sparkles, Hand, Cog } from "lucide-react";
 import { clsx } from "clsx";
 import { motion } from "motion/react";
 import { assertNever } from "@/engine";
@@ -63,7 +63,7 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
   const collapsed = entry.readOnly && !running;
 
   return (
-    <Row accent="agent" icon={running ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} className="text-accent-ink" />}>
+    <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-ink-3" : "text-accent-ink"} />}>
       {collapsed ? (
         <p className="truncate text-ink-3">
           <span className="font-mono text-2xs">{entry.tool}</span> · {entry.resultSummary ?? "ok"}
@@ -71,7 +71,9 @@ function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_ca
       ) : (
         <>
           <p className="font-mono text-2xs text-ink-2">{entry.tool}</p>
-          {!running && entry.resultSummary ? (
+          {running ? (
+            <p className="mt-0.5 text-ink-3">Running…</p>
+          ) : entry.resultSummary ? (
             <p className={clsx("mt-0.5", entry.ok === false ? "text-danger" : "text-ink")}>{entry.resultSummary}</p>
           ) : null}
         </>
