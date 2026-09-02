@@ -50,9 +50,12 @@ export interface ToolDef<I> {
   /** Preset inputs for the dev console. */
   readonly examples?: ReadonlyArray<{ readonly label: string; readonly input: I }>;
   /** The container or instrument the call acts on, so the scene can mark it. */
-  readonly targetId?: (input: I) => string | undefined;
-  readonly handler: (input: I, ctx: ToolCtx) => Promise<ToolResponse>;
+  targetId?(input: I): string | undefined;
+  handler(input: I, ctx: ToolCtx): Promise<ToolResponse>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyToolDef = ToolDef<any>;
+/**
+ * A ToolDef with its input type erased, for the registry and runtime. `targetId` and `handler`
+ * are method signatures (bivariant), so a ToolDef<{...}> is assignable to ToolDef<unknown>.
+ */
+export type AnyToolDef = ToolDef<unknown>;

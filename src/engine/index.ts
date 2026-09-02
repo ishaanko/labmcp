@@ -17,9 +17,31 @@ export {
   SCENARIO_IDS,
   scenarioObjective,
 } from "./scenarios";
-export { SPECIES, SPECIES_IDS, speciesDef, speciesKeys, netCharge } from "./species";
-export { REAGENTS, REAGENT_IDS, INDICATORS, INDICATOR_IDS, reagentDef, indicatorDef, suggestReagents } from "./reagents";
-export { RULES, predictSupportedReactions, ruleById } from "./reactions";
+export {
+  SPECIES,
+  SPECIES_IDS,
+  KNOWN_SPECIES,
+  isKnownSpecies,
+  speciesDef,
+  speciesKeys,
+  getMoles,
+  addMoles,
+  removeMoles,
+  netCharge,
+  SP,
+} from "./species";
+export {
+  REAGENTS,
+  REAGENT_IDS,
+  INDICATORS,
+  INDICATOR_IDS,
+  reagentDef,
+  indicatorDef,
+  stockToMoles,
+  suggestReagents,
+  suggestIndicators,
+} from "./reagents";
+export { RULES, predictSupportedReactions, reactionsIfAdded, ruleById } from "./reactions";
 export { derivePh } from "./ph";
-export { deriveColor, describeColor } from "./color";
+export { liquidTint, deriveColor, colorDistance, describeColor, indicatorBand } from "./color";
 export { describeEvent, eventForError, describeError } from "./observations";

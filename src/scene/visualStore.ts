@@ -42,7 +42,15 @@ export interface VisualState {
 
 export type VisualTarget = Pick<
   VisualState,
-  "displayedVolumeMl" | "displayedColor" | "temperatureC" | "precipitate" | "bubbleIntensity" | "stirring" | "opacity"
+  | "displayedVolumeMl"
+  | "displayedColor"
+  | "temperatureC"
+  | "precipitate"
+  | "bubbleIntensity"
+  | "stirring"
+  | "opacity"
+  | "pose"
+  | "agentRing"
 >;
 
 export function defaultVisual(): VisualState {

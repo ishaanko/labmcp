@@ -1,4 +1,14 @@
-import type { LabState } from "@/engine";
+import {
+  describeEvent,
+  publicView,
+  scenarioObjective,
+  type LabEvent,
+  type LabState,
+  type PublicContainer,
+  type PublicLabState,
+  type Rgba,
+} from "@/engine";
+import { round2 } from "./format";
 
 /**
  * The compact, redacted lab snapshot attached to every tool response. Built only from
@@ -45,7 +55,146 @@ export interface LabSummary {
   readonly lastObservations: ReadonlyArray<string>;
 }
 
-// STUB: replaced by the store agent.
-export function summarizeLab(_lab: LabState, _stateVersion: number): LabSummary {
-  throw new Error("not implemented");
+/** Fixed catalog surfaced to agents; independent of what happens to be on the bench right now. */
+const EQUIPMENT_TYPES = ["beaker", "flask", "test_tube", "graduated_cylinder", "burette", "ph_meter", "thermometer", "hotplate"] as const;
+
+function toHex(c: Rgba): string {
+  const ch = (x: number) => Math.round(Math.min(255, Math.max(0, x))).toString(16).padStart(2, "0");
+  return `#${ch(c.r)}${ch(c.g)}${ch(c.b)}`;
+}
+
+function clarityOf(container: PublicContainer): "clear" | "cloudy" | "opaque" {
+  if (container.solids.length === 0) return "clear";
+  const heavy = container.solids.some((s) => s.scale === "heavy" || s.scale === "moderate");
+  return heavy ? "opaque" : "cloudy";
+}
+
+function precipitateOf(container: PublicContainer): { color: string; scale: string } | undefined {
+  const solid = [...container.solids].sort((a, b) => b.moles - a.moles)[0];
+  return solid ? { color: toHex(solid.color), scale: solid.scale } : undefined;
+}
+
+function summarizeContainer(container: PublicContainer): ContainerSummary {
+  return {
+    id: container.id,
+    type: container.type,
+    label: container.label,
+    capacityMl: round2(container.capacityMl),
+    volumeMl: round2(container.volumeMl),
+    temperatureC: round2(container.temperatureC),
+    appearance: {
+      color: container.colorName,
+      clarity: clarityOf(container),
+      precipitate: precipitateOf(container),
+      bubbling: container.gasEffects.length > 0,
+    },
+    indicators: container.indicators.map((d) => d.indicator),
+    contentsVisible: container.contents.kind === "visible",
+    knownContents: container.contents.kind === "visible" ? Object.keys(container.contents.species) : undefined,
+    position: { x: container.position.x, y: container.position.y },
+    stirring: container.stir.kind === "stirring",
+    thermal: container.thermal.kind,
+  };
+}
+
+/** True when the event names a container that is currently redacted (hidden contents). */
+function eventContainerHidden(pub: PublicLabState, event: LabEvent): boolean {
+  const id = eventContainerId(event);
+  if (!id) return false;
+  const container = pub.objects.find((o) => o.kind === "container" && o.id === id);
+  return container !== undefined && container.kind === "container" && container.contents.kind === "hidden";
+}
+
+function eventContainerId(event: LabEvent): string | null {
+  switch (event.kind) {
+    case "LIQUID_ADDED":
+    case "INDICATOR_ADDED":
+    case "STIR_STARTED":
+    case "THERMAL_SET":
+    case "MEASUREMENT":
+    case "CONTENTS_INSPECTED":
+    case "REACTION":
+    case "COLOR_SHIFT":
+    case "PRECIPITATE_FORMED":
+    case "BUBBLES":
+    case "TEMPERATURE_CHANGE":
+    case "PH_CHANGE":
+    case "NO_REACTION":
+    case "SOLIDS_SETTLED":
+    case "DISPOSED":
+    case "OVERFLOW_REJECTED":
+      return event.containerId;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Species and reaction identity are only permitted evidence once a container's contents are
+ * visible; color, precipitate scale, bubbling, and temperature are always fair game. Hidden
+ * containers get a generic line instead of the real one so lastObservations never leaks a
+ * challenge answer.
+ */
+function safeObservationLine(pub: PublicLabState, event: LabEvent): string | null {
+  if (!eventContainerHidden(pub, event)) return describeEvent(event);
+  switch (event.kind) {
+    case "REACTION":
+      return "A reaction occurred.";
+    case "PRECIPITATE_FORMED":
+      return "A precipitate formed.";
+    case "BUBBLES":
+      return "Bubbling observed.";
+    case "LIQUID_ADDED":
+      return "Liquid added.";
+    case "INDICATOR_ADDED":
+      return "Indicator added.";
+    case "STIR_STARTED":
+      return "Stirred.";
+    case "THERMAL_SET":
+      return "Temperature setting changed.";
+    case "CONTENTS_INSPECTED":
+      return null;
+    default:
+      return describeEvent(event);
+  }
+}
+
+export function summarizeLab(lab: LabState, stateVersion: number): LabSummary {
+  const pub = publicView(lab);
+  const containers = pub.objects.filter((o): o is PublicContainer => o.kind === "container");
+  const instruments = pub.objects.filter((o) => o.kind === "instrument");
+
+  const lastObservations = lab.observations
+    .slice(-20)
+    .map((o) => safeObservationLine(pub, o.event))
+    .filter((line): line is string => line !== null && line.length > 0)
+    .slice(-5);
+
+  const titration =
+    pub.scenario.kind === "titration"
+      ? {
+          flaskId: pub.scenario.flaskId,
+          buretteId: pub.scenario.buretteId,
+          analyteMl: round2(pub.scenario.analyteMl),
+          titrantM: round2(pub.scenario.titrantM),
+        }
+      : undefined;
+
+  return {
+    scenario: {
+      id: pub.scenario.kind,
+      objective: scenarioObjective(pub.scenario.kind),
+      revealed: pub.scenario.kind === "sandbox" ? true : pub.scenario.revealed,
+      titration,
+    },
+    clockS: round2(pub.clockS),
+    ambientC: round2(pub.ambientC),
+    stateVersion,
+    containers: containers.map(summarizeContainer),
+    instruments: instruments.map((i) => ({ id: i.id, type: i.type, attachedTo: i.attachedTo })),
+    shelf: pub.shelf.map((s) => ({ reagentId: s.reagentId, label: s.label, concentrationM: s.concentrationM })),
+    indicatorsAvailable: pub.indicatorsAvailable,
+    equipmentTypes: [...EQUIPMENT_TYPES],
+    lastObservations,
+  };
 }
