@@ -4,10 +4,10 @@ import { Droplets } from "lucide-react";
 import type { PublicContainer } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { containerInFrontOf, selectContainers } from "@/store/selectors";
-import { Readout } from "@/components/ui/Readout";
-import { ChipButton } from "@/components/ui/Chip";
-import { Button } from "@/components/ui/Button";
-import { observe } from "@/components/ui/toasts";
+import { Readout } from "@/components/ui-legacy/Readout";
+import { ChipButton } from "@/components/ui-legacy/Chip";
+import { Button } from "@/components/ui-legacy/Button";
+import { observe } from "@/components/ui-legacy/toasts";
 
 export interface BuretteCardProps {
   readonly container: PublicContainer;

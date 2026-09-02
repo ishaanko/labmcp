@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { Undo2, RotateCcw, TerminalSquare } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui-legacy/Button";
 import { ScenarioMenu } from "./ScenarioMenu";
 import { ObjectiveChip } from "./ObjectiveChip";
 import { WebMcpPill } from "./WebMcpPill";

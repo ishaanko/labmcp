@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 export const metadata: Metadata = {
   title: "ChemLab",
@@ -15,7 +19,7 @@ const THEME_INIT_SCRIPT = `try{if(localStorage.getItem("chemlab-theme")!=="light
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html lang="en" className={cn("h-full", "font-sans", geist.variable)} suppressHydrationWarning>
       <body className="h-full">
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}

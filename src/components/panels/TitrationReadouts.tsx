@@ -2,7 +2,7 @@
 
 import { useLabStore } from "@/store/labStore";
 import { selectContainer, selectTitration } from "@/store/selectors";
-import { Readout } from "@/components/ui/Readout";
+import { Readout } from "@/components/ui-legacy/Readout";
 
 /**
  * Always-visible titration readouts (C7): titrant delivered, pH, flask volume, flask temperature.

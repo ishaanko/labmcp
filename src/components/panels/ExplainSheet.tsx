@@ -6,7 +6,7 @@ import { Copy, X } from "lucide-react";
 import { checkTitrationAnswer, titrationSolution } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectPublic, selectTitration } from "@/store/selectors";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui-legacy/Button";
 
 const SHEET_WIDTH = 420;
 const ROW_STAGGER_S = 0.04;

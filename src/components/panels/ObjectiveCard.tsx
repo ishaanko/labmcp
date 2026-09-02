@@ -5,7 +5,7 @@ import { clsx } from "clsx";
 import { checkTitrationAnswer, estimateEquivalenceMl, titrationSolution } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { selectObjectiveSteps, selectPublic, selectTitration, type ObjectiveStep } from "@/store/selectors";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui-legacy/Button";
 
 const CHECK_PATH_LENGTH = 20;
 

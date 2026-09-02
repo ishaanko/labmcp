@@ -64,7 +64,7 @@ function Row({
       transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
       className={clsx(
         "flex gap-2 border-l-2 py-1.5 pl-2.5 text-sm",
-        accent === "agent" ? "border-accent" : accent === "human" ? "border-ink-3" : "border-transparent",
+        accent === "agent" ? "border-amber" : accent === "human" ? "border-ink-3" : "border-transparent",
       )}
     >
       <span className="mt-0.5 shrink-0 text-ink-3">{icon}</span>

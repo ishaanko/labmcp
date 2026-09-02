@@ -5,7 +5,7 @@ import NumberFlow from "@number-flow/react";
 import * as THREE from "three";
 import { useLabStore } from "@/store/labStore";
 import { selectContainer } from "@/store/selectors";
-import { SPIN_TIMING, TRANSFORM_TIMING } from "@/components/ui/Readout";
+import { SPIN_TIMING, TRANSFORM_TIMING } from "@/components/ui-legacy/Readout";
 
 export interface LabelsProps {
   readonly kind: "ph" | "temperature";

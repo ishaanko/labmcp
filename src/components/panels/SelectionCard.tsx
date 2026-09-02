@@ -6,9 +6,9 @@ import { useLabStore } from "@/store/labStore";
 import { selectContainers } from "@/store/selectors";
 import type { Instrument, PublicContainer } from "@/engine";
 import { constants, describeColor, speciesDef } from "@/engine";
-import { Readout } from "@/components/ui/Readout";
-import { Button } from "@/components/ui/Button";
-import { Chip } from "@/components/ui/Chip";
+import { Readout } from "@/components/ui-legacy/Readout";
+import { Button } from "@/components/ui-legacy/Button";
+import { Chip } from "@/components/ui-legacy/Chip";
 
 export interface SelectionCardProps {
   object: PublicContainer | Instrument;

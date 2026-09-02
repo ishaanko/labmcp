@@ -11,7 +11,7 @@ import { TitrationReadouts } from "./TitrationReadouts";
 import { TitrationCurve } from "./TitrationCurve";
 import { BuretteCard } from "./BuretteCard";
 import { HotplateCard } from "./HotplateCard";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui-legacy/Button";
 
 function panelKeyFor(selectedId: string | undefined, inTitration: boolean): string {
   if (selectedId) return selectedId;

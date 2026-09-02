@@ -27,7 +27,7 @@ export function Slider({ value, min, max, step = 0.5, onChange, onCommit, "aria-
     >
       <Base.Control className="relative flex h-5 w-full items-center">
         <Base.Track className="h-1 w-full rounded-full bg-hairline-strong">
-          <Base.Indicator className="h-full rounded-full bg-accent" />
+          <Base.Indicator className="h-full rounded-full bg-amber" />
         </Base.Track>
         <Base.Thumb className="pressable h-4 w-4 rounded-full border border-hairline bg-surface-solid shadow-chip outline-none focus-visible:outline-2 focus-visible:outline-accent-ring focus-visible:outline-offset-2" />
       </Base.Control>

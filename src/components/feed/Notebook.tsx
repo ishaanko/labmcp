@@ -5,8 +5,8 @@ import { Copy, Check } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
 import { selectNotebook } from "@/store/selectors";
 import { renderNotebookMarkdown } from "@/lib/notebook";
-import { SourceBadge } from "@/components/ui/SourceBadge";
-import { Button } from "@/components/ui/Button";
+import { SourceBadge } from "@/components/ui-legacy/SourceBadge";
+import { Button } from "@/components/ui-legacy/Button";
 
 /** Append-only lab notebook, derived from `lab.observations`. Undo never rewinds it. */
 export function Notebook() {

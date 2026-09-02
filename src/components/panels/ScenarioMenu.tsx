@@ -2,7 +2,7 @@
 
 import { ChevronDown } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
-import { Menu } from "@/components/ui/Menu";
+import { Menu } from "@/components/ui-legacy/Menu";
 import type { ScenarioId } from "@/engine";
 
 const SCENARIOS: ReadonlyArray<{ value: ScenarioId; label: string }> = [

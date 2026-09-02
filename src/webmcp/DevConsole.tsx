@@ -174,7 +174,7 @@ export function DevConsole(): React.JSX.Element | null {
             spellCheck={false}
           />
 
-          <button type="button" onClick={runOne} className="rounded bg-accent px-2 py-1 text-accent-ink">
+          <button type="button" onClick={runOne} className="rounded bg-amber px-2 py-1 text-accent-ink">
             Run
           </button>
 
@@ -201,7 +201,7 @@ export function DevConsole(): React.JSX.Element | null {
             className="h-28 resize-none rounded border border-hairline bg-surface p-2"
             spellCheck={false}
           />
-          <button type="button" onClick={runScript} className="rounded bg-accent px-2 py-1 text-accent-ink">
+          <button type="button" onClick={runScript} className="rounded bg-amber px-2 py-1 text-accent-ink">
             Run script
           </button>
           {error ? <p className="text-danger">{error}</p> : null}

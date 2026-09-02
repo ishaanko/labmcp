@@ -4,10 +4,10 @@ import { useRef, useState } from "react";
 import { Flame, Snowflake } from "lucide-react";
 import type { Container, Instrument } from "@/engine";
 import { useLabStore } from "@/store/labStore";
-import { Readout } from "@/components/ui/Readout";
-import { ChipButton } from "@/components/ui/Chip";
-import { Slider } from "@/components/ui/Slider";
-import { observe } from "@/components/ui/toasts";
+import { Readout } from "@/components/ui-legacy/Readout";
+import { ChipButton } from "@/components/ui-legacy/Chip";
+import { Slider } from "@/components/ui-legacy/Slider";
+import { observe } from "@/components/ui-legacy/toasts";
 
 export interface HotplateCardProps {
   readonly instrument: Instrument;

@@ -7,8 +7,8 @@ import { TopBar } from "@/components/panels/TopBar";
 import { ContextPanel } from "@/components/panels/ContextPanel";
 import { ActivityPanel } from "@/components/feed/ActivityPanel";
 import { Shelf } from "@/components/shelf/Shelf";
-import { ResetDialog } from "@/components/ui/ResetDialog";
-import { Dialogs } from "@/components/ui/Dialogs";
+import { ResetDialog } from "@/components/ui-legacy/ResetDialog";
+import { Dialogs } from "@/components/ui-legacy/Dialogs";
 import { ExplainSheet } from "@/components/panels/ExplainSheet";
 
 // The R3F canvas touches WebGL and `document`, so it is client-only and loaded after hydration.

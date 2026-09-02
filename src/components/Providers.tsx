@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { MotionConfig } from "motion/react";
 import { Toaster } from "sonner";
 import { setToastSink } from "@/lib/events";
-import { observe } from "@/components/ui/toasts";
+import { observe } from "@/components/ui-legacy/toasts";
 import { useTheme } from "@/hooks/useTheme";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { useLabStore } from "@/store/labStore";
@@ -43,7 +43,7 @@ export function Providers({ children }: { children: ReactNode }) {
             error: "!border-l-danger",
             title: "text-ink font-medium",
             description: "mt-0.5 truncate text-ink-3",
-            actionButton: "pressable ml-2 shrink-0 rounded-sm bg-accent px-2.5 py-1 text-xs font-medium text-white",
+            actionButton: "pressable ml-2 shrink-0 rounded-sm bg-amber px-2.5 py-1 text-xs font-medium text-white",
             closeButton: "!border-hairline !bg-surface-solid !text-ink-3",
           },
         }}

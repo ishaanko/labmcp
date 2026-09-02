@@ -4,7 +4,7 @@ import { Beaker, FlaskConical, TestTube, Ruler, Pipette, Gauge, Thermometer, Fla
 import { clsx } from "clsx";
 import { useLabStore } from "@/store/labStore";
 import type { EquipmentType } from "@/engine";
-import { Tooltip } from "@/components/ui/Tooltip";
+import { Tooltip } from "@/components/ui-legacy/Tooltip";
 import { useShelfDrag } from "./useShelfDrag";
 
 export const EQUIPMENT_ICON: Record<EquipmentType, LucideIcon> = {
