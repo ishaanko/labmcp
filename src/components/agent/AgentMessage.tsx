@@ -45,20 +45,29 @@ function UserBubble({ text }: { text: string }) {
 }
 
 function AssistantText({ text }: { text: string }) {
-  return <p className="text-sm leading-relaxed text-ink">{text}</p>;
+  return <p className="text-base leading-relaxed text-white">{text}</p>;
+}
+
+/** The tool step's second line: the result once it lands, its call args while it is still running. */
+function observationFor(entry: Extract<TranscriptEntry, { kind: "tool" }>): string | null {
+  if (entry.status === "done" && entry.resultSummary) return entry.resultSummary;
+  return previewArgs(entry.input);
 }
 
 function ToolStep({ entry }: { entry: Extract<TranscriptEntry, { kind: "tool" }> }) {
   const running = entry.status === "running";
-  const args = previewArgs(entry.input);
+  const observation = observationFor(entry);
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-hairline px-2 py-1.5 text-xs text-ink-2">
-      <span className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", running ? "bg-amber" : entry.ok ? "bg-ok" : "bg-danger")} aria-hidden />
-      <span className="shrink-0 font-medium text-ink">{entry.name}</span>
-      {args ? <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-ink-3">{args}</span> : <span className="flex-1" />}
-      <StatusIcon running={running} ok={entry.ok} />
-      {entry.durationMs !== undefined ? <span className="tabular-nums text-ink-3">{entry.durationMs}ms</span> : null}
+    <div className="flex flex-col gap-0.5 rounded-lg border border-hairline px-2 py-1.5">
+      <div className="flex items-center gap-2">
+        <span className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", running ? "bg-amber" : entry.ok ? "bg-ok" : "bg-danger")} aria-hidden />
+        <span className="shrink-0 font-mono text-xs text-ink">{entry.name}</span>
+        <span className="flex-1" />
+        <StatusIcon running={running} ok={entry.ok} />
+        {entry.durationMs !== undefined ? <span className="tabular-nums text-xs text-ink-3">{entry.durationMs}ms</span> : null}
+      </div>
+      {observation ? <p className="truncate pl-3.5 text-xs text-white/75">{observation}</p> : null}
     </div>
   );
 }

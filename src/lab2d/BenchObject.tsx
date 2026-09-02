@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { motion } from "motion/react";
-import { assertNever, describeColor, rgbaToCss, type InstrumentReading, type PublicContainer } from "@/engine";
+import { assertNever, describeColor, rgbaToCss, type ContainerType, type InstrumentReading, type InstrumentType, type PublicContainer } from "@/engine";
 import { Instrument as InstrumentGlass, Vessel } from "@/lab2d/glassware/Glassware";
 import type { VesselPrecipitate } from "@/lab2d/glassware/types";
 import { fmtC, fmtMl, fmtPh } from "@/lib/format";
@@ -12,9 +12,28 @@ import { useEffectsStore } from "./effectsStore";
 import { cellToPx, dockedInstrumentPx, type XY } from "./grid";
 import { useBenchDrag } from "./useBenchDrag";
 
-const VESSEL_SIZE = 104;
-const INSTRUMENT_STANDALONE_SIZE = 84;
-const INSTRUMENT_DOCKED_SIZE = 64;
+/** Rendered width per vessel type: each vessel's own viewBox is sized to these targets, so `size` maps 1:1 with no extra scaling. */
+const VESSEL_SIZE: Readonly<Record<ContainerType, number>> = {
+  beaker: 108,
+  flask: 108,
+  test_tube: 40,
+  graduated_cylinder: 56,
+  burette: 44,
+};
+
+/** Rendered width per instrument type, standalone on the bench (a hotplate is the same size either way; it never reads as "docked"). */
+const INSTRUMENT_STANDALONE_SIZE: Readonly<Record<InstrumentType, number>> = {
+  ph_meter: 76,
+  thermometer: 44,
+  hotplate: 120,
+};
+
+/** Rendered width per instrument type, docked at a container's shoulder. */
+const INSTRUMENT_DOCKED_SIZE: Readonly<Record<InstrumentType, number>> = {
+  ph_meter: 64,
+  thermometer: 44,
+  hotplate: 120,
+};
 
 /** A liquid's fill floor: engine colors read too faint to see against true black below this alpha. */
 const LIQUID_ALPHA_FLOOR = 0.45;
@@ -80,6 +99,15 @@ export function BenchObject({ id }: BenchObjectProps) {
   const pourTargetId = useEffectsStore((s) => s.pours.find((p) => p.sourceId === id && p.kind === "stream")?.targetId);
   const targetObject = useLabStore((s) => (pourTargetId ? selectPublic(s).objects.find((o) => o.id === pourTargetId) : undefined));
 
+  // A container stands on a hotplate by sharing its cell (never by `attachedTo`), so the glow keys off cell position, matching `engine/physical.ts`'s `hotplateAt`.
+  const heatingOnCell = useLabStore((s) =>
+    object !== undefined && object.kind === "instrument" && object.type === "hotplate"
+      ? selectPublic(s).objects.some(
+          (o) => o.kind === "container" && o.thermal.kind === "heating" && o.position.x === object.position.x && o.position.y === object.position.y,
+        )
+      : false,
+  );
+
   const docked = object && object.kind === "instrument" && attachedContainer && attachedContainer.kind === "container" ? attachedContainer : undefined;
   const restPx: XY = useMemo(() => {
     if (!object) return { x: 0, y: 0 };
@@ -97,7 +125,8 @@ export function BenchObject({ id }: BenchObjectProps) {
   const hovered = hoveredId === id;
 
   const tiltDeg = tilting && targetObject ? (targetObject.position.x >= object.position.x ? -TILT_DEG : TILT_DEG) : 0;
-  const size = object.kind === "container" ? VESSEL_SIZE : docked ? INSTRUMENT_DOCKED_SIZE : INSTRUMENT_STANDALONE_SIZE;
+  const size =
+    object.kind === "container" ? VESSEL_SIZE[object.type] : docked ? INSTRUMENT_DOCKED_SIZE[object.type] : INSTRUMENT_STANDALONE_SIZE[object.type];
 
   return (
     <motion.div
@@ -137,7 +166,7 @@ export function BenchObject({ id }: BenchObjectProps) {
             type={object.type}
             reading={formatReading(object.lastReading)}
             attached={object.attachedTo !== null}
-            heatLevel={object.type === "hotplate" && docked?.thermal.kind === "heating" ? 1 : 0}
+            heatLevel={heatingOnCell ? 1 : 0}
             size={size}
           />
         )}

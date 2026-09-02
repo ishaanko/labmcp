@@ -47,6 +47,16 @@
   --role-indicator-pink: #f26fb0;
   --role-indicator-violet: #b48cff;
 
+  /* Art-pass palette: the same saturated hues named directly, for chrome that reaches for a
+     color by its own identity rather than a chemistry role (the bench panel, the agent
+     progress bar, dock tile accents). Values intentionally mirror the `--role-*` tokens above. */
+  --violet: #b48cff;
+  --aqua: #5ad2ff;
+  --coral: #ff6b6b;
+  --mint: #7ae582;
+  --lavender: #b8b8ff;
+  --bench: #0d0f14;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -158,6 +168,12 @@
   --color-role-water: var(--role-water);
   --color-role-indicator-pink: var(--role-indicator-pink);
   --color-role-indicator-violet: var(--role-indicator-violet);
+  --color-violet: var(--violet);
+  --color-aqua: var(--aqua);
+  --color-coral: var(--coral);
+  --color-mint: var(--mint);
+  --color-lavender: var(--lavender);
+  --color-bench: var(--bench);
 
   --font-sans: var(--font-sans);
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;

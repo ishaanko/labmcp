@@ -10,7 +10,7 @@ import { PourStream } from "./effects/PourStream";
 import { CELL_H, CELL_W, WORKSPACE_H, WORKSPACE_W, cellToPx } from "./grid";
 
 const DOT_STYLE: CSSProperties = {
-  backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)",
+  backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px)",
   backgroundSize: `${CELL_W}px ${CELL_H}px`,
   backgroundPosition: `${CELL_W / 2}px ${CELL_H / 2}px`,
 };
@@ -24,13 +24,16 @@ function objectsCenterPx(points: ReadonlyArray<{ x: number; y: number }>): { x: 
 }
 
 /**
- * The 2D bench: a black workspace on a static dotted grid, one `BenchObject` per lab object,
- * and an effects overlay (pour streams, drops, the agent marker). Clicking empty bench space
- * deselects; clicking an object is handled by that object's own drag hook and never reaches here
- * (its pointerdown target is a descendant, not the workspace root).
+ * The 2D bench: a dark bench-surface panel inset from the viewport edges, on a static dotted
+ * grid, one `BenchObject` per lab object, and an effects overlay (pour streams, drops, the
+ * agent marker). Clicking empty bench space deselects; clicking an object is handled by that
+ * object's own drag hook and never reaches here (its pointerdown target is a descendant, not
+ * the workspace root).
  *
- * The workspace is wider than the viewport once the side panels are open, so the scroll is
- * re-centered on the objects' extent on resize and whenever objects are added or removed.
+ * The workspace is wider than the panel once the side chrome is open, so the scroll is
+ * re-centered on the objects' extent on resize and whenever objects are added or removed. True
+ * black shows only outside the panel; the panel itself carries the `--bench` surface, a hairline
+ * border, and a darker edge strip along its bottom, like a physical benchtop.
  */
 export function Bench() {
   // `selectPublic` memoizes `.objects` on lab identity; map to ids in render, not in the
@@ -59,19 +62,25 @@ export function Bench() {
   };
 
   return (
-    <div ref={viewportRef} className="h-full w-full overflow-auto bg-black">
-      <div
-        data-bench-workspace
-        className="relative bg-black"
-        style={{ width: WORKSPACE_W, height: WORKSPACE_H, ...DOT_STYLE }}
-        onPointerDown={onBackgroundPointerDown}
-      >
-        {objects.map((o) => (
-          <BenchObject key={o.id} id={o.id} />
-        ))}
-        <PourStream />
-        <Drop />
-        <AgentMarker />
+    <div className="h-full w-full p-6">
+      <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-bench">
+        <div ref={viewportRef} className="h-full w-full overflow-auto">
+          <div
+            data-bench-workspace
+            className="relative"
+            style={{ width: WORKSPACE_W, height: WORKSPACE_H, ...DOT_STYLE }}
+            onPointerDown={onBackgroundPointerDown}
+          >
+            {objects.map((o) => (
+              <BenchObject key={o.id} id={o.id} />
+            ))}
+            <PourStream />
+            <Drop />
+            <AgentMarker />
+          </div>
+        </div>
+        {/* Bench edge: a darker strip along the panel's bottom, like a benchtop's front lip. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1.5 bg-black/40" />
       </div>
     </div>
   );

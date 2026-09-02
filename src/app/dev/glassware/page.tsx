@@ -158,7 +158,7 @@ function InstrumentsRow() {
 /** Dev-only gallery: every vessel silhouette at every fill level, plus precipitate, bubble, and instrument states. */
 export default function GlasswareGalleryPage() {
   return (
-    <div className="min-h-screen bg-bg px-8 py-10 text-ink">
+    <div className="h-screen overflow-y-auto bg-bg px-8 py-10 text-ink">
       <h1 className="mb-8 text-lg font-medium">Glassware gallery</h1>
       <div className="flex flex-col gap-8">
         <FillGrid />

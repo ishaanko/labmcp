@@ -1,15 +1,11 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { Sparkles, Hand, Cog } from "lucide-react";
+import type { ReactNode } from "react";
 import { clsx } from "clsx";
 import { motion } from "motion/react";
 import { assertNever } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import type { FeedEntry as FeedEntryData } from "@/store/types";
-
-/** Long enough that a one-line clamp would visibly cut it, so it earns a "more" toggle. */
-const LONG_TEXT_CHARS = 88;
 
 /**
  * `lib/events.ts`'s `describeCommand`/`describeEvent` text carries a raw id on an object's
@@ -27,13 +23,12 @@ export interface FeedEntryProps {
 }
 
 /**
- * One row in the activity feed (C6 item 3). Agent calls carry an amber left rule and
- * Sparkles; human actions a neutral rule and Hand. Read-only agent calls collapse to one
- * grey line; a finished mutating call shows its observation alone ("Dispensed 1.0 mL into
- * Flask. pH 11.86 to 11.95."), since a title would only repeat it. The title stays for a
- * running or failed call. Agent rows enter with a 200ms opacity+transform fade; human rows (one per D-key
- * dispense, far more frequent) render immediately, since a per-row FLIP would run a main-thread
- * layout pass over up to 300 rows every keystroke.
+ * One row in the activity feed (C6 item 3): a 6px role dot (amber agent, white human, dim
+ * system) and a single truncated line, dense like a log. The full text sits in the row's
+ * `title` for a hover tooltip, so nothing is lost to the truncation. Agent rows enter with a
+ * 200ms opacity+transform fade; human rows (one per D-key dispense, far more frequent) render
+ * immediately, since a per-row FLIP would run a main-thread layout pass over up to 300 rows
+ * every keystroke.
  */
 export function FeedEntry({ entry }: FeedEntryProps) {
   switch (entry.kind) {
@@ -50,27 +45,23 @@ export function FeedEntry({ entry }: FeedEntryProps) {
   }
 }
 
-function Row({
-  accent,
-  icon,
-  children,
-}: {
-  accent: "agent" | "human" | "system";
-  icon: ReactNode;
-  children: ReactNode;
-}) {
+const DOT_COLOR: Readonly<Record<"agent" | "human" | "system", string>> = {
+  agent: "bg-amber",
+  human: "bg-white/70",
+  system: "bg-ink-3",
+};
+
+function Row({ accent, title, children }: { accent: "agent" | "human" | "system"; title: string; children: ReactNode }) {
   return (
     <motion.li
       initial={accent === "agent" ? { opacity: 0, transform: "translateY(-4px)" } : false}
       animate={{ opacity: 1, transform: "translateY(0px)" }}
       transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-      className={clsx(
-        "flex gap-2 border-l-2 py-1.5 pl-2.5 text-sm",
-        accent === "agent" ? "border-amber" : accent === "human" ? "border-muted-foreground" : "border-transparent",
-      )}
+      title={title}
+      className="flex items-center gap-2 py-1 pl-1 text-sm"
     >
-      <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span>
-      <div className="min-w-0 flex-1">{children}</div>
+      <span className={clsx("h-1.5 w-1.5 shrink-0 rounded-full", DOT_COLOR[accent])} aria-hidden />
+      <p className="min-w-0 flex-1 truncate">{children}</p>
     </motion.li>
   );
 }
@@ -114,80 +105,46 @@ function titleFor(tool: string, target: string | null): string {
 
 function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_call" }> }) {
   const running = entry.status === "running";
-  const collapsed = entry.readOnly && !running;
   const targetLabel = useTargetLabel(entry.targetId);
   const title = titleFor(entry.tool, targetLabel);
+  const observation = running ? "Running…" : entry.resultSummary ? stripRawIds(entry.resultSummary) : "ok";
+  const line = `${title} · ${observation}`;
 
   return (
-    <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-muted-foreground" : "text-amber"} />}>
-      {collapsed ? (
-        <p className="truncate text-muted-foreground">
-          {title} · {entry.resultSummary ? stripRawIds(entry.resultSummary) : "ok"}
-        </p>
-      ) : running ? (
-        <>
-          <p className="text-foreground">{title}</p>
-          <p className="mt-0.5 text-muted-foreground">Running…</p>
-        </>
-      ) : entry.resultSummary && entry.ok !== false ? (
-        <p className="line-clamp-2 text-xs text-foreground">{stripRawIds(entry.resultSummary)}</p>
-      ) : (
-        <>
-          <p className="text-foreground">{title}</p>
-          {entry.resultSummary ? <SummaryLine text={stripRawIds(entry.resultSummary)} tone="text-destructive" /> : null}
-        </>
-      )}
+    <Row accent="agent" title={line}>
+      <span className={entry.ok === false && !running ? "text-destructive" : "text-foreground"}>{title}</span>
+      <span className="text-muted-foreground"> · {observation}</span>
     </Row>
   );
 }
 
 function ActionRow({ entry }: { entry: Extract<FeedEntryData, { kind: "action" }> }) {
+  const observation = stripRawIds(entry.observation);
+  const line = `${entry.label} · ${observation}`;
+
   return (
-    <Row accent="human" icon={<Hand size={13} />}>
-      <p className="text-foreground">{entry.label}</p>
-      <SummaryLine text={stripRawIds(entry.observation)} tone={entry.ok ? "text-muted-foreground" : "text-destructive"} />
+    <Row accent="human" title={line}>
+      <span className="text-foreground">{entry.label}</span>
+      <span className={entry.ok ? "text-muted-foreground" : "text-destructive"}> · {observation}</span>
     </Row>
   );
 }
 
-/**
- * One summary line under a feed entry's title (C2 item 4): clamped to a single line, with a
- * "more" toggle for anything long enough to have been cut off.
- */
-function SummaryLine({ text, tone }: { text: string; tone: string }) {
-  const [expanded, setExpanded] = useState(false);
-  const long = text.length > LONG_TEXT_CHARS;
-
-  return (
-    <>
-      <p className={clsx("mt-0.5", tone, long && !expanded && "line-clamp-1")}>{text}</p>
-      {long ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="mt-0.5 text-xs text-muted-foreground hover:text-foreground/70 hover:underline"
-        >
-          {expanded ? "less" : "more"}
-        </button>
-      ) : null}
-    </>
-  );
-}
-
 function MeasurementRow({ entry }: { entry: Extract<FeedEntryData, { kind: "measurement" }> }) {
+  const line = `${entry.label}: ${entry.value.toFixed(2)} ${entry.unit}`;
   return (
-    <Row accent={entry.source === "agent" ? "agent" : entry.source === "human" ? "human" : "system"} icon={<Cog size={13} />}>
-      <p className="text-foreground">
-        {entry.label}: <span className="tabular">{entry.value.toFixed(2)}</span> {entry.unit}
-      </p>
+    <Row accent={entry.source === "agent" ? "agent" : entry.source === "human" ? "human" : "system"} title={line}>
+      <span className="text-foreground">{entry.label}: </span>
+      <span className="tabular text-foreground">{entry.value.toFixed(2)}</span>
+      <span className="text-foreground"> {entry.unit}</span>
     </Row>
   );
 }
 
 function NoteRow({ entry }: { entry: Extract<FeedEntryData, { kind: "note" }> }) {
   return (
-    <Row accent="system" icon={<Cog size={13} />}>
-      <p className="text-muted-foreground">{entry.text}</p>
+    <Row accent="system" title={entry.text}>
+      <span className="text-muted-foreground">{entry.text}</span>
     </Row>
   );
 }

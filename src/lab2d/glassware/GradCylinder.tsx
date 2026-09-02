@@ -1,14 +1,14 @@
 "use client";
 
 import { useId } from "react";
-import { Bubbles, GLASS_FILL, LiquidBody, OUTLINE, OUTLINE_SELECTED, OUTLINE_WIDTH, OUTLINE_WIDTH_SELECTED, PrecipitateBed, SelectionRing, StirSwirl, VesselFrame } from "./common";
-import { VESSEL_GEOMETRY, clampAlpha, liquidRect } from "./liquid";
+import { Bubbles, GLASS_FILL, GlassHighlight, LiquidBody, OUTLINE, OUTLINE_SELECTED, OUTLINE_WIDTH, OUTLINE_WIDTH_SELECTED, PrecipitateBed, SelectionRing, StirSwirl, VesselFrame } from "./common";
+import { VESSEL_GEOMETRY, liquidRect, vibrant } from "./liquid";
 import type { VesselProps } from "./types";
 
-const VIEW_W = 120;
-const VIEW_H = 160;
+const VIEW_W = 56;
+const VIEW_H = 150;
 const GEO = VESSEL_GEOMETRY.graduated_cylinder;
-const TICK_YS = [36, 58, 80, 102, 124];
+const TICK_YS = [38, 62, 86, 110, 134];
 
 export function GradCylinder(props: VesselProps) {
   const clipId = useId();
@@ -17,39 +17,41 @@ export function GradCylinder(props: VesselProps) {
   const outlineWidth = props.selected ? OUTLINE_WIDTH_SELECTED : OUTLINE_WIDTH;
 
   return (
-    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? 120} label={props.label} hovered={props.hovered} selected={props.selected}>
+    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? VIEW_W} label={props.label} hovered={props.hovered} selected={props.selected}>
       <defs>
         <clipPath id={clipId}>
           <polygon points={GEO.clipPoints} />
         </clipPath>
       </defs>
-      <SelectionRing x={38} y={16} width={44} height={132} selected={props.selected} agentActive={props.agentActive} />
+      <SelectionRing x={GEO.left} y={GEO.topY} width={GEO.right - GEO.left} height={GEO.bottomY - GEO.topY} selected={props.selected} agentActive={props.agentActive} />
       <rect
-        x={42}
-        y={20}
-        width={36}
-        height={124}
-        rx={4}
+        x={GEO.left}
+        y={GEO.topY}
+        width={GEO.right - GEO.left}
+        height={GEO.bottomY - GEO.topY}
+        rx={5}
         fill={GLASS_FILL}
         stroke={outline}
         strokeWidth={outlineWidth}
         style={{ transition: "stroke 200ms, stroke-width 200ms" }}
       />
       <path
-        d="M70,20 L82,10 L82,22 Z"
+        d="M40,22 L52,10 L52,24 Z"
         fill={GLASS_FILL}
         stroke={outline}
         strokeWidth={outlineWidth}
         strokeLinejoin="round"
+        strokeLinecap="round"
         style={{ transition: "stroke 200ms" }}
       />
       {TICK_YS.map((y) => (
-        <line key={y} x1={42} y1={y} x2={48} y2={y} stroke="rgba(230,230,238,0.4)" strokeWidth={1} />
+        <line key={y} x1={GEO.left} y1={y} x2={GEO.left + 7} y2={y} stroke="rgba(244,244,248,0.5)" strokeWidth={1.5} strokeLinecap="round" />
       ))}
-      <LiquidBody rect={rect} color={clampAlpha(props.color, 0.45)} clipId={clipId} />
-      {props.precipitate && <PrecipitateBed precipitate={props.precipitate} left={GEO.left + 2} right={GEO.right - 2} floorY={GEO.bottomY} />}
-      <Bubbles intensity={props.bubbleIntensity} left={GEO.left + 4} right={GEO.right - 4} floorY={GEO.bottomY - 3} ceilingY={GEO.topY + 6} />
-      {props.stirring && rect.height > 8 && <StirSwirl x={60} y={rect.y + 5} />}
+      <GlassHighlight geo={GEO} clipId={clipId} />
+      <LiquidBody rect={rect} color={vibrant(props.color)} clipId={clipId} />
+      {props.precipitate && <PrecipitateBed precipitate={props.precipitate} left={GEO.left + 2} right={GEO.right - 2} floorY={GEO.bottomY - 2} />}
+      <Bubbles intensity={props.bubbleIntensity} left={GEO.left + 4} right={GEO.right - 4} floorY={GEO.bottomY - 4} ceilingY={GEO.topY + 6} />
+      {props.stirring && rect.height > 8 && <StirSwirl x={28} y={rect.y + 8} />}
     </VesselFrame>
   );
 }

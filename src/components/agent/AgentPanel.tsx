@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { clsx } from "clsx";
+import { motion } from "motion/react";
 import { Sparkles, Square, ArrowUp } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -79,12 +80,21 @@ export function AgentPanel({ open, onOpenChange }: AgentPanelProps) {
 
   const running = state.phase === "thinking" || state.phase === "executing";
   const missingKey = state.phase === "error" && state.error === MISSING_KEY_ERROR;
+  const [runId, setRunId] = useState(0);
+  const wasRunning = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [state.transcript]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // A fresh key per run so the progress bar's `initial` width (0) re-applies on mount instead of
+  // animating backward from wherever the previous run left it.
+  useEffect(() => {
+    if (running && !wasRunning.current) setRunId((v) => v + 1);
+    wasRunning.current = running;
+  }, [running]);
 
   const send = async (userText: string) => {
     const trimmed = userText.trim();
@@ -114,6 +124,22 @@ export function AgentPanel({ open, onOpenChange }: AgentPanelProps) {
           <span className={clsx("ml-auto h-1.5 w-1.5 rounded-full", DOT_COLOR[state.phase])} aria-hidden />
           <span className="text-xs text-ink-3">{DEFAULT_MODEL_LABEL}</span>
         </SheetHeader>
+
+        <div className="h-0.5 shrink-0 overflow-hidden bg-transparent">
+          <motion.div
+            key={runId}
+            className="h-full bg-amber"
+            initial={{ width: "0%" }}
+            animate={{
+              width: running ? "78%" : state.phase === "done" ? "100%" : "0%",
+              opacity: running || state.phase === "done" ? 1 : 0,
+            }}
+            transition={{
+              width: { duration: running ? 1.6 : 0.2, ease: [0.23, 1, 0.32, 1] },
+              opacity: { duration: state.phase === "done" ? 0.3 : 0, delay: state.phase === "done" ? 0.3 : 0 },
+            }}
+          />
+        </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-3">
           {state.transcript.length === 0 ? (

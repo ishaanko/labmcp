@@ -1,14 +1,33 @@
 # ChemLab
 
-A virtual chemistry lab that a human and an AI agent share. The human drags, pours, and heats glassware on a 3D bench. The agent uses WebMCP tools such as `dispense`, `measure_ph`, and `transfer`. Both act on one lab state, and every action animates in the same view.
+A virtual chemistry lab that a human and an AI agent share. The human drags, pours, and heats glassware on a flat 2D bench. The agent uses WebMCP tools such as `dispense`, `measure_ph`, and `transfer`. Both act on one lab state, and every action animates in the same view.
 
 Live: https://labmcp.vercel.app
 
 Built for the OpenAI WebMCP Challenge, September 2026. MIT license.
 
-## Try it with an agent
+## Set up
 
-ChatGPT desktop app: open the live URL in the built-in browser. The page registers 24 tools on `document.modelContext` when it loads. Ask, for example:
+```bash
+pnpm install
+cp .env.example .env.local
+pnpm dev          # http://localhost:3000
+```
+
+`.env.local` needs one variable to enable the in-app lab partner:
+
+| Variable | Required | Default |
+| --- | --- | --- |
+| `OPENAI_API_KEY` | yes, for the in-app agent | none |
+| `OPENAI_MODEL` | no | `gpt-5.4` |
+
+Without a key, the bench and the WebMCP tools still work. The agent panel shows a message asking for the key instead of running.
+
+## Two ways to bring an agent
+
+**In-app lab partner.** Press `A`, or click the Agent button, to open the panel. It calls `POST /api/agent`, which sends the conversation to the OpenAI Responses API. The server picks one tool, the client runs it through the same `runTool` path a mouse click uses, and the result feeds back to the model. This repeats until the model has no more tool calls left, or the step limit is hit.
+
+**ChatGPT desktop app.** Open the live URL in the built-in browser. The page registers 24 tools on `document.modelContext` when it loads. ChatGPT drives the tools directly; no server route on this side is involved. Ask, for example:
 
 - "Help me find the acid concentration in the flask. Dispense the coarse part, then let me handle the endpoint."
 - "What just happened in the beaker?"
@@ -45,34 +64,40 @@ Every tool returns a plain object: `ok`, an `observation` sentence, a structured
 - `src/webmcp/register.ts` registers every tool with `document.modelContext.registerTool` under one `AbortController`. When the browser has no native implementation it installs `@mcp-b/webmcp-polyfill` so the console still works.
 - `src/webmcp/tools/*.ts` define each tool with a zod input schema. `z.toJSONSchema` produces the `inputSchema`. Every field has a description.
 - `src/webmcp/runtime.ts` wraps each handler: validate input, write a feed entry, dispatch a `LabCommand` through the store, attach the redacted state, return.
-- The same `dispatch` serves mouse gestures. One queue serializes human and agent commands so the later one always sees the committed state.
+- The same `dispatch` serves mouse gestures and the in-app lab partner. One queue serializes human and agent commands so the later one always sees the committed state.
+
+## How the in-app lab partner is wired
+
+- `src/agent/loop.ts` runs the step machine: send the conversation, call the model, execute any tool calls the model asks for, feed the results back, repeat until the model stops calling tools or the step limit is hit.
+- `src/app/api/agent/route.ts` is the only server route. It takes the loop's conversation and tool catalog, makes one OpenAI Responses API call, and returns the raw output items. The API key never reaches the browser.
+- Tool calls from the agent panel run through `runTool`, the same function that mouse gestures and native WebMCP calls use. There is one command path for every actor.
+- `src/components/agent/AgentPanel.tsx` renders the conversation and the tool calls as they run, in a non-modal side panel so the bench stays visible and clickable.
 
 ## Architecture
 
 ```
 pointer/keyboard ──┐
                    ├─> store.dispatch(command, actor) ─> engine.applyCommand ─> new LabState + events
-WebMCP execute ────┘                                          │
-                                                              ├─> animation queue ─> 3D scene (react-three-fiber)
+WebMCP execute ────┤                                          │
+in-app agent loop ─┘                                          ├─> animation queue ─> 2D bench (src/lab2d)
                                                               ├─> activity feed, notebook, toasts
                                                               └─> tool result envelope
 ```
 
 - `src/engine`: pure TypeScript. Reagent registry, curated reaction rules (neutralization, three precipitations, carbonate gas evolution), strong acid/base pH, indicator colors, undo snapshots, scenarios, and `publicView`, the single redaction point.
 - `src/store`: zustand store, command queue, ticker for heating and settling.
-- `src/scene` and `src/components/bench`: bench, glassware, liquid shader, per-vessel animation queue, effects.
-- `src/components`: chrome. Tailwind v4, base-ui, sonner, motion.
+- `src/lab2d`: the bench, an SVG grid workspace with one `BenchObject` per lab item, drag handling, and an effects overlay (pour streams, drops, the agent marker).
+- `src/agent`: the in-app lab partner's step machine and its OpenAI wire types.
+- `src/components`: chrome, built with shadcn/ui on Tailwind v4 and base-ui primitives, sonner for toasts, motion for transitions.
 
 ## Develop
 
 ```bash
-pnpm install
-pnpm dev          # http://localhost:3000
 pnpm check        # typecheck, lint, unit tests
 pnpm build
 ```
 
-Tests cover conservation of matter, proportional transfer, neutralization stoichiometry, pH checkpoints along a titration, capacity rejection, atomic undo, tool schema validity, and that no tool response leaks a hidden identity.
+Tests cover conservation of matter, proportional transfer, neutralization stoichiometry, pH checkpoints along a titration, capacity rejection, atomic undo, tool schema validity, the in-app agent's step machine, and that no tool response leaks a hidden identity.
 
 ## Limits
 

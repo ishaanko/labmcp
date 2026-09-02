@@ -4,10 +4,10 @@ export interface TileIconProps {
   readonly className?: string;
 }
 
-const STROKE = 1.75;
+const STROKE = 2;
 
 /** Water: a single droplet. Used for the water reagent and as the fallback for an unknown role. */
-export function DropletIcon({ size = 22, className }: TileIconProps) {
+export function DropletIcon({ size = 28, className }: TileIconProps) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" aria-hidden>
       <path
@@ -21,7 +21,7 @@ export function DropletIcon({ size = 22, className }: TileIconProps) {
 }
 
 /** Solution: a reagent bottle. Used for every acid/base/salt/carbonate stock. */
-export function BottleIcon({ size = 22, className }: TileIconProps) {
+export function BottleIcon({ size = 28, className }: TileIconProps) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" aria-hidden>
       <path d="M10 3h4" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" />
@@ -32,7 +32,7 @@ export function BottleIcon({ size = 22, className }: TileIconProps) {
 }
 
 /** Indicator: an eyedropper. Used for phenolphthalein, universal, and litmus. */
-export function DropperIcon({ size = 22, className }: TileIconProps) {
+export function DropperIcon({ size = 28, className }: TileIconProps) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} className={className} fill="none" aria-hidden>
       <path d="M15.5 3.5 20 8l-8.5 8.5-5-5L15.5 3.5Z" stroke="currentColor" strokeWidth={STROKE} strokeLinejoin="round" />

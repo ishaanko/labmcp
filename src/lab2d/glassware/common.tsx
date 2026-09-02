@@ -5,15 +5,15 @@ import type { CSSProperties, ReactNode } from "react";
 /** CSSProperties plus arbitrary custom properties, so a `--rise` var can be set without a cast. */
 type StyleWithVars = CSSProperties & Record<`--${string}`, string | number>;
 import type { PrecipitateScale } from "@/engine";
-import type { LiquidRect } from "./liquid";
+import { mixWithWhite, type LiquidRect, type VesselGeometry } from "./liquid";
 import type { VesselPrecipitate } from "./types";
 
-export const OUTLINE = "rgba(230,230,238,0.9)";
+export const OUTLINE = "rgba(244,244,248,0.92)";
 export const OUTLINE_SELECTED = "#ffffff";
-export const GLASS_FILL = "rgba(255,255,255,0.06)";
-export const OUTLINE_WIDTH = 2.5;
+export const GLASS_FILL = "rgba(255,255,255,0.07)";
+export const OUTLINE_WIDTH = 3;
 export const OUTLINE_WIDTH_SELECTED = 3;
-const MENISCUS = "rgba(255,255,255,0.55)";
+const HIGHLIGHT_FILL = "rgba(255,255,255,0.10)";
 
 /** Rendered pixel size for a `size`-scaled SVG, preserving its own viewBox aspect ratio. */
 export function svgDims(viewBoxWidth: number, viewBoxHeight: number, size: number): { width: number; height: number } {
@@ -45,7 +45,7 @@ export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, hovered,
   const { width, height } = svgDims(viewBoxWidth, viewBoxHeight, size);
   return (
     <motion.figure
-      className="pointer-events-none inline-flex flex-col items-center gap-1"
+      className="pointer-events-none inline-flex flex-col items-center gap-2"
       initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: hovered ? 1.02 : 1, y: hovered ? -3 : 0 }}
       whileHover={{ y: -3, scale: 1.02 }}
@@ -54,7 +54,9 @@ export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, hovered,
       <svg width={width} height={height} viewBox={`0 0 ${viewBoxWidth} ${viewBoxHeight}`} className="overflow-visible">
         <g style={{ pointerEvents: "visiblePainted" }}>{children}</g>
       </svg>
-      {label ? <figcaption className={clsx("text-xs", selected ? "font-medium text-ink" : "text-ink-2")}>{label}</figcaption> : null}
+      {label ? (
+        <figcaption className={clsx("text-[13px] font-medium", selected ? "text-white" : "text-white/85")}>{label}</figcaption>
+      ) : null}
     </motion.figure>
   );
 }
@@ -69,8 +71,9 @@ interface SelectionRingProps {
 }
 
 /**
- * Halo around a vessel: a thin white ring while it is the selection, a thicker amber one while
- * the agent is acting on it (amber wins). Opacity-only transition, so nothing paints at rest.
+ * Halo around a vessel's bounding box: a 2px white ring while it is the selection, a 3px amber
+ * ring while the agent is acting on it (amber wins). Opacity-only transition, so nothing paints
+ * at rest.
  */
 export function SelectionRing({ x, y, width, height, selected, agentActive }: SelectionRingProps) {
   return (
@@ -81,10 +84,34 @@ export function SelectionRing({ x, y, width, height, selected, agentActive }: Se
       height={height + 12}
       rx={16}
       fill="none"
-      stroke={agentActive ? "var(--amber)" : "rgba(255,255,255,0.45)"}
-      strokeWidth={agentActive ? 3 : 1.5}
-      style={{ opacity: agentActive ? 0.8 : selected ? 1 : 0, transition: "opacity 200ms ease-out", pointerEvents: "none" }}
+      stroke={agentActive ? "var(--amber)" : "#ffffff"}
+      strokeWidth={agentActive ? 3 : 2}
+      style={{ opacity: agentActive ? 1 : selected ? 1 : 0, transition: "opacity 200ms ease-out", pointerEvents: "none" }}
     />
+  );
+}
+
+interface GlassHighlightProps {
+  readonly geo: Pick<VesselGeometry, "left" | "right" | "topY" | "bottomY">;
+  readonly clipId: string;
+}
+
+/**
+ * Static diagonal highlight stripe on the left third of a vessel's cavity, clipped to its true
+ * silhouette. A fixed shape, not an animation: it reads as glass catching light without repainting.
+ */
+export function GlassHighlight({ geo, clipId }: GlassHighlightProps) {
+  const width = geo.right - geo.left;
+  const x0 = geo.left + width * 0.08;
+  const x1 = geo.left + width * 0.24;
+  const skew = width * 0.12;
+  return (
+    <g clipPath={`url(#${clipId})`} style={{ pointerEvents: "none" }}>
+      <polygon
+        points={`${x0},${geo.topY} ${x1},${geo.topY} ${x1 + skew},${geo.bottomY} ${x0 + skew},${geo.bottomY}`}
+        fill={HIGHLIGHT_FILL}
+      />
+    </g>
   );
 }
 
@@ -94,7 +121,7 @@ interface LiquidBodyProps {
   readonly clipId: string;
 }
 
-/** The liquid fill itself: a clipped rect that animates height/y and color on prop change. */
+/** The liquid fill itself: a clipped rect that animates height/y and color on prop change, topped by a meniscus band lightened toward white. */
 export function LiquidBody({ rect, color, clipId }: LiquidBodyProps) {
   const style: CSSProperties = { transition: "y 360ms cubic-bezier(0.23,1,0.32,1), height 360ms cubic-bezier(0.23,1,0.32,1), fill 400ms" };
   return (
@@ -105,9 +132,9 @@ export function LiquidBody({ rect, color, clipId }: LiquidBodyProps) {
           x={rect.x}
           y={rect.y}
           width={rect.width}
-          height={2}
-          fill={MENISCUS}
-          style={{ transition: "y 360ms cubic-bezier(0.23,1,0.32,1)" }}
+          height={3}
+          fill={mixWithWhite(color, 0.35)}
+          style={{ transition: "y 360ms cubic-bezier(0.23,1,0.32,1), fill 400ms" }}
         />
       )}
     </g>
@@ -115,8 +142,8 @@ export function LiquidBody({ rect, color, clipId }: LiquidBodyProps) {
 }
 
 const PRECIPITATE_COUNT: Readonly<Record<PrecipitateScale, number>> = {
-  trace: 8,
-  small: 13,
+  trace: 10,
+  small: 14,
   moderate: 19,
   heavy: 24,
 };
@@ -153,7 +180,7 @@ export function PrecipitateBed({ precipitate, left, right, floorY }: Precipitate
       {Array.from({ length: count }, (_, i) => {
         const cx = left + width * 0.15 + width * 0.7 * ((i / Math.max(1, count - 1)) + jitter(i) * 0.15);
         const baseCy = floorY - 3 - (Math.abs(jitter(i + 7)) * 6);
-        const radius = 2.4 + Math.abs(jitter(i + 3)) * 1.8;
+        const radius = 3 + Math.abs(jitter(i + 3)) * 2;
         return (
           <circle
             key={i}
@@ -182,7 +209,7 @@ interface BubblesProps {
 
 const BUBBLE_KEYFRAMES = `@keyframes lab2d-bubble-rise { from { transform: translateY(0); opacity: 0.85; } to { transform: translateY(var(--rise, -60px)); opacity: 0; } }`;
 
-/** Rising gas bubbles. Only mounted while `intensity > 0`, so nothing animates at rest. */
+/** Rising gas bubbles, 4-8px across. Only mounted while `intensity > 0`, so nothing animates at rest. */
 export function Bubbles({ intensity, left, right, floorY, ceilingY }: BubblesProps) {
   if (intensity <= 0) return null;
   const width = right - left;
@@ -194,7 +221,7 @@ export function Bubbles({ intensity, left, right, floorY, ceilingY }: BubblesPro
       {Array.from({ length: 6 }, (_, i) => {
         const cx = left + width * (0.2 + 0.6 * (i / 5) + jitter(i) * 0.08);
         const delayS = (i / 6) * durationS;
-        const radius = 1.5 + Math.abs(jitter(i + 2)) * 1.2;
+        const radius = 2 + Math.abs(jitter(i + 2)) * 2;
         const style: StyleWithVars = { animation: `lab2d-bubble-rise ${durationS}s ease-in ${delayS}s infinite`, "--rise": `${-rise}px` };
         return <circle key={i} cx={cx} cy={floorY - 4} r={radius} fill="rgba(255,255,255,0.55)" style={style} />;
       })}

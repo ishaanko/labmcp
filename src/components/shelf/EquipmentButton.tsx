@@ -55,7 +55,7 @@ export function EquipmentButton({ equipmentType }: EquipmentButtonProps) {
             color={EQUIPMENT_COLOR}
             label={EQUIPMENT_TILE_LABEL[equipmentType] ?? EQUIPMENT_LABEL[equipmentType]}
             dragging={dragging}
-            icon={<Icon size={20} strokeWidth={1.75} />}
+            icon={<Icon size={28} strokeWidth={2} />}
           />
         }
       />

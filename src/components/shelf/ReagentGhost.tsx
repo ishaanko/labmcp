@@ -45,7 +45,7 @@ function colorFor(drag: GhostDrag): string {
 function iconFor(drag: GhostDrag) {
   if (drag.kind === "equipment") {
     const Icon = isEquipmentType(drag.equipmentType) ? EQUIPMENT_ICON[drag.equipmentType] : null;
-    return Icon ? <Icon size={20} strokeWidth={1.75} /> : null;
+    return Icon ? <Icon size={28} strokeWidth={2} /> : null;
   }
   if (drag.kind === "indicator") return <DropperIcon />;
   return isReagentId(drag.reagentId) && reagentDef(drag.reagentId)?.kind === "water" ? <DropletIcon /> : <BottleIcon />;
@@ -65,8 +65,8 @@ interface GhostExit {
   readonly motion: GhostExitMotion;
 }
 
-const GHOST_W = 64;
-const GHOST_H = 76;
+const GHOST_W = 72;
+const GHOST_H = 86;
 
 /**
  * The tile clone that follows the pointer during a shelf drag: position is a raw

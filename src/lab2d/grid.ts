@@ -8,8 +8,8 @@ import { constants, type Vec2 } from "@/engine";
  */
 export const GRID = constants.GRID;
 
-export const CELL_W = 132;
-export const CELL_H = 176;
+export const CELL_W = 148;
+export const CELL_H = 188;
 
 export const WORKSPACE_W = GRID.cols * CELL_W;
 export const WORKSPACE_H = GRID.rows * CELL_H;
@@ -36,12 +36,13 @@ export function pxToCell(px: XY): Vec2 {
 }
 
 /**
- * Where an attached instrument docks: at the right edge of its container's cell, level with the
- * vessel's shoulder, so it sits beside the neck and clear of a burette tip hanging in from behind.
+ * Where an attached instrument docks: at the container's right shoulder (the flask/beaker body
+ * is centered in its cell and about 130px tall, so the shoulder sits roughly a third of the way
+ * down from the vessel's rim), clear of a burette tip hanging in from behind.
  */
 export function dockedInstrumentPx(containerCell: Vec2): XY {
   const c = cellToPx(containerCell);
-  return { x: c.x + CELL_W / 2 - 8, y: c.y - CELL_H / 2 + 44 };
+  return { x: c.x + CELL_W / 2 - 6, y: c.y - CELL_H / 2 + 50 };
 }
 
 /**
