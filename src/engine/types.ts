@@ -292,6 +292,16 @@ export type ContentsView =
     }
   | { readonly kind: "hidden"; readonly reason: string };
 
+/**
+ * A container's solid deposit, redacted the same way as its `ContentsView`: `identified` once the
+ * container's contents are visible, `redacted` (no species, no moles: the answer key for what
+ * precipitated) while it stays hidden. Color, scale, and suspension are always fair game, same as
+ * `ContentsView`'s color/pH rules.
+ */
+export type PublicSolidDeposit =
+  | { readonly kind: "identified"; readonly species: SpeciesId; readonly moles: number; readonly suspended: number; readonly color: Rgba; readonly scale: PrecipitateScale }
+  | { readonly kind: "redacted"; readonly suspended: number; readonly color: Rgba; readonly scale: PrecipitateScale };
+
 export interface PublicContainer {
   readonly kind: "container";
   readonly id: ContainerId;
@@ -302,7 +312,7 @@ export interface PublicContainer {
   readonly rotationDeg: number;
   readonly volumeMl: number;
   readonly temperatureC: number;
-  readonly solids: ReadonlyArray<SolidDeposit & { readonly color: Rgba; readonly scale: PrecipitateScale }>;
+  readonly solids: ReadonlyArray<PublicSolidDeposit>;
   readonly gasEffects: ReadonlyArray<GasEffect>;
   readonly indicators: ReadonlyArray<IndicatorDose>;
   readonly stir: StirState;

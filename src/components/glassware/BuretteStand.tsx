@@ -2,8 +2,10 @@ export interface BuretteStandProps {
   readonly position: readonly [number, number, number];
 }
 
-/** Brushed mid-grey metal, shared by every part so the stand reads as one machined object. */
-const STAND_MATERIAL_PROPS = { color: "#75798a", roughness: 0.35, metalness: 0.6 } as const;
+/** Brushed mid-grey metal for the rod/clamp. */
+const ROD_MATERIAL_PROPS = { color: "#75798a", roughness: 0.35, metalness: 0.6 } as const;
+/** Dark gunmetal for the base plate, so it reads as a heavier anchor than the rod (scene-composition review). */
+const BASE_MATERIAL_PROPS = { color: "#2c2e34", roughness: 0.4, metalness: 0.75 } as const;
 
 /**
  * Static support for the burette (C3.5): a slim plate base, rod, and a clamp roughly where it
@@ -14,17 +16,17 @@ export function BuretteStand({ position }: BuretteStandProps) {
   const [x, y, z] = position;
   return (
     <group position={[x, y, z]}>
-      <mesh position={[0.25, 0.02, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.7, 0.035, 0.38]} />
-        <meshStandardMaterial {...STAND_MATERIAL_PROPS} />
+      <mesh position={[0.2, 0.015, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.5, 0.03, 0.28]} />
+        <meshStandardMaterial {...BASE_MATERIAL_PROPS} />
       </mesh>
       <mesh position={[-0.15, 1.4, 0]} castShadow>
-        <cylinderGeometry args={[0.022, 0.022, 2.8, 16]} />
-        <meshStandardMaterial {...STAND_MATERIAL_PROPS} />
+        <cylinderGeometry args={[0.014, 0.014, 2.8, 16]} />
+        <meshStandardMaterial {...ROD_MATERIAL_PROPS} />
       </mesh>
-      <mesh position={[0.05, 2.4, 0]} castShadow>
-        <boxGeometry args={[0.16, 0.06, 0.08]} />
-        <meshStandardMaterial {...STAND_MATERIAL_PROPS} />
+      <mesh position={[0.03, 2.4, 0]} castShadow>
+        <boxGeometry args={[0.1, 0.045, 0.06]} />
+        <meshStandardMaterial {...ROD_MATERIAL_PROPS} />
       </mesh>
     </group>
   );

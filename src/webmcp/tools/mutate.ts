@@ -21,12 +21,12 @@ function reactionResult(events: ReadonlyArray<LabEvent>, container: PublicContai
 }
 
 /**
- * `SlotSchema` speaks in whole columns/rows (0..8, 0..3) for the agent; the engine's grid cells
- * are the half-integer centers in `GRID_BOUNDS` (-4.5..3.5, -1.5..1.5). Without this shift every
+ * `SlotSchema` speaks in whole columns/rows (0..cols-1, 0..rows-1) for the agent; the engine's
+ * grid cells are the half-integer centers derived from `constants.GRID`. Without this shift every
  * explicit position clamped to the grid edge instead of landing where it was asked for.
  */
 function slotToGrid(slot: { readonly col: number; readonly row: number }): { x: number; y: number } {
-  return { x: slot.col - 4.5, y: slot.row - 1.5 };
+  return { x: constants.GRID.minX + slot.col, y: constants.GRID.minY + slot.row };
 }
 
 const AddContainerInput = z

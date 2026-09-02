@@ -12,6 +12,9 @@ export interface RimPose {
   readonly y: number;
   readonly z: number;
   readonly tiltRad: number;
+  /** Y-rotation so the instrument body faces away from the vessel it is attached to (its meter
+   * box/cable, offset along local +x, swings outward instead of over the vessel). */
+  readonly yawRad: number;
 }
 
 export interface PHProbeProps {
@@ -21,7 +24,12 @@ export interface PHProbeProps {
   readonly attachedRim: RimPose | null;
 }
 
-const METER_OFFSET = new THREE.Vector3(0.35, 0.15, 0);
+/** Meter box/cable offset while attached: rotated by `RimPose.yawRad` to point away from the
+ * vessel, so this can stay short. */
+const ATTACHED_METER_OFFSET = new THREE.Vector3(0.35, 0.15, 0);
+/** Meter box/cable offset at rest in the holder: no yaw applied, so this alone has to clear the
+ * neighboring cell (C3.5: "the box sits one cell to the right of the probe holder cell"). */
+const REST_METER_OFFSET = new THREE.Vector3(1.0, 0.15, 0);
 /** How far below the liquid surface the tip sits (C3.5: "tip 0.15 below the liquid top"). */
 const TIP_DEPTH = 0.15;
 
@@ -46,13 +54,14 @@ function useInstrumentAttachment(id: string): { containerId: string | null; cont
  */
 export function PHProbe({ id, position, attachedRim }: PHProbeProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const current = useRef({ x: position[0], y: position[1], z: position[2], tiltRad: 0 });
+  const current = useRef({ x: position[0], y: position[1], z: position[2], tiltRad: 0, yawRad: 0 });
   const rimRef = useRef(attachedRim);
   const restRef = useRef(position);
   const { containerId, containerType } = useInstrumentAttachment(id);
   const containerIdRef = useRef(containerId);
   const profile = useMemo<LatheProfile | null>(() => (containerType ? profileForContainerType(containerType) : null), [containerType]);
   const profileRef = useRef(profile);
+  const meterOffset = attachedRim ? ATTACHED_METER_OFFSET : REST_METER_OFFSET;
 
   // Kept current for the `apply` callback below, which runs on a later animation frame.
   useEffect(() => {
@@ -65,12 +74,12 @@ export function PHProbe({ id, position, attachedRim }: PHProbeProps) {
   const cableGeometry = useMemo(() => {
     const curve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0, -0.55, 0),
-      new THREE.Vector3(0.1, -0.4, 0.05),
-      new THREE.Vector3(0.25, -0.1, 0.05),
-      METER_OFFSET.clone().add(new THREE.Vector3(0, 0.15, 0)),
+      new THREE.Vector3(meterOffset.x * 0.3, -0.4, 0.05),
+      new THREE.Vector3(meterOffset.x * 0.7, -0.1, 0.05),
+      meterOffset.clone().add(new THREE.Vector3(0, 0.15, 0)),
     ]);
     return new THREE.TubeGeometry(curve, 16, 0.006, 6, false);
-  }, []);
+  }, [meterOffset]);
 
   useEffect(() => () => cableGeometry.dispose(), [cableGeometry]);
 
@@ -86,6 +95,7 @@ export function PHProbe({ id, position, attachedRim }: PHProbeProps) {
         let ty = target ? target.y : ry;
         const tz = target ? target.z : rz;
         const tTilt = target ? target.tiltRad : 0;
+        const tYaw = target ? target.yawRad : 0;
 
         const activeProfile = profileRef.current;
         if (target && activeProfile && containerIdRef.current) {
@@ -99,10 +109,12 @@ export function PHProbe({ id, position, attachedRim }: PHProbeProps) {
         dampValue(current.current, "y", ty, SMOOTH_TIME.snap, dt);
         dampValue(current.current, "z", tz, SMOOTH_TIME.snap, dt);
         dampValue(current.current, "tiltRad", tTilt, SMOOTH_TIME.snap, dt);
+        dampValue(current.current, "yawRad", tYaw, SMOOTH_TIME.snap, dt);
         const group = groupRef.current;
         if (group) {
           group.position.set(current.current.x, current.current.y, current.current.z);
           group.rotation.z = current.current.tiltRad;
+          group.rotation.y = current.current.yawRad;
         }
       },
     });
@@ -125,12 +137,12 @@ export function PHProbe({ id, position, attachedRim }: PHProbeProps) {
       <mesh geometry={cableGeometry} raycast={() => null}>
         <meshStandardMaterial color="#3a3c42" roughness={0.6} />
       </mesh>
-      <mesh position={[METER_OFFSET.x, METER_OFFSET.y, METER_OFFSET.z]} raycast={() => null}>
+      <mesh position={[meterOffset.x, meterOffset.y, meterOffset.z]} raycast={() => null}>
         <boxGeometry args={[0.5, 0.3, 0.2]} />
         <meshStandardMaterial color="#f4f2ee" roughness={0.5} />
       </mesh>
       {/* Dark screen inset (C3.5: "small meter box with a dark screen"), on the meter's front face. */}
-      <mesh position={[METER_OFFSET.x, METER_OFFSET.y + 0.02, METER_OFFSET.z + 0.101]} raycast={() => null}>
+      <mesh position={[meterOffset.x, meterOffset.y + 0.02, meterOffset.z + 0.101]} raycast={() => null}>
         <boxGeometry args={[0.36, 0.16, 0.006]} />
         <meshStandardMaterial color="#14171b" roughness={0.3} />
       </mesh>

@@ -189,8 +189,8 @@ const reagentLabel = (id: Parameters<typeof reagentDef>[0]): string => reagentDe
  *
  * Kinds that only ever fire alongside a preceding command sentence in the same batch (PH_CHANGE,
  * COLOR_SHIFT, TEMPERATURE_CHANGE from a reaction/mixing, NO_REACTION, REACTION, PRECIPITATE_FORMED,
- * BUBBLES) read as short trailing clauses and never repeat the container name; `lib/events.ts`'s
- * `mergeCommandObservation` is what strings a command's clauses into one line. Kinds that can stand
+ * BUBBLES) read as short trailing clauses and never repeat the container name; `lib/summary.ts`'s
+ * `mergeObservationLines` is what strings a command's clauses into one line. Kinds that can stand
  * on their own (placing/removing objects, dispensing, measuring, a TICK's ambient TEMPERATURE_CHANGE)
  * name their subject once via `labels`, id included, since nothing else in the sentence will.
  */
@@ -303,8 +303,23 @@ export function describeError(error: LabError, labels?: LabelLookup): string {
       return "Nothing to undo.";
     case "UNKNOWN_SCENARIO":
       return `Unknown scenario "${error.requested}". Available: ${error.available.join(", ")}.`;
+    case "SLOT_UNAVAILABLE":
+      return describeSlotUnavailable(error.reason, error.position);
     default:
       return assertNever(error);
+  }
+}
+
+function describeSlotUnavailable(reason: Extract<LabError, { kind: "SLOT_UNAVAILABLE" }>["reason"], position: { readonly x: number; readonly y: number }): string {
+  switch (reason) {
+    case "occupied":
+      return `Position (${position.x}, ${position.y}) is already occupied.`;
+    case "out_of_bounds":
+      return `Position (${position.x}, ${position.y}) is outside the bench grid.`;
+    case "bench_full":
+      return "The bench is full; remove an object before adding another.";
+    default:
+      return assertNever(reason);
   }
 }
 

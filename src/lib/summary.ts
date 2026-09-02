@@ -2,36 +2,18 @@ import {
   constants,
   describeEvent,
   publicView,
+  rgbaToHex,
   scenarioObjective,
+  type LabelLookup,
   type LabEvent,
   type LabState,
   type Observation,
+  type PrecipitateScale,
   type PublicContainer,
   type PublicLabState,
-  type Rgba,
 } from "@/engine";
+import { labelLookup } from "@/lib/labels";
 import { round2 } from "./format";
-
-/**
- * Plain "Flask A" / "Flask A (c_1)" text for a bench object id. Duplicates `lib/events.ts`'s
- * `labelFor`/`labelLookup` on purpose: that file already imports from this one for
- * `safeObservationLine`, so importing back would cycle.
- */
-function plainLabel(pub: PublicLabState, id: string): string {
-  const obj = pub.objects.find((o) => o.id === id);
-  if (!obj) return id;
-  return obj.kind === "container" ? obj.label : obj.type.replace(/_/g, " ");
-}
-
-/** "Flask A (c_1)": the default lookup, id included once for the agent's own follow-up tool calls. */
-function idLabels(pub: PublicLabState): (id: string) => string {
-  return (id) => `${plainLabel(pub, id)} (${id})`;
-}
-
-/** "Flask A": no id, for the notebook (deliverable 5 of the copy rules bans ids there outright). */
-export function plainLabels(pub: PublicLabState): (id: string) => string {
-  return (id) => plainLabel(pub, id);
-}
 
 /**
  * The compact, redacted lab snapshot attached to every tool response. Built only from
@@ -79,20 +61,19 @@ export interface LabSummary {
 }
 
 
-function toHex(c: Rgba): string {
-  const ch = (x: number) => Math.round(Math.min(255, Math.max(0, x))).toString(16).padStart(2, "0");
-  return `#${ch(c.r)}${ch(c.g)}${ch(c.b)}`;
-}
-
 function clarityOf(container: PublicContainer): "clear" | "cloudy" | "opaque" {
   if (container.solids.length === 0) return "clear";
   const heavy = container.solids.some((s) => s.scale === "heavy" || s.scale === "moderate");
   return heavy ? "opaque" : "cloudy";
 }
 
+const SCALE_RANK: Readonly<Record<PrecipitateScale, number>> = { trace: 0, small: 1, moderate: 2, heavy: 3 };
+
+/** The largest deposit by scale, for the summary's single-precipitate readout. `moles` isn't a
+ * sort key: a redacted deposit (hidden contents) carries a scale but no moles. */
 function precipitateOf(container: PublicContainer): { color: string; scale: string } | undefined {
-  const solid = [...container.solids].sort((a, b) => b.moles - a.moles)[0];
-  return solid ? { color: toHex(solid.color), scale: solid.scale } : undefined;
+  const solid = [...container.solids].sort((a, b) => SCALE_RANK[b.scale] - SCALE_RANK[a.scale])[0];
+  return solid ? { color: rgbaToHex(solid.color), scale: solid.scale } : undefined;
 }
 
 function summarizeContainer(container: PublicContainer): ContainerSummary {
@@ -162,7 +143,7 @@ function findPublicContainer(pub: PublicLabState, containerId: string): PublicCo
  * `pub` instead of threading the command through the whole observation pipeline. Never secret, so it
  * runs before the hidden-container check below.
  */
-function describePour(pub: PublicLabState, event: Extract<LabEvent, { kind: "LIQUID_TRANSFERRED" }>, labels: (id: string) => string): string {
+function describePour(pub: PublicLabState, event: Extract<LabEvent, { kind: "LIQUID_TRANSFERRED" }>, labels: LabelLookup): string {
   const source = pub.objects.find((o) => o.id === event.fromId);
   const fromBurette = source?.kind === "container" && source.type === "burette";
   return fromBurette
@@ -174,9 +155,9 @@ function describePour(pub: PublicLabState, event: Extract<LabEvent, { kind: "LIQ
  * Species, reaction identity, and pH are only permitted evidence once a container's contents are
  * visible (pH is also allowed the moment a pH meter is attached, same as publicView.pH); color,
  * precipitate scale, bubbling, and temperature are always fair game. Hidden containers still name
- * themselves and report volumes normally (point 3 of the copy rules): only chemistry is redacted.
+ * themselves and report volumes normally (point 4 of the copy rules): only chemistry is redacted.
  */
-export function safeObservationLine(pub: PublicLabState, event: LabEvent, labels: (id: string) => string = idLabels(pub)): string | null {
+export function safeObservationLine(pub: PublicLabState, event: LabEvent, labels: LabelLookup = labelLookup(pub)): string | null {
   if (event.kind === "LIQUID_TRANSFERRED") return describePour(pub, event, labels);
   if (!eventContainerHidden(pub, event)) return describeEvent(event, labels);
   switch (event.kind) {
@@ -208,45 +189,39 @@ export function safeObservationLine(pub: PublicLabState, event: LabEvent, labels
 const MIX_KINDS: ReadonlySet<LabEvent["kind"]> = new Set(["LIQUID_ADDED", "LIQUID_TRANSFERRED"]);
 
 /**
- * Turns one command's worth of events into a single copy line, e.g. "Dispensed 0.5 mL into
- * Flask A (c_1). pH 7.00 to 10.99." Routed through `safeObservationLine`, so a hidden container's
- * pH, moles, or reaction chemistry never reaches this string.
- *
- * Two rules keep it from reading as a diff dump: a generic REACTION clause is dropped once a
- * PRECIPITATE_FORMED or BUBBLES clause already says a reaction happened (neutralization has no
- * such visual, so it always keeps its own "Neutralized … H+." clause); and NO_REACTION only
- * survives when it is the *only* thing the command changed besides volume, so a titrant landing
- * past the endpoint into a salt solution no longer reports "no reaction" over its own pH/color move.
+ * The one policy for which events in a command's batch are worth surfacing to a human or agent,
+ * shared by the feed line (`mergeObservationLines` below), toasts (`lib/events.ts`'s
+ * `eventsToToasts`), and the tool response's per-event `events` array (`webmcp/runtime.ts`'s
+ * `eventStrings`). Three rules: `NO_REACTION` only survives when it is the *only* thing the batch
+ * changed besides volume, so a titrant landing past the endpoint into a salt solution no longer
+ * reports "no reaction" over its own pH/color move; a generic `REACTION` is dropped once a
+ * `PRECIPITATE_FORMED`/`BUBBLES` already shows a reaction happened (neutralization has no such
+ * visual, so it always keeps its own "Neutralized … H+." clause); and a hidden container's
+ * redacted `REACTION` adds nothing next to the `PH_CHANGE`/`COLOR_SHIFT` clause it caused.
  */
-export function mergeObservationLines(
-  pub: PublicLabState,
-  events: ReadonlyArray<LabEvent>,
-  labels: (id: string) => string = idLabels(pub),
-): string {
+export function visibleObservationEvents(pub: PublicLabState | null, events: ReadonlyArray<LabEvent>): ReadonlyArray<LabEvent> {
   const hasVisualReaction = events.some((e) => e.kind === "PRECIPITATE_FORMED" || e.kind === "BUBBLES");
-  // A redacted "A reaction occurred." adds nothing next to the pH or color move it caused.
   const hasReadout = events.some((e) => e.kind === "PH_CHANGE" || e.kind === "COLOR_SHIFT");
+  const changedBesidesVolume = events.some((e) => e.kind !== "NO_REACTION" && !MIX_KINDS.has(e.kind));
 
-  const lines: string[] = [];
-  let changedBesidesVolume = false;
-  for (const event of events) {
-    if (event.kind === "NO_REACTION") continue;
-    if (event.kind === "REACTION" && hasVisualReaction && event.ruleId !== "neutralization") continue;
-    if (event.kind === "REACTION" && hasReadout && eventContainerHidden(pub, event)) continue;
-    const line = safeObservationLine(pub, event, labels);
-    if (!line) continue;
-    lines.push(line);
-    if (!MIX_KINDS.has(event.kind)) changedBesidesVolume = true;
-  }
+  return events.filter((event) => {
+    if (event.kind === "NO_REACTION") return !changedBesidesVolume;
+    if (event.kind === "REACTION" && hasVisualReaction && event.ruleId !== "neutralization") return false;
+    if (event.kind === "REACTION" && hasReadout && pub && eventContainerHidden(pub, event)) return false;
+    return true;
+  });
+}
 
-  if (!changedBesidesVolume) {
-    const noReaction = events.find((e) => e.kind === "NO_REACTION");
-    if (noReaction) {
-      const line = safeObservationLine(pub, noReaction, labels);
-      if (line) lines.push(line);
-    }
-  }
-
+/**
+ * Turns one command's worth of events into a single copy line, e.g. "Dispensed 0.5 mL into
+ * Flask A (c_1). pH 7.00 to 10.99." Routed through `visibleObservationEvents` and
+ * `safeObservationLine`, so a hidden container's pH, moles, or reaction chemistry never reaches
+ * this string, and dropped events never leave a stray empty clause.
+ */
+export function mergeObservationLines(pub: PublicLabState, events: ReadonlyArray<LabEvent>, labels: LabelLookup = labelLookup(pub)): string {
+  const lines = visibleObservationEvents(pub, events)
+    .map((event) => safeObservationLine(pub, event, labels))
+    .filter((line): line is string => line !== null && line.length > 0);
   return lines.length > 0 ? lines.join(" ") : "Nothing changed.";
 }
 

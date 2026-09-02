@@ -16,17 +16,10 @@ const RING_GAP = 0.05;
 const RING_BAND = 0.16;
 
 interface RingTarget {
-  readonly position: readonly [number, number];
+  x: number;
+  y: number;
   /** Base radius of the vessel (or a fixed size for instruments) the ring hugs. */
   readonly radius: number;
-}
-
-/** Position and footprint for whichever object id `visuals` currently holds, container or instrument. */
-function targetOf(id: string): RingTarget | null {
-  const obj = useLabStore.getState().lab.objects.find((o) => o.id === id);
-  if (!obj) return null;
-  const radius = obj.kind === "container" ? footprintRadius(profileForContainerType(obj.type)) * GRID_SCALE : 0.3;
-  return { position: [obj.position.x, obj.position.y], radius };
 }
 
 /**
@@ -40,6 +33,9 @@ export function AgentRing() {
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   const theme = useLabStore((s) => s.ui.theme);
   const color = useMemo(() => resolveCssColor("--accent", theme === "dark" ? "#e0b366" : "#d8a251"), [theme]);
+  // Radius is fixed per id (it only depends on the object's type, not its live position), so it
+  // is computed once and reused; only x/y are refreshed in place each frame this id is active.
+  const targetCache = useRef(new Map<string, RingTarget>());
 
   useFrame(() => {
     const mesh = meshRef.current;
@@ -60,12 +56,21 @@ export function AgentRing() {
       return;
     }
 
-    const target = targetOf(activeId);
-    if (!target) {
+    const obj = useLabStore.getState().lab.objects.find((o) => o.id === activeId);
+    if (!obj) {
       mesh.visible = false;
       return;
     }
-    const [x, , z] = gridToWorld({ x: target.position[0], y: target.position[1] });
+    let target = targetCache.current.get(activeId);
+    if (!target) {
+      const radius = obj.kind === "container" ? footprintRadius(profileForContainerType(obj.type)) * GRID_SCALE : 0.3;
+      target = { x: obj.position.x, y: obj.position.y, radius };
+      targetCache.current.set(activeId, target);
+    } else {
+      target.x = obj.position.x;
+      target.y = obj.position.y;
+    }
+    const [x, , z] = gridToWorld({ x: target.x, y: target.y });
     mesh.position.set(x, RING_Y, z);
     // Unit ring geometry scaled to the vessel's footprint, so a burette gets a tight ring and a
     // beaker a wide one without rebuilding geometry.

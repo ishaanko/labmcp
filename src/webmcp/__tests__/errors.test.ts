@@ -34,6 +34,7 @@ const CASES: ReadonlyArray<LabError> = [
   { kind: "RESTRICTED_BY_CHALLENGE", action: "inspect", reason: "unknown sample" },
   { kind: "NOTHING_TO_UNDO" },
   { kind: "UNKNOWN_SCENARIO", requested: "foo", available: ["sandbox", "titration", "unknown_id"] },
+  { kind: "SLOT_UNAVAILABLE", position: { x: -4.5, y: -1.5 }, reason: "occupied" },
 ];
 
 const EXPECTED_CODE: Record<LabError["kind"], string> = {
@@ -52,6 +53,7 @@ const EXPECTED_CODE: Record<LabError["kind"], string> = {
   RESTRICTED_BY_CHALLENGE: "PERMISSION_DENIED",
   NOTHING_TO_UNDO: "NOTHING_TO_UNDO",
   UNKNOWN_SCENARIO: "UNKNOWN_SCENARIO",
+  SLOT_UNAVAILABLE: "OUT_OF_RANGE",
 };
 
 describe("mapLabError", () => {
@@ -96,5 +98,10 @@ describe("mapLabError", () => {
     };
     const mapped = mapLabError({ kind: "UNKNOWN_OBJECT", id: "c_9", hint: "reread_lab_state" }, withObjects);
     expect(mapped.suggestions?.some((s) => s.includes("c_1"))).toBe(true);
+  });
+
+  it("suggests a free bench position for SLOT_UNAVAILABLE", () => {
+    const mapped = mapLabError({ kind: "SLOT_UNAVAILABLE", position: { x: -1.5, y: 0.5 }, reason: "occupied" }, lab);
+    expect(mapped.suggestions?.some((s) => s.includes("-4.5"))).toBe(true);
   });
 });

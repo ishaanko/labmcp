@@ -46,6 +46,14 @@ export const DEFAULT_STIR_S = 5;
 /** Gas amount (mol/L) at which bubbling reads at full intensity. */
 export const GAS_FULL_M = 0.02;
 
+/**
+ * The bench grid's single source of truth: 9 columns x 4 rows of half-integer cell centers,
+ * `minX`/`minY` at the back-left cell. `physical.ts` (GRID_XS/GRID_YS for free-cell scanning),
+ * `webmcp/schemas.ts` (SlotSchema's col/row bounds), and `webmcp/tools/mutate.ts` (slotToGrid's
+ * col/row -> x/y offset) all derive from this instead of hard-coding the numbers separately.
+ */
+export const GRID = { cols: 9, rows: 4, minX: -4.5, minY: -1.5 } as const;
+
 export const CAPACITY_ML: Readonly<Record<ContainerType, number>> = {
   beaker: 250,
   flask: 250,

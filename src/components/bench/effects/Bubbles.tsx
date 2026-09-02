@@ -4,6 +4,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { heightForVolume, radiusAt, type LatheProfile } from "@/scene/profiles";
+import { hashId, makeRng } from "@/scene/rng";
 import { visualFor } from "@/scene/visualStore";
 import { useLabStore } from "@/store/labStore";
 
@@ -27,25 +28,8 @@ interface BubbleSeed {
   readonly phase: number;
 }
 
-function makeRng(seed: number): () => number {
-  let s = seed >>> 0;
-  return () => {
-    s = (s + 0x6d2b79f5) >>> 0;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function seedFor(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) | 0;
-  return h;
-}
-
 function makeSeeds(containerId: string): BubbleSeed[] {
-  const rng = makeRng(seedFor(containerId) ^ 0x9e3779b9);
+  const rng = makeRng(hashId(containerId) ^ 0x9e3779b9);
   const seeds: BubbleSeed[] = [];
   for (let i = 0; i < MAX_BUBBLES; i++) {
     const angle = rng() * Math.PI * 2;

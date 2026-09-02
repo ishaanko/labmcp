@@ -74,10 +74,10 @@ const TILE_TEXTURE_SIZE = 256;
 
 /**
  * Bench top tile texture (C3.2): one tile per texture (`texture.repeat` set by the caller to the
- * plane's world size, so one texture repeat is exactly one world unit and lines up with the snap
- * grid, whatever the plane's dimensions). A thicker grout line and a light/dark bevel stroke on
- * each tile's top-left/bottom-right edge read as ceramic rather than a flat grid. Regenerate on
- * theme change since the colors come from CSS.
+ * plane's world size, so one texture repeat is exactly one tile and lines up with the snap grid,
+ * whatever the plane's dimensions). A thin, low-contrast grout gap plus a single faint highlight
+ * stroke read as matte ceramic; there is no opposing dark bevel stroke, which is what made the
+ * bench read as a game-floor grid rather than a lab counter (scene-composition review).
  */
 export function makeBenchTileTexture(tileColor: string, groutColor: string): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
@@ -85,27 +85,23 @@ export function makeBenchTileTexture(tileColor: string, groutColor: string): THR
   canvas.height = TILE_TEXTURE_SIZE;
   const ctx = canvas.getContext("2d");
   if (!ctx) return new THREE.CanvasTexture(canvas);
-  const grout = 10;
-  ctx.fillStyle = shadeHex(groutColor, lightness(groutColor) < 0.25 ? -0.25 : -0.1);
+  const grout = 6;
+  ctx.fillStyle = groutColor;
   ctx.fillRect(0, 0, TILE_TEXTURE_SIZE, TILE_TEXTURE_SIZE);
   const inset = TILE_TEXTURE_SIZE - grout * 2;
   ctx.fillStyle = tileColor;
   ctx.fillRect(grout, grout, inset, inset);
-  // Bevel contrast scales with the tile: a night bench gets a whisper of a highlight, not a rim.
-  const dark = lightness(tileColor) < 0.25;
-  ctx.strokeStyle = shadeHex(tileColor, dark ? 0.06 : 0.18);
-  ctx.lineWidth = 3;
+  // A single 1px highlight on the tile's top-left edge, faint enough to read as a light catch
+  // rather than a rim.
+  ctx.strokeStyle = shadeHex(tileColor, lightness(tileColor) < 0.25 ? 0.1 : 0.18);
+  ctx.globalAlpha = 0.35;
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(grout + 1.5, grout + inset);
-  ctx.lineTo(grout + 1.5, grout + 1.5);
-  ctx.lineTo(grout + inset, grout + 1.5);
+  ctx.moveTo(grout + 0.5, grout + inset);
+  ctx.lineTo(grout + 0.5, grout + 0.5);
+  ctx.lineTo(grout + inset, grout + 0.5);
   ctx.stroke();
-  ctx.strokeStyle = shadeHex(tileColor, dark ? -0.3 : -0.14);
-  ctx.beginPath();
-  ctx.moveTo(grout + inset - 1.5, grout + 1.5);
-  ctx.lineTo(grout + inset - 1.5, grout + inset - 1.5);
-  ctx.lineTo(grout + 1.5, grout + inset - 1.5);
-  ctx.stroke();
+  ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
@@ -197,7 +193,11 @@ export function getContactShadowTexture(): THREE.CanvasTexture {
   return contactShadowTexture;
 }
 
-/** Alpha map for burette/cylinder graduation marks, drawn as thin horizontal ticks. */
+/**
+ * Alpha map for burette/cylinder graduation marks, one tick per mL (`divisions` total). Three
+ * faint tiers (1 mL, 5 mL, 10 mL) so the marks read as fine glass etching rather than the bold
+ * candy-cane stripes a uniform, higher-alpha tick set produces (scene-composition review).
+ */
 export function makeGraduationTexture(divisions: number): THREE.CanvasTexture {
   const width = 64;
   const height = 512;
@@ -208,14 +208,16 @@ export function makeGraduationTexture(divisions: number): THREE.CanvasTexture {
   if (!ctx) return new THREE.CanvasTexture(canvas);
   ctx.clearRect(0, 0, width, height);
   ctx.strokeStyle = "white";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1;
   for (let i = 0; i <= divisions; i++) {
     const y = height - (i / divisions) * height;
-    const long = i % 5 === 0;
-    ctx.globalAlpha = long ? 0.8 : 0.4;
+    const major = i % 10 === 0;
+    const mid = i % 5 === 0;
+    ctx.globalAlpha = major ? 0.42 : mid ? 0.28 : 0.14;
+    const startFrac = major ? 0.25 : mid ? 0.42 : 0.58;
     ctx.beginPath();
-    ctx.moveTo(long ? width * 0.35 : width * 0.55, y);
-    ctx.lineTo(width * 0.9, y);
+    ctx.moveTo(width * startFrac, y);
+    ctx.lineTo(width * 0.88, y);
     ctx.stroke();
   }
   const texture = new THREE.CanvasTexture(canvas);

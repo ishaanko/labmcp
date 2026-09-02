@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { RoundedBox } from "@react-three/drei";
 import { useLabStore } from "@/store/labStore";
 import type { Vec2 } from "@/engine";
-import { makeBenchTileTexture, makeFloorHazeTexture, makeWallGradientTexture, resolveCssColor, shadeHex } from "@/scene/textures";
+import { makeBenchTileTexture, makeFloorHazeTexture, makeWallGradientTexture, resolveCssColor } from "@/scene/textures";
 
 /**
  * One grid cell is one world unit (C3.2: "the tile grid IS the snap grid"). Engine positions are
@@ -11,10 +11,15 @@ import { makeBenchTileTexture, makeFloorHazeTexture, makeWallGradientTexture, re
  */
 export const GRID_SCALE = 1;
 
-const BENCH_WIDTH = 14;
-const BENCH_DEPTH = 8;
-// Back strip beyond the usable grid (z < -1.5) where the haze overlay fades the tile toward `bg`.
-const HAZE_DEPTH = 2.5;
+// Sized to the usable grid (x -4.5..3.5, y -1.5..1.5) plus a small margin, not a game-floor slab
+// stretching past the equipment (scene-composition review).
+const BENCH_WIDTH = 10;
+const BENCH_DEPTH = 5;
+/** One physical tile is half a grid cell, so the surface reads as ceramic, not the snap grid itself. */
+const TILE_SIZE = 0.5;
+const WALL_Z = -BENCH_DEPTH / 2 - 0.05;
+// Back strip beyond the usable grid (y < -1.5) where the haze overlay fades the tile toward `bg`.
+const HAZE_DEPTH = 1.0;
 const HAZE_CENTER_Z = -BENCH_DEPTH / 2 + HAZE_DEPTH / 2;
 
 export function gridToWorld(pos: Vec2): readonly [number, number, number] {
@@ -36,19 +41,17 @@ interface BenchColors {
 
 /**
  * Reads the bench palette from CSS variables; fallbacks match the C1.1 tokens for the given
- * theme. Dark mode shades the tile/wall down further than the raw tokens (which read as a muted
- * grey, not a night-time near-black bench) so the scene stays legible under the key light without
- * asking for CSS-token changes outside this scene.
+ * theme. Dark mode's fallbacks are a matte near-black lab bench (tile darker than grout, low
+ * contrast between them) rather than a derived shade of the light palette, so the surface reads
+ * as ceramic at night instead of a muted grey game floor (C9, scene-composition review).
  */
 function readBenchColors(theme: "light" | "dark"): BenchColors {
   const dark = theme === "dark";
-  const tile = resolveCssColor("--bench-tile", dark ? "#2A2C31" : "#ECEAE4");
-  const wall = resolveCssColor("--bench-wall", dark ? "#1C1E23" : "#E4E7EC");
   return {
-    tile: dark ? shadeHex(tile, -0.45) : tile,
-    grout: resolveCssColor("--bench-grout", dark ? "#212327" : "#DCD9D1"),
-    wall: dark ? shadeHex(wall, -0.35) : wall,
-    bg: resolveCssColor("--bg", dark ? "#26282E" : "#F8F7F4"),
+    tile: resolveCssColor("--bench-tile", dark ? "#0c0c0e" : "#ECEAE4"),
+    grout: resolveCssColor("--bench-grout", dark ? "#17171a" : "#DCD9D1"),
+    wall: resolveCssColor("--bench-wall", dark ? "#050506" : "#E4E7EC"),
+    bg: resolveCssColor("--bg", dark ? "#000000" : "#F8F7F4"),
   };
 }
 
@@ -60,8 +63,8 @@ export function Bench() {
 
   const tileTexture = useMemo(() => {
     const texture = makeBenchTileTexture(colors.tile, colors.grout);
-    // One texture repeat is one world-unit tile (C3.2), so it repeats exactly across the plane.
-    texture.repeat.set(BENCH_WIDTH, BENCH_DEPTH);
+    // One texture repeat is one `TILE_SIZE` tile, so it repeats exactly across the plane.
+    texture.repeat.set(BENCH_WIDTH / TILE_SIZE, BENCH_DEPTH / TILE_SIZE);
     return texture;
   }, [colors.tile, colors.grout]);
   const wallTexture = useMemo(() => makeWallGradientTexture(colors.wall, colors.bg), [colors.wall, colors.bg]);
@@ -77,7 +80,7 @@ export function Bench() {
 
   return (
     <group>
-      <fog attach="fog" args={[colors.bg, 9, 17]} />
+      <fog attach="fog" args={[colors.bg, 9, 12.5]} />
       <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[BENCH_WIDTH, BENCH_DEPTH]} />
         <meshStandardMaterial map={tileTexture} roughness={0.82} />
@@ -87,8 +90,8 @@ export function Bench() {
       <RoundedBox args={[BENCH_WIDTH, 0.5, BENCH_DEPTH]} radius={0.05} smoothness={2} position={[0, -0.25, 0]} receiveShadow castShadow>
         <meshStandardMaterial color={colors.tile} roughness={0.7} />
       </RoundedBox>
-      <mesh position={[0, 5.5, -4.5]}>
-        <planeGeometry args={[30, 12]} />
+      <mesh position={[0, 4, WALL_Z]}>
+        <planeGeometry args={[30, 10]} />
         <meshBasicMaterial map={wallTexture} toneMapped={false} fog={false} />
       </mesh>
       {/* Distance haze (C3.2 "horizon soft, not a hard line"): fades the tile's back strip, past

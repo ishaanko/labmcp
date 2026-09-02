@@ -10,16 +10,11 @@ import { useLabStore } from "@/store/labStore";
 import { selectLastAgentTarget } from "@/store/selectors";
 import { gridToWorld } from "@/components/bench/Bench";
 import { profileForContainerType } from "@/scene/profiles";
-import { clampDt } from "@/scene/spring";
+import { clampDt, easeOutCubic } from "@/scene/spring";
 
 const LINGER_MS = 1200;
 const ENTER_MS = 120;
 const EXIT_MS = 160;
-
-/** Cubic ease-out (matches the app's `--ease-out` shape) for the marker's enter/exit ramps. */
-function easeOut(t: number): number {
-  return 1 - (1 - t) ** 3;
-}
 
 /** World position 8px-equivalent above the rim of `id`, container or instrument, or null if gone. */
 function markerAnchor(id: string): readonly [number, number, number] | null {
@@ -72,8 +67,8 @@ export function AgentMarker() {
     const age = now - shownAt.current;
     const remaining = hideAt.current - now;
     const opacity =
-      age < ENTER_MS ? easeOut(age / ENTER_MS) : remaining < EXIT_MS ? easeOut(Math.max(0, remaining / EXIT_MS)) : 1;
-    const scale = 0.96 + 0.04 * easeOut(Math.min(1, age / ENTER_MS));
+      age < ENTER_MS ? easeOutCubic(age / ENTER_MS) : remaining < EXIT_MS ? easeOutCubic(Math.max(0, remaining / EXIT_MS)) : 1;
+    const scale = 0.96 + 0.04 * easeOutCubic(Math.min(1, age / ENTER_MS));
     el.style.opacity = String(opacity);
     el.style.transform = `scale(${scale})`;
   });

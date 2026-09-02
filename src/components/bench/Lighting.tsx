@@ -38,10 +38,10 @@ export function Lighting() {
         intensity={THEME.light.keyIntensity}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-10}
-        shadow-camera-right={10}
-        shadow-camera-top={8}
-        shadow-camera-bottom={-8}
+        shadow-camera-left={-6}
+        shadow-camera-right={6}
+        shadow-camera-top={4}
+        shadow-camera-bottom={-4}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
       />

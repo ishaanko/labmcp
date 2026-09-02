@@ -1,12 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@/engine", () => {
-  const assertNever = (x: never): never => {
-    throw new Error(`unexpected: ${JSON.stringify(x)}`);
-  };
-  return { assertNever, describeEvent: (e: { kind: string }) => `desc:${e.kind}` };
-});
-
+import { describe, expect, it } from "vitest";
 import {
   describeCommand,
   eventsToMeasurements,
@@ -15,6 +7,9 @@ import {
   targetOfCommand,
   type ToastMessage,
 } from "../../lib/events";
+
+// No @/engine mock here: describeEvent runs for real, so the fixtures below carry every field a
+// real LabEvent needs, and assertions check real copy (`lib/observations.ts`'s prose), not a stub.
 
 function lab(objects: ReadonlyArray<{ id: string; kind: string; label?: string; type?: string }> = []) {
   return { objects } as unknown as Parameters<typeof describeCommand>[1];
@@ -59,9 +54,11 @@ const emptyPub = { objects: [] } as unknown as Parameters<typeof summarizeEvents
 
 describe("summarizeEvents", () => {
   it("joins describeEvent lines", () => {
-    expect(summarizeEvents(emptyPub, [obs({ kind: "STIR_STARTED" }), obs({ kind: "SOLIDS_SETTLED" })])).toBe(
-      "desc:STIR_STARTED desc:SOLIDS_SETTLED",
-    );
+    const line = summarizeEvents(emptyPub, [
+      obs({ kind: "STIR_STARTED", containerId: "c_1", durationS: 5 }),
+      obs({ kind: "SOLIDS_SETTLED", containerId: "c_1" }),
+    ]);
+    expect(line).toBe("Stirred c_1 (c_1) for 5 s. Solids in c_1 (c_1) settled.");
   });
 
   it("has a fallback line for an empty batch", () => {
@@ -72,35 +69,56 @@ describe("summarizeEvents", () => {
     // Regression: dispensing NaOH past the endpoint into a salt solution fires no reaction rule,
     // but the indicator's own COLOR_SHIFT means it was not a no-op.
     const line = summarizeEvents(emptyPub, [
-      obs({ kind: "COLOR_SHIFT", indicatorTransition: true }),
-      obs({ kind: "NO_REACTION" }),
+      obs({ kind: "COLOR_SHIFT", containerId: "c_1", from: {}, to: {}, description: "colorless -> faint pink", indicatorTransition: true }),
+      obs({ kind: "NO_REACTION", containerId: "c_1", description: "Mixed, no visible reaction." }),
     ]);
-    expect(line).toBe("desc:COLOR_SHIFT");
+    expect(line).toBe("Faint pink.");
   });
 
   it("keeps NO_REACTION when it is the only thing that changed", () => {
-    const line = summarizeEvents(emptyPub, [obs({ kind: "LIQUID_ADDED", containerId: "c_1", newVolumeMl: 10 }), obs({ kind: "NO_REACTION" })]);
-    expect(line).toContain("desc:NO_REACTION");
+    const line = summarizeEvents(emptyPub, [
+      obs({ kind: "LIQUID_ADDED", containerId: "c_1", reagentId: "hcl", volumeMl: 10, newVolumeMl: 10 }),
+      obs({ kind: "NO_REACTION", containerId: "c_1", description: "Mixed, no visible reaction." }),
+    ]);
+    expect(line).toContain("Mixed, no visible reaction.");
   });
 });
 
 describe("eventsToToasts", () => {
   it("only surfaces notable event kinds", () => {
-    const events = [obs({ kind: "STIR_STARTED" }), obs({ kind: "PRECIPITATE_FORMED" }), obs({ kind: "SOLIDS_SETTLED" })];
+    const events = [
+      obs({ kind: "STIR_STARTED", containerId: "c_1", durationS: 5 }),
+      obs({
+        kind: "PRECIPITATE_FORMED",
+        containerId: "c_1",
+        species: "AgCl(s)",
+        moles: 0.001,
+        massG: 0.143,
+        color: { r: 255, g: 255, b: 255, a: 1 },
+        scale: "moderate",
+        description: "White precipitate: Silver chloride, 143 mg.",
+      }),
+      obs({ kind: "SOLIDS_SETTLED", containerId: "c_1" }),
+    ];
     const toasts = eventsToToasts(events, "human");
     expect(toasts).toHaveLength(1);
-    expect(toasts[0]?.title).toBe("desc:PRECIPITATE_FORMED");
+    expect(toasts[0]?.title).toBe("White precipitate: Silver chloride, 143 mg.");
   });
 
   it("skips a color shift unless it is an indicator transition", () => {
-    const quiet = eventsToToasts([obs({ kind: "COLOR_SHIFT", indicatorTransition: false })], "human");
-    const loud = eventsToToasts([obs({ kind: "COLOR_SHIFT", indicatorTransition: true })], "human");
+    const colorShift = (indicatorTransition: boolean) =>
+      obs({ kind: "COLOR_SHIFT", containerId: "c_1", from: {}, to: {}, description: "colorless -> faint pink", indicatorTransition });
+    const quiet = eventsToToasts([colorShift(false)], "human");
+    const loud = eventsToToasts([colorShift(true)], "human");
     expect(quiet).toHaveLength(0);
     expect(loud).toHaveLength(1);
   });
 
   it("marks rejections as error toasts", () => {
-    const toasts: ReadonlyArray<ToastMessage> = eventsToToasts([obs({ kind: "OVERFLOW_REJECTED" })], "agent");
+    const toasts: ReadonlyArray<ToastMessage> = eventsToToasts(
+      [obs({ kind: "OVERFLOW_REJECTED", containerId: "c_1", attemptedMl: 10, maxAddableMl: 5 })],
+      "agent",
+    );
     expect(toasts[0]?.kind).toBe("error");
   });
 });
@@ -112,7 +130,7 @@ describe("eventsToMeasurements", () => {
         obs({ kind: "MEASUREMENT", containerId: "c_1", reading: { kind: "ph", value: 7.2 } }),
         obs({ kind: "MEASUREMENT", containerId: "c_1", reading: { kind: "temperature", valueC: 25 } }),
         obs({ kind: "MEASUREMENT", containerId: "c_1", reading: { kind: "volume", valueMl: 40 } }),
-        obs({ kind: "STIR_STARTED" }),
+        obs({ kind: "STIR_STARTED", containerId: "c_1", durationS: 3 }),
       ],
       "agent",
     );

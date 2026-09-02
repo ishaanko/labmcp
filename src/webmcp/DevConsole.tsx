@@ -61,10 +61,11 @@ export function DevConsole(): React.JSX.Element | null {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "`" && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget(e.target)) toggle();
+      else if (e.key === "Escape" && open) toggle();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggle]);
+  }, [toggle, open]);
 
   if (!allowed || !open) return null;
 

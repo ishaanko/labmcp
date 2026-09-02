@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { applyCommand, describeError, loadScenario, publicView, type Actor, type LabCommand, type LabState } from "@/engine";
-import { describeCommand, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, labelLookup, summarizeEvents, targetOfCommand } from "@/lib/events";
+import { describeCommand, emitAnimation, emitToast, eventsToMeasurements, eventsToToasts, summarizeEvents, targetOfCommand } from "@/lib/events";
 import { feedId } from "@/lib/ids";
+import { labelLookup } from "@/lib/labels";
 import { enqueue } from "./commandQueue";
 import type { DispatchResult, FeedEntry, LabStore, UiState } from "./types";
 

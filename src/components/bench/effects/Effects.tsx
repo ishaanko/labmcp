@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { useFrame } from "@react-three/fiber";
 import { assertNever, type Container, type Instrument } from "@/engine";
 import { listEffects, nowMs, pruneEffects, subscribeEffects, type Effect } from "@/scene/effectsStore";
+import { HOTPLATE_TOP_Y, isOnHotplate } from "@/scene/layout";
 import { profileForContainerType } from "@/scene/profiles";
 import { useLabStore } from "@/store/labStore";
 import { gridToWorld } from "@/components/bench/Bench";
@@ -12,14 +13,6 @@ import { Drop } from "./Drop";
 import { Ripple } from "./Ripple";
 import { Precipitate } from "./Precipitate";
 import { Bubbles } from "./Bubbles";
-
-/** Mirrors `Objects.tsx`'s hotplate rest y (C3.2); duplicated rather than imported to avoid a
- * cycle back through `Objects.tsx`, which mounts this component. */
-const HOTPLATE_TOP_Y = 0.12;
-
-function restsOnHotplate(container: Container, hotplates: ReadonlyArray<Instrument>): boolean {
-  return hotplates.some((h) => h.position.x === container.position.x && h.position.y === container.position.y);
-}
 
 function renderEffect(effect: Effect) {
   switch (effect.kind) {
@@ -59,7 +52,7 @@ export function Effects() {
       {effects.map(renderEffect)}
       {containers.map((container) => {
         const [x, , z] = gridToWorld(container.position);
-        const origin: readonly [number, number, number] = [x, restsOnHotplate(container, hotplates) ? HOTPLATE_TOP_Y : 0, z];
+        const origin: readonly [number, number, number] = [x, isOnHotplate(container, hotplates) ? HOTPLATE_TOP_Y : 0, z];
         const profile = profileForContainerType(container.type);
         return (
           <group key={container.id}>

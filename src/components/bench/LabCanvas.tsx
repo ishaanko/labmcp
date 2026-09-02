@@ -5,7 +5,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useKeyboard } from "@/hooks/useKeyboard";
 import { setSceneRefs } from "@/scene/sceneRefs";
-import { CameraRig } from "./CameraRig";
+import { CameraRig, CAMERA_BASE_POSITION } from "./CameraRig";
 import { Lighting } from "./Lighting";
 import { Bench } from "./Bench";
 import { Objects } from "./Objects";
@@ -39,11 +39,11 @@ export function LabCanvas() {
   return (
     <Canvas
       className="absolute inset-0"
-      shadows
+      shadows={{ type: THREE.PCFShadowMap }}
       dpr={[1, 1.5]}
       frameloop="always"
       tabIndex={0}
-      camera={{ fov: 30, position: [0.8, 7.9, 11.8], near: 0.1, far: 40 }}
+      camera={{ fov: 30, position: [...CAMERA_BASE_POSITION], near: 0.1, far: 40 }}
       gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.0 }}
     >
       <SceneRefsBridge />

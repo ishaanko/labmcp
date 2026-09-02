@@ -1,5 +1,6 @@
 import { publicView, type Actor, type LabState } from "@/engine";
-import { groupCommandBatches, mergeObservationLines, plainLabels } from "./summary";
+import { plainLabels } from "@/lib/labels";
+import { groupCommandBatches, mergeObservationLines } from "./summary";
 import { round2 } from "./format";
 
 export type NotebookRowKind = "action" | "measurement" | "observation";
@@ -19,7 +20,7 @@ export function rowKindFor(kind: string): NotebookRowKind {
 }
 
 /**
- * Append-only lab notebook, one row per command (deliverable 5 of the copy rules: "Dispensed 0.5
+ * Append-only lab notebook, one row per command (copy rule 2: "Dispensed 0.5
  * mL into Flask A. pH 3.00 to 7.00." reads as one line, not four). `groupCommandBatches` recovers
  * command boundaries from the flat, per-event `lab.observations` log; UNDO never rewrites past rows.
  * Labels never carry an id here, unlike the tool-facing `dr.observation`: a notebook row is read by

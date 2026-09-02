@@ -1,6 +1,6 @@
 import type { LabError, LabState, LabObject } from "@/engine";
-import { assertNever, describeError } from "@/engine";
-import { labelLookup } from "@/lib/events";
+import { assertNever, constants, describeError } from "@/engine";
+import { labelLookup } from "@/lib/labels";
 import type { ToolErrorCode } from "./types";
 
 export interface MappedError {
@@ -17,6 +17,20 @@ function objectIds(lab: LabState, types?: ReadonlyArray<LabObject["type"]>): Rea
 function idsSuggestion(lab: LabState, types?: ReadonlyArray<LabObject["type"]>): string {
   const ids = objectIds(lab, types);
   return ids.length > 0 ? `Current ids: ${ids.join(", ")}.` : "No matching objects on the bench.";
+}
+
+/** Up to 6 unoccupied bench positions (x, y), for the SLOT_UNAVAILABLE suggestion. */
+function freeCellsSuggestion(lab: LabState): string {
+  const occupied = new Set(lab.objects.map((o) => `${o.position.x},${o.position.y}`));
+  const free: string[] = [];
+  for (let row = 0; row < constants.GRID.rows && free.length < 6; row++) {
+    for (let col = 0; col < constants.GRID.cols && free.length < 6; col++) {
+      const x = constants.GRID.minX + col;
+      const y = constants.GRID.minY + row;
+      if (!occupied.has(`${x},${y}`)) free.push(`(${x}, ${y})`);
+    }
+  }
+  return free.length > 0 ? `Free bench positions: ${free.join(", ")}.` : "The bench is full.";
 }
 
 /**
@@ -57,6 +71,8 @@ export function mapLabError(error: LabError, lab: LabState): MappedError {
       return { code: "NOTHING_TO_UNDO", message };
     case "UNKNOWN_SCENARIO":
       return { code: "UNKNOWN_SCENARIO", message, suggestions: [`Available scenarios: ${error.available.join(", ")}.`] };
+    case "SLOT_UNAVAILABLE":
+      return { code: "OUT_OF_RANGE", message, suggestions: [freeCellsSuggestion(lab)] };
     default:
       return assertNever(error);
   }

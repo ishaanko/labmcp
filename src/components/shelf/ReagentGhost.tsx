@@ -32,15 +32,15 @@ function targetSuffix(drag: GhostDrag, containerLabel: string | null): string | 
   return drag.overId ? `→ ${containerLabel ?? drag.overId}` : null;
 }
 
-/** A ghost on its way out: fading where it landed, or springing back to its shelf chip. */
+/** How a ghost leaves: fading in place where it landed, or springing back to its shelf chip. */
+type GhostExitMotion = { readonly kind: "fade" } | { readonly kind: "spring"; readonly to: XY; readonly flicked: boolean };
+
+/** A ghost on its way out. */
 interface GhostExit {
   readonly ghost: GhostDrag;
   /** Where the ghost is drawn while the exit runs (the release point). */
   readonly at: XY;
-  /** Where the spring takes it (the shelf chip); same as `at` for a landed drop. */
-  readonly to: XY;
-  readonly landed: boolean;
-  readonly flicked: boolean;
+  readonly motion: GhostExitMotion;
 }
 
 const GHOST_W = 132;
@@ -51,7 +51,8 @@ const GHOST_H = 32;
  * as a raw `translate3d()` transform string every render (never through motion's `x`/`y`
  * props), since `ui.drag.pointer` already arrives rAF-throttled from `useShelfDrag`. Only the
  * unsuccessful-release return trip is a real spring; a landed drop instead fades the ghost out
- * in place over 120ms. Both run imperatively with `motion`'s `animate`.
+ * in place over 120ms. Both run imperatively with `motion`'s `animate`, and both snap instantly
+ * under `ui.reducedMotion`.
  */
 export function ReagentGhost() {
   const drag = useLabStore((s) => s.ui.drag);
@@ -74,22 +75,31 @@ export function ReagentGhost() {
     if (!last) return;
     const outcome = takeDragOutcome();
     if (!outcome) return;
-    setReturning({ ghost: last, at: last.pointer, to: outcome.landed ? last.pointer : outcome.origin, landed: outcome.landed, flicked: outcome.flicked });
+    const motion: GhostExitMotion = outcome.landed ? { kind: "fade" } : { kind: "spring", to: outcome.origin, flicked: outcome.flicked };
+    setReturning({ ghost: last, at: last.pointer, motion });
   }, [drag]);
 
   // Phase 2: run the exit once the ghost is mounted for it. Split from phase 1 because on the
   // render where `drag` goes null the element is not in the DOM yet (nothing to animate), and a
-  // ghost whose exit never starts stays stuck on screen.
+  // ghost whose exit never starts stays stuck on screen. Under reduced motion every exit still
+  // runs through `animate` (so the same finish/cleanup path applies) but with zero duration, so
+  // it snaps to its end state on the next frame instead of fading or springing.
   useEffect(() => {
     const el = ref.current;
     if (!returning || !el) return;
-    const controls = returning.landed
-      ? animate(el, { opacity: 0 }, { duration: 0.12, ease: [0.23, 1, 0.32, 1] })
-      : animate(
-          el,
-          { transform: `translate3d(${returning.to.x - GHOST_W / 2}px, ${returning.to.y - GHOST_H / 2}px, 0) scale(1)` },
-          returning.flicked ? { type: "spring", visualDuration: 0.4, bounce: 0.2 } : { type: "spring", visualDuration: 0.22, bounce: 0 },
-        );
+    const reducedMotion = useLabStore.getState().ui.reducedMotion;
+    const controls =
+      returning.motion.kind === "fade"
+        ? animate(el, { opacity: 0 }, reducedMotion ? { duration: 0 } : { duration: 0.12, ease: [0.23, 1, 0.32, 1] })
+        : animate(
+            el,
+            { transform: `translate3d(${returning.motion.to.x - GHOST_W / 2}px, ${returning.motion.to.y - GHOST_H / 2}px, 0) scale(1)` },
+            reducedMotion
+              ? { duration: 0 }
+              : returning.motion.flicked
+                ? { type: "spring", visualDuration: 0.4, bounce: 0.2 }
+                : { type: "spring", visualDuration: 0.22, bounce: 0 },
+          );
     returnControls.current = controls;
     void controls.finished.then(() => setReturning(null));
     return () => controls.stop();

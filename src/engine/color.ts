@@ -143,6 +143,18 @@ export function deriveColor(container: Container): Rgba {
   return color;
 }
 
+/** `#rrggbb`, channels clamped to 0..255 first. Alpha is dropped: callers that need it use `rgbaToCss`. */
+export function rgbaToHex(c: Rgba): string {
+  const ch = (x: number) => Math.round(clamp01(x / 255) * 255).toString(16).padStart(2, "0");
+  return `#${ch(c.r)}${ch(c.g)}${ch(c.b)}`;
+}
+
+/** `rgba(r, g, b, a)`, channels clamped to 0..255 and alpha to 0..1. */
+export function rgbaToCss(c: Rgba): string {
+  const ch = (x: number) => Math.round(clamp01(x / 255) * 255);
+  return `rgba(${ch(c.r)}, ${ch(c.g)}, ${ch(c.b)}, ${clamp01(c.a)})`;
+}
+
 export function colorDistance(a: Rgba, b: Rgba): number {
   const channelDelta = Math.max(Math.abs(a.r - b.r), Math.abs(a.g - b.g), Math.abs(a.b - b.b)) / 255;
   return channelDelta * Math.max(a.a, b.a) + Math.abs(a.a - b.a);

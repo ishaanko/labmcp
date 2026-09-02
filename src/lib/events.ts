@@ -10,9 +10,10 @@ import {
   type Observation,
   type PublicLabState,
 } from "@/engine";
+import { labelFor, labelLookup } from "@/lib/labels";
 import type { FeedEntry } from "@/store/types";
 import { fmtMl } from "./format";
-import { eventContainerHidden, mergeObservationLines, safeObservationLine } from "./summary";
+import { mergeObservationLines, safeObservationLine, visibleObservationEvents } from "./summary";
 
 /**
  * Adapter between the engine's Observation/LabEvent shapes and the store, toasts, and feed.
@@ -66,28 +67,6 @@ export function setAnimationSink(fn: AnimationSink): void {
 }
 export function emitAnimation(b: AnimationBatch): void {
   animationSink(b);
-}
-
-// ---------- labels ----------
-
-const INSTRUMENT_NAMES: Record<string, string> = { ph_meter: "pH meter", thermometer: "Thermometer", hotplate: "Hotplate" };
-
-/** Display name for a bench object, e.g. "Flask A" or "pH meter". Never the raw id on its own. */
-export function labelFor(lab: LabState | PublicLabState, id: string | null | undefined): string {
-  if (id === null || id === undefined) return "the bench";
-  const obj = lab.objects.find((o) => o.id === id);
-  if (!obj) return id;
-  return obj.kind === "container" ? obj.label : (INSTRUMENT_NAMES[obj.type] ?? obj.type.replace(/_/g, " "));
-}
-
-/** "Flask A (c_1)": the one place an id is allowed to show, for a sentence's first mention of it. */
-function labelWithId(lab: LabState | PublicLabState, id: string): string {
-  return `${labelFor(lab, id)} (${id})`;
-}
-
-/** Builds the `LabelLookup` `describeEvent` takes, bound to one lab snapshot. */
-export function labelLookup(lab: LabState | PublicLabState): (id: string) => string {
-  return (id) => labelWithId(lab, id);
 }
 
 // ---------- describeCommand ----------
@@ -221,9 +200,11 @@ function hasPriorEndpoint(lab: LabState, containerId: string, beforeSeq: number)
  * fall through to the generic `describeEvent` toast instead; `store/labStore.ts`'s `dispatch`
  * should pass both (`next`, and `() => void get().dispatch({ kind: "UNDO" }, "human")`) to get
  * the full C7 behaviour.
+ *
+ * Which events are worth a toast at all (dropping a redundant `NO_REACTION` or a hidden
+ * container's redacted `REACTION`) is `summary.ts`'s `visibleObservationEvents`, the same policy
+ * the feed line and the tool response's `events` array use.
  */
-const CHANGE_KINDS: ReadonlySet<LabEvent["kind"]> = new Set(["PH_CHANGE", "COLOR_SHIFT", "REACTION", "PRECIPITATE_FORMED", "BUBBLES"]);
-
 export function eventsToToasts(
   events: ReadonlyArray<Observation>,
   _actor: Actor,
@@ -235,18 +216,10 @@ export function eventsToToasts(
   const labels = next ? labelLookup(next) : undefined;
   // Toasts are redacted like the feed: a hidden flask's neutralization moles are its answer key.
   const pub = next ? publicView(next) : null;
-
-  // Same rules as the feed: "Mixed, no visible reaction." only when the batch reports nothing
-  // else, and a hidden container's redacted "A reaction occurred." adds nothing next to its pH move.
-  const somethingChanged = events.some((o) => CHANGE_KINDS.has(o.event.kind));
-  const hasReadout = events.some((o) => o.event.kind === "PH_CHANGE" || o.event.kind === "COLOR_SHIFT");
+  const visible = visibleObservationEvents(pub, events.map((o) => o.event));
 
   const toasts: ToastMessage[] = [];
-  for (const o of events) {
-    const event = o.event;
-    if (event.kind === "NO_REACTION" && somethingChanged) continue;
-    if (event.kind === "REACTION" && hasReadout && pub && eventContainerHidden(pub, event)) continue;
-
+  for (const event of visible) {
     if (event.kind === "COLOR_SHIFT" && event.indicatorTransition && next && flaskId !== null && event.containerId === flaskId) {
       const curve = titrationCurve(next);
       const ml = (curve[curve.length - 1]?.titrantMl ?? 0).toFixed(2);

@@ -3,7 +3,7 @@
  * helpers shared with reducer.ts's applyPhysical (which performs the actual state change once a
  * command has passed validate()).
  */
-import { CONTAINER_TYPES, DEFAULT_STIR_S, EPS_ML, INSTRUMENT_TYPES, MAX_ADD_ML, MAX_DT_S, MAX_INDICATOR_DROPS, MAX_STIR_S, MAX_TEMP_C, MIN_TEMP_C } from "./constants";
+import { CONTAINER_TYPES, DEFAULT_STIR_S, EPS_ML, GRID, INSTRUMENT_TYPES, MAX_ADD_ML, MAX_DT_S, MAX_INDICATOR_DROPS, MAX_STIR_S, MAX_TEMP_C, MIN_TEMP_C } from "./constants";
 import { mintReagentId, type ContainerId, type InstrumentId, type ReagentId } from "./ids";
 import { indicatorDef, reagentDef, suggestIndicators, suggestReagents } from "./reagents";
 import {
@@ -11,6 +11,7 @@ import {
   err,
   ok,
   type Container,
+  type EquipmentType,
   type Instrument,
   type InstrumentType,
   type LabCommand,
@@ -20,6 +21,7 @@ import {
   type ReagentDef,
   type Result,
   type ScenarioState,
+  type Vec2,
 } from "./types";
 
 // ---------- lookups shared with reducer.ts ----------
@@ -114,6 +116,54 @@ export function resolveUnknownStock(scenario: ScenarioState, reagentId: ReagentI
   return undefined;
 }
 
+// ---------- bench grid (shared with physical.ts's free-cell scan) ----------
+
+export function isContainerObjectType(t: EquipmentType): t is Container["type"] {
+  switch (t) {
+    case "beaker":
+    case "flask":
+    case "test_tube":
+    case "graduated_cylinder":
+    case "burette":
+      return true;
+    case "ph_meter":
+    case "thermometer":
+    case "hotplate":
+      return false;
+    default:
+      return assertNever(t);
+  }
+}
+
+/** A hotplate and a container may share a cell (a container placed on a hotplate); no other pair may. */
+function canShareCell(occupant: LabObject, incoming: EquipmentType): boolean {
+  if (occupant.kind === "instrument" && occupant.type === "hotplate") return isContainerObjectType(incoming);
+  if (occupant.kind === "container" && incoming === "hotplate") return true;
+  return false;
+}
+
+export function isOnGrid(position: Vec2): boolean {
+  const col = position.x - GRID.minX;
+  const row = position.y - GRID.minY;
+  return Number.isInteger(col) && Number.isInteger(row) && col >= 0 && col < GRID.cols && row >= 0 && row < GRID.rows;
+}
+
+/** Whether `objectType` could be placed at `position`: on-grid, and not blocked by an occupant it can't share the cell with. */
+export function isSlotFree(state: LabState, position: Vec2, objectType: EquipmentType): boolean {
+  if (!isOnGrid(position)) return false;
+  return !state.objects.some((o) => o.position.x === position.x && o.position.y === position.y && !canShareCell(o, objectType));
+}
+
+/** True once no bench cell is free for `objectType`, scanning the whole grid. */
+function hasFreeCell(state: LabState, objectType: EquipmentType): boolean {
+  for (let row = 0; row < GRID.rows; row++) {
+    for (let col = 0; col < GRID.cols; col++) {
+      if (isSlotFree(state, { x: GRID.minX + col, y: GRID.minY + row }, objectType)) return true;
+    }
+  }
+  return false;
+}
+
 export function findAttachedInstrument(
   state: LabState,
   containerId: ContainerId,
@@ -135,6 +185,13 @@ export function validate(state: LabState, command: LabCommand): Result<LabComman
       if (command.attachTo !== undefined) {
         const res = requireContainer(state, command.attachTo);
         if (!res.ok) return res;
+      }
+      if (command.position !== undefined) {
+        if (!isOnGrid(command.position)) return err({ kind: "SLOT_UNAVAILABLE", position: command.position, reason: "out_of_bounds" });
+        if (!isSlotFree(state, command.position, command.objectType)) return err({ kind: "SLOT_UNAVAILABLE", position: command.position, reason: "occupied" });
+      } else if (!hasFreeCell(state, command.objectType)) {
+        // No explicit position to report; the bench-full case has no single offending cell.
+        return err({ kind: "SLOT_UNAVAILABLE", position: { x: GRID.minX, y: GRID.minY }, reason: "bench_full" });
       }
       return ok(command);
     }

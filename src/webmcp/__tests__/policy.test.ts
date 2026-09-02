@@ -18,7 +18,7 @@ function toPublicContainer(container: Container, revealed: boolean) {
     rotationDeg: container.rotationDeg,
     volumeMl: container.volumeMl,
     temperatureC: container.temperatureC,
-    solids: container.solids.map((s) => ({ ...s, color: { r: 200, g: 200, b: 200, a: 1 }, scale: "small" as const })),
+    solids: container.solids.map((s) => ({ ...s, kind: "identified" as const, color: { r: 200, g: 200, b: 200, a: 1 }, scale: "small" as const })),
     gasEffects: container.gasEffects,
     indicators: container.indicators,
     stir: container.stir,

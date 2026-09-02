@@ -112,7 +112,8 @@ export type LabError =
   | { readonly kind: "INVALID_TEMPERATURE"; readonly requestedC: number; readonly minC: number; readonly maxC: number }
   | { readonly kind: "RESTRICTED_BY_CHALLENGE"; readonly action: string; readonly reason: string }
   | { readonly kind: "NOTHING_TO_UNDO" }
-  | { readonly kind: "UNKNOWN_SCENARIO"; readonly requested: string; readonly available: ReadonlyArray<ScenarioId> };
+  | { readonly kind: "UNKNOWN_SCENARIO"; readonly requested: string; readonly available: ReadonlyArray<ScenarioId> }
+  | { readonly kind: "SLOT_UNAVAILABLE"; readonly position: Vec2; readonly reason: "occupied" | "out_of_bounds" | "bench_full" };
 
 // ---------- commands ----------
 

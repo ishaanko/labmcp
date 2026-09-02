@@ -54,10 +54,10 @@ export function Burette({ id, position }: BuretteProps) {
         <mesh position={[0, BURETTE_PROFILE.capacityHeight / 2, 0]} renderOrder={21} raycast={() => null}>
           <cylinderGeometry args={[0.088, 0.088, BURETTE_PROFILE.capacityHeight, 32, 1, true]} />
           <meshBasicMaterial
-            color="#2c2e33"
+            color="#3a3d44"
             alphaMap={graduationTexture}
             transparent
-            opacity={0.6}
+            opacity={0.85}
             depthWrite={false}
             side={THREE.DoubleSide}
             toneMapped={false}

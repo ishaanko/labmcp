@@ -5,7 +5,7 @@ import { emitToast } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
 import { selectContainers } from "@/store/selectors";
 import type { Instrument, PublicContainer } from "@/engine";
-import { constants, speciesDef } from "@/engine";
+import { constants, describeColor, speciesDef } from "@/engine";
 import { Readout } from "@/components/ui/Readout";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
@@ -84,14 +84,20 @@ function ContainerCard({ container }: { container: PublicContainer }) {
         <div>
           <p className="text-2xs text-ink-3">Solids</p>
           <ul className="mt-1 flex flex-col gap-1">
-            {container.solids.map((solid) => (
-              <li key={solid.species} className="flex items-center gap-1.5 text-sm text-ink">
+            {container.solids.map((solid, i) => (
+              <li key={solid.kind === "identified" ? solid.species : `redacted-${i}`} className="flex items-center gap-1.5 text-sm text-ink">
                 <span
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                   style={{ background: `rgba(${solid.color.r}, ${solid.color.g}, ${solid.color.b}, ${solid.color.a})` }}
                   aria-hidden
                 />
-                {speciesDef(solid.species).name}
+                {solid.kind === "identified" ? (
+                  speciesDef(solid.species).name
+                ) : (
+                  <span>
+                    {describeColor(solid.color)} precipitate, {solid.scale}
+                  </span>
+                )}
                 <span className="text-ink-3">{solid.suspended > 0.5 ? "suspended" : "settled"}</span>
               </li>
             ))}

@@ -83,10 +83,14 @@ function loadSandbox(seed: number): LabState {
     concentrationM: r.kind === "water" ? null : r.defaultM,
     remainingMl: null,
   }));
+  // A hotplate and an empty beaker give sandbox the same heating/mixing setup as the challenge
+  // scenarios without dictating what the beaker holds.
+  const beaker = containerAt(mintContainerId(1), "beaker", "Beaker", CAPACITY_ML.beaker, { x: -0.5, y: 0.5 }, 0, {}, false);
+  const hotplate: Instrument = { kind: "instrument", id: mintInstrumentId(2), type: "hotplate", position: { x: 1.5, y: 0.5 }, attachedTo: null, lastReading: null };
   return {
     clockS: 0,
     ambientC: AMBIENT_C,
-    objects: [],
+    objects: [beaker, hotplate],
     shelf,
     indicatorsAvailable: [...INDICATOR_IDS],
     reactions: [],
@@ -94,7 +98,7 @@ function loadSandbox(seed: number): LabState {
     history: [],
     scenario: { kind: "sandbox", seed, visibility: { inspectContents: "full", revealShelfConcentrations: true, instrumentsRequired: false } },
     rng: seedRng(seed),
-    nextSeq: 1,
+    nextSeq: 3,
   };
 }
 
@@ -108,12 +112,15 @@ function loadTitration(seed: number): LabState {
 
   const flaskId = mintContainerId(1);
   const buretteId = mintContainerId(2);
-  // Bench cells follow the C3.2 titration layout: burette stand at the back, flask in front of it,
-  // probe holder to the right. Column -1.5 keeps the cluster centered in `CameraRig.BASE_LOOKAT`'s
-  // frame rather than pinned to the grid's far-left edge.
-  const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask, { x: -1.5, y: -0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
-  const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette, { x: -1.5, y: -1.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
-  const phMeter: Instrument = { kind: "instrument", id: mintInstrumentId(3), type: "ph_meter", position: { x: 0.5, y: -1.5 }, attachedTo: null, lastReading: null };
+  // Bench cells follow the C3.2 titration layout: burette stand directly behind the flask (same x,
+  // one row back), probe holder beside them, a spare beaker and a hotplate to the right. Column
+  // -1.5 keeps the cluster centered in `CameraRig.BASE_LOOKAT`'s frame rather than pinned to the
+  // grid's far-left edge.
+  const flask = containerAt(flaskId, "flask", "Flask", CAPACITY_ML.flask, { x: -1.5, y: 0.5 }, 25, stockToMoles(hcl, 25, analyteM), true);
+  const burette = containerAt(buretteId, "burette", "Burette", CAPACITY_ML.burette, { x: -1.5, y: -0.5 }, 50, stockToMoles(naoh, 50, 0.1), false);
+  const phMeter: Instrument = { kind: "instrument", id: mintInstrumentId(3), type: "ph_meter", position: { x: 0.5, y: -0.5 }, attachedTo: null, lastReading: null };
+  const beaker = containerAt(mintContainerId(4), "beaker", "Beaker", CAPACITY_ML.beaker, { x: 0.5, y: 0.5 }, 0, {}, false);
+  const hotplate: Instrument = { kind: "instrument", id: mintInstrumentId(5), type: "hotplate", position: { x: 2.5, y: 0.5 }, attachedTo: null, lastReading: null };
 
   // No naoh entry here: the only titrant path is the burette (via dispense), so every base
   // addition is recorded on the titration curve. TRANSFER_LIQUID out of the burette is also
@@ -126,7 +133,7 @@ function loadTitration(seed: number): LabState {
   return {
     clockS: 0,
     ambientC: AMBIENT_C,
-    objects: [flask, burette, phMeter],
+    objects: [flask, burette, phMeter, beaker, hotplate],
     shelf,
     indicatorsAvailable: [mintIndicatorId("phenolphthalein"), mintIndicatorId("universal")],
     reactions: [],
@@ -146,16 +153,16 @@ function loadTitration(seed: number): LabState {
       revealed: false,
     },
     rng: draw.rng,
-    nextSeq: 4,
+    nextSeq: 6,
   };
 }
 
 const UNKNOWN_LABELS: ReadonlyArray<string> = ["A", "B", "C"];
-// Centered in `CameraRig.BASE_LOOKAT`'s frame, with the pH meter one cell further right.
+// Front row, spanning the bench; the pH meter sits behind the middle sample.
 const UNKNOWN_POSITIONS: ReadonlyArray<{ readonly x: number; readonly y: number }> = [
-  { x: -1.5, y: -1.5 },
-  { x: -0.5, y: -1.5 },
-  { x: 0.5, y: -1.5 },
+  { x: -1.5, y: 0.5 },
+  { x: 0.5, y: 0.5 },
+  { x: 2.5, y: 0.5 },
 ];
 const UNKNOWN_ARCHETYPES: ReadonlyArray<string> = ["hcl", "naoh", "nacl", "na2co3", "cacl2"];
 const UNKNOWN_SHOWN_REAGENTS: ReadonlyArray<string> = ["water", "hcl", "naoh", "nacl", "agno3", "cacl2", "na2co3"];
@@ -172,7 +179,7 @@ function loadUnknownId(seed: number): LabState {
     const def = reagentDef(reagentId);
     if (!def || def.kind !== "solution") throw new Error(`unreachable: archetype ${reagentId} missing from registry`);
     const label = UNKNOWN_LABELS[i] ?? `${i}`;
-    const position = UNKNOWN_POSITIONS[i] ?? { x: 0, y: -1.5 };
+    const position = UNKNOWN_POSITIONS[i] ?? { x: 0, y: 0.5 };
     const containerId = mintContainerId(i + 1);
     const shelfId = mintReagentId(`unknown_${label.toLowerCase()}`);
     objects.push(containerAt(containerId, "beaker", `Unknown ${label}`, 50, position, 20, stockToMoles(def, 20, 0.1), true));
@@ -180,7 +187,7 @@ function loadUnknownId(seed: number): LabState {
     samples.push({ shelfId, label: `Unknown ${label}`, containerId });
   });
 
-  objects.push({ kind: "instrument", id: mintInstrumentId(4), type: "ph_meter", position: { x: 1.5, y: -1.5 }, attachedTo: null, lastReading: null });
+  objects.push({ kind: "instrument", id: mintInstrumentId(4), type: "ph_meter", position: { x: 0.5, y: -0.5 }, attachedTo: null, lastReading: null });
 
   const shelf: ReadonlyArray<ShelfStock> = [
     ...UNKNOWN_SHOWN_REAGENTS.map((slug) => {
@@ -252,12 +259,14 @@ function reactionsOccurredIn(state: LabState, containerId: ContainerId): Readonl
   return out;
 }
 
-function publicSolids(solids: Container["solids"]): PublicContainer["solids"] {
+/** `visible` matches the container's own `ContentsView`: a hidden container's solids carry no species or moles. */
+function publicSolids(solids: Container["solids"], visible: boolean): PublicContainer["solids"] {
   return solids.map((s) => {
     const def = speciesDef(s.species);
     const color = def.kind === "solid" ? def.color : { r: 200, g: 200, b: 200, a: 1 };
     const molarMass = def.kind === "solid" ? def.molarMass : 0;
-    return { ...s, color, scale: precipitateScale(s.moles * molarMass) };
+    const scale = precipitateScale(s.moles * molarMass);
+    return visible ? { kind: "identified" as const, species: s.species, moles: s.moles, suspended: s.suspended, color, scale } : { kind: "redacted" as const, suspended: s.suspended, color, scale };
   });
 }
 
@@ -278,7 +287,7 @@ function toPublicContainer(state: LabState, container: Container): PublicContain
     rotationDeg: container.rotationDeg,
     volumeMl: container.volumeMl,
     temperatureC: container.temperatureC,
-    solids: publicSolids(container.solids),
+    solids: publicSolids(container.solids, visible),
     gasEffects: container.gasEffects,
     indicators: container.indicators,
     stir: container.stir,

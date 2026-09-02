@@ -3,7 +3,7 @@
  * (id minting, volume/species bookkeeping, instrument state). reducer.ts runs reaction
  * resolution and observation derivation on the containers this reports as `touched`.
  */
-import { CAPACITY_ML, DEFAULT_STIR_S, EPS_ML } from "./constants";
+import { CAPACITY_ML, DEFAULT_STIR_S, EPS_ML, GRID } from "./constants";
 import { mintContainerId, mintInstrumentId, type ContainerId, type InstrumentId } from "./ids";
 import { derivePh } from "./ph";
 import { indicatorDef, reagentDef, stockToMoles } from "./reagents";
@@ -18,11 +18,10 @@ import {
   type InstrumentType,
   type LabCommand,
   type LabEvent,
-  type LabObject,
   type LabState,
   type Vec2,
 } from "./types";
-import { findAttachedInstrument, findContainerOrThrow, replaceObject, replaceObjects, resolveUnknownStock } from "./commands";
+import { findAttachedInstrument, findContainerOrThrow, isContainerObjectType, isSlotFree, replaceObject, replaceObjects, resolveUnknownStock } from "./commands";
 
 // ---------- applyPhysical ----------
 
@@ -32,35 +31,22 @@ export interface PhysicalResult {
   readonly events: ReadonlyArray<LabEvent>;
 }
 
-const GRID_XS: ReadonlyArray<number> = [-4.5, -3.5, -2.5, -1.5, -0.5, 0.5, 1.5, 2.5, 3.5];
-const GRID_YS: ReadonlyArray<number> = [-1.5, -0.5, 0.5, 1.5];
+const GRID_XS: ReadonlyArray<number> = Array.from({ length: GRID.cols }, (_, i) => GRID.minX + i);
+const GRID_YS: ReadonlyArray<number> = Array.from({ length: GRID.rows }, (_, i) => GRID.minY + i);
 
-/** First free bench cell, scanning front row to back row, left to right within a row. */
-function nextFreeCell(objects: ReadonlyArray<LabObject>): Vec2 {
-  const occupied = new Set(objects.map((o) => `${o.position.x},${o.position.y}`));
+/**
+ * First free bench cell for `objectType`, scanning back row to front row, left to right within a
+ * row. validate()'s `hasFreeCell` already rejected PLACE_OBJECT before this runs when no explicit
+ * position was given, so the {0,0} fallback below is unreachable in practice; kept only so this
+ * stays total.
+ */
+function nextFreeCell(state: LabState, objectType: EquipmentType): Vec2 {
   for (const y of GRID_YS) {
     for (const x of GRID_XS) {
-      if (!occupied.has(`${x},${y}`)) return { x, y };
+      if (isSlotFree(state, { x, y }, objectType)) return { x, y };
     }
   }
   return { x: 0, y: 0 };
-}
-
-function isContainerObjectType(t: EquipmentType): t is ContainerType {
-  switch (t) {
-    case "beaker":
-    case "flask":
-    case "test_tube":
-    case "graduated_cylinder":
-    case "burette":
-      return true;
-    case "ph_meter":
-    case "thermometer":
-    case "hotplate":
-      return false;
-    default:
-      return assertNever(t);
-  }
 }
 
 const capacityFor = (type: ContainerType): number => CAPACITY_ML[type];
@@ -124,7 +110,7 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
   switch (command.kind) {
     case "PLACE_OBJECT": {
       const seq = state.nextSeq;
-      const position = command.position ?? nextFreeCell(state.objects);
+      const position = command.position ?? nextFreeCell(state, command.objectType);
       const events: LabEvent[] = [];
       let objects = state.objects;
       if (isContainerObjectType(command.objectType)) {

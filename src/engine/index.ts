@@ -43,5 +43,6 @@ export {
 } from "./reagents";
 export { RULES, predictSupportedReactions, reactionsIfAdded, ruleById } from "./reactions";
 export { derivePh } from "./ph";
-export { liquidTint, deriveColor, colorDistance, describeColor, indicatorBand } from "./color";
+export { liquidTint, deriveColor, colorDistance, describeColor, indicatorBand, rgbaToHex, rgbaToCss } from "./color";
 export { describeEvent, eventForError, describeError } from "./observations";
+export type { LabelLookup } from "./observations";

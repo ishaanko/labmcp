@@ -38,7 +38,7 @@ function toLatheVectors(profile: LatheProfile): THREE.Vector2[] {
  * the resulting LatheGeometry has an open (uncapped) bottom instead of a fan of triangles meeting
  * at a shared center vertex. That fan renders as a broken pinwheel on any side facing away from
  * the camera at a shallow angle (`GlassRimMaterial`'s `BackSide` pass, and `LiquidMaterial`'s
- * `DoubleSide` liquid body) under a software rasterizer — confirmed empirically: the artifact
+ * `DoubleSide` liquid body) under a software rasterizer. Confirmed empirically: the artifact
  * tracks exactly the passes and geometry that keep the pole, and disappears once it's dropped.
  * Used for the glass back pass (whose own bottom cap the front pass, pole intact, already
  * supplies) and the liquid body (whose meniscus/sediment discs already cover its center).

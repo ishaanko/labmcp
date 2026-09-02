@@ -43,7 +43,11 @@ const inspectContents: ToolDef<{ container_id: string }> = {
       moles: contents.species[id] ?? 0,
       molarity: contents.concentrationsM[id] ?? 0,
     }));
-    const solids = pub.solids.map((s) => ({ id: s.species, moles: s.moles, color: `rgb(${Math.round(s.color.r)}, ${Math.round(s.color.g)}, ${Math.round(s.color.b)})` }));
+    // pub.contents.kind === "visible" here (checked above), so every solid is "identified"; the
+    // `flatMap` narrows without asserting, since the union itself doesn't encode that invariant.
+    const solids = pub.solids.flatMap((s) =>
+      s.kind === "identified" ? [{ id: s.species, moles: s.moles, color: `rgb(${Math.round(s.color.r)}, ${Math.round(s.color.g)}, ${Math.round(s.color.b)})` }] : [],
+    );
     const reactionsOccurred = pub.reactionsOccurred
       .map((id) => ruleById(id))
       .filter((rule) => rule !== undefined)

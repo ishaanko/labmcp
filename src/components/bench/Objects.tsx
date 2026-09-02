@@ -1,6 +1,7 @@
 import { assertNever, type Container, type Instrument } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import { profileForContainerType, radiusAt } from "@/scene/profiles";
+import { HOTPLATE_TOP_Y, isOnHotplate } from "@/scene/layout";
 import { gridToWorld } from "./Bench";
 import { Beaker } from "@/components/glassware/Beaker";
 import { Erlenmeyer } from "@/components/glassware/Erlenmeyer";
@@ -12,25 +13,26 @@ import { Thermometer } from "@/components/glassware/Thermometer";
 import { Hotplate } from "@/components/glassware/Hotplate";
 import { Effects } from "./effects/Effects";
 
-export const HOTPLATE_TOP_Y = 0.12;
+const THERMOMETER_ANGLE_RAD = Math.PI * 0.75;
+const THERMOMETER_TILT_RAD = (-12 * Math.PI) / 180;
+/** Rear-right quadrant (negative z, away from the camera), so the meter box swings back behind
+ * the flask's shoulder instead of over its base (C3.5 / scene-composition review). */
+const PH_PROBE_ANGLE_RAD = -Math.PI * 0.25;
+const PH_PROBE_TILT_RAD = (12 * Math.PI) / 180;
 
-/** Whether a container sits on a hotplate cell, for its rest y (C3.2) and for `Effects`' origins. */
-export function isOnHotplate(container: Container, hotplates: ReadonlyArray<Instrument>): boolean {
-  return hotplates.some((h) => h.position.x === container.position.x && h.position.y === container.position.y);
-}
-
-/** Rim pose for an attached probe/thermometer (C3.5): at the rim, tilted inward, near the liquid top. */
-function attachRimPose(container: Container, mirror: boolean): RimPose {
+/** Rim pose for an attached probe/thermometer (C3.5): at the rim, tilted inward, near the liquid
+ * top. `yawRad` turns the instrument's body to face `angleRad`'s outward direction, so a probe's
+ * meter box (offset along its own local +x) swings away from the vessel instead of into it. */
+function attachRimPose(container: Container, angleRad: number, tiltRad: number): RimPose {
   const profile = profileForContainerType(container.type);
   const [cx, cy, cz] = gridToWorld(container.position);
   const r = radiusAt(profile, profile.capacityHeight);
-  const angle = mirror ? Math.PI * 0.75 : Math.PI * 0.25;
-  const tiltRad = ((mirror ? -1 : 1) * 12 * Math.PI) / 180;
   return {
-    x: cx + Math.cos(angle) * r * 0.85,
+    x: cx + Math.cos(angleRad) * r * 0.85,
     y: cy + profile.capacityHeight - 0.15,
-    z: cz + Math.sin(angle) * r * 0.85,
+    z: cz + Math.sin(angleRad) * r * 0.85,
     tiltRad,
+    yawRad: -angleRad,
   };
 }
 
@@ -65,7 +67,7 @@ function renderInstrument(instrument: Instrument, containers: ReadonlyArray<Cont
           key={instrument.id}
           id={instrument.id}
           position={position}
-          attachedRim={attached ? attachRimPose(attached, false) : null}
+          attachedRim={attached ? attachRimPose(attached, PH_PROBE_ANGLE_RAD, PH_PROBE_TILT_RAD) : null}
         />
       );
     case "thermometer":
@@ -74,7 +76,7 @@ function renderInstrument(instrument: Instrument, containers: ReadonlyArray<Cont
           key={instrument.id}
           id={instrument.id}
           position={position}
-          attachedRim={attached ? attachRimPose(attached, true) : null}
+          attachedRim={attached ? attachRimPose(attached, THERMOMETER_ANGLE_RAD, THERMOMETER_TILT_RAD) : null}
           attachedContainerId={attached?.id ?? null}
         />
       );

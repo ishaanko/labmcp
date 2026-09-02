@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { clear, tick } from "@/scene/animationQueue";
-import { dampValue, SMOOTH_TIME } from "@/scene/spring";
+import { dampValue, easeInOutCubic, SMOOTH_TIME } from "@/scene/spring";
 import { nowMs } from "@/scene/effectsStore";
 import { colorTweens, targets, vesselRefs, visuals, type VisualState, type VisualTarget } from "@/scene/visualStore";
 import { useLabStore } from "@/store/labStore";
@@ -48,10 +48,6 @@ export function VisualDriver() {
   });
 
   return null;
-}
-
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
 /**

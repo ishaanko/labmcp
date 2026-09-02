@@ -11,6 +11,17 @@ import type { FeedEntry as FeedEntryData } from "@/store/types";
 /** Long enough that a one-line clamp would visibly cut it, so it earns a "more" toggle. */
 const LONG_TEXT_CHARS = 88;
 
+/**
+ * `lib/events.ts`'s `describeCommand`/`describeEvent` text carries a raw id on an object's
+ * first mention, e.g. "Flask A (c_1)": useful for an agent's own follow-up tool calls, wrong
+ * for a human-facing feed row. The feed shows the same observation string the agent got, so
+ * this strips the "(c_1)"/"(i_2)" suffix here rather than re-rendering the sentence with
+ * `lib/labels.ts`'s `plainLabels`.
+ */
+function stripRawIds(text: string): string {
+  return text.replace(/ \((?:c|i)_\d+\)/g, "");
+}
+
 export interface FeedEntryProps {
   entry: FeedEntryData;
 }
@@ -72,27 +83,30 @@ function useTargetLabel(targetId: string | undefined): string | null {
   });
 }
 
+/** "dispense" -> "dispense", "add_reagent" -> "add reagent": the tool name as a verb phrase. */
+function verbFor(tool: string): string {
+  return tool.replace(/_/g, " ");
+}
+
 function ToolCallRow({ entry }: { entry: Extract<FeedEntryData, { kind: "tool_call" }> }) {
   const running = entry.status === "running";
   const collapsed = entry.readOnly && !running;
   const targetLabel = useTargetLabel(entry.targetId);
+  const title = targetLabel ? `${verbFor(entry.tool)} to ${targetLabel}` : verbFor(entry.tool);
 
   return (
     <Row accent="agent" icon={<Sparkles size={13} className={running ? "text-ink-3" : "text-accent-ink"} />}>
       {collapsed ? (
         <p className="truncate text-ink-3">
-          <span className="font-mono text-2xs">{entry.tool}</span> · {entry.resultSummary ?? "ok"}
+          {title} · {entry.resultSummary ? stripRawIds(entry.resultSummary) : "ok"}
         </p>
       ) : (
         <>
-          <p className="font-mono text-2xs text-ink-2">
-            {entry.tool}
-            {targetLabel ? <span className="text-ink-3"> → {targetLabel}</span> : null}
-          </p>
+          <p className="text-ink-2">{title}</p>
           {running ? (
             <p className="mt-0.5 text-ink-3">Running…</p>
           ) : entry.resultSummary ? (
-            <SummaryLine text={entry.resultSummary} tone={entry.ok === false ? "text-danger" : "text-ink"} />
+            <SummaryLine text={stripRawIds(entry.resultSummary)} tone={entry.ok === false ? "text-danger" : "text-ink"} />
           ) : null}
         </>
       )}
@@ -104,7 +118,7 @@ function ActionRow({ entry }: { entry: Extract<FeedEntryData, { kind: "action" }
   return (
     <Row accent="human" icon={<Hand size={13} />}>
       <p className="text-ink">{entry.label}</p>
-      <SummaryLine text={entry.observation} tone={entry.ok ? "text-ink-3" : "text-danger"} />
+      <SummaryLine text={stripRawIds(entry.observation)} tone={entry.ok ? "text-ink-3" : "text-danger"} />
     </Row>
   );
 }

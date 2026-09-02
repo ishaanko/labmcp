@@ -45,3 +45,15 @@ export function dampValue<K extends string>(
 ): void {
   damp(current, key, target, smoothTime, clampDt(dt));
 }
+
+/** Cubic ease-out, `t` clamped to [0, 1]. */
+export function easeOutCubic(t: number): number {
+  const c = 1 - Math.max(0, Math.min(1, t));
+  return 1 - c * c * c;
+}
+
+/** Cubic ease-in-out, `t` clamped to [0, 1]. */
+export function easeInOutCubic(t: number): number {
+  const c = Math.max(0, Math.min(1, t));
+  return c < 0.5 ? 4 * c * c * c : 1 - (-2 * c + 2) ** 3 / 2;
+}

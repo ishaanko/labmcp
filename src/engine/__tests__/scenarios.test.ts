@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { mintSpeciesId } from "../ids";
 import { applyCommand } from "../reducer";
 import { loadScenario, publicView } from "../scenarios";
+import type { LabState } from "../types";
 import { placeBeakers } from "./helpers";
 
 describe("loadScenario", () => {
@@ -29,6 +31,54 @@ describe("loadScenario", () => {
     if (state.scenario.kind !== "unknown_id") throw new Error("unreachable");
     const reagentIds = state.scenario.samples.map((s) => state.scenario.kind === "unknown_id" ? state.scenario.secrets[s.shelfId]?.reagentId : undefined);
     expect(new Set(reagentIds).size).toBe(3);
+  });
+
+  it("lays out the titration bench with the burette directly behind the flask, keeping c_1/c_2/i_3", () => {
+    const state = loadScenario("titration", 4);
+    if (state.scenario.kind !== "titration") throw new Error("unreachable");
+    const { flaskId, buretteId } = state.scenario;
+    const flask = state.objects.find((o) => o.id === flaskId);
+    const burette = state.objects.find((o) => o.id === buretteId);
+    const meter = state.objects.find((o) => o.kind === "instrument" && o.type === "ph_meter");
+    if (!flask || !burette || !meter) throw new Error("unreachable");
+
+    expect(flask.id).toBe("c_1");
+    expect(burette.id).toBe("c_2");
+    expect(meter.id).toBe("i_3");
+    expect(flask.position).toEqual({ x: -1.5, y: 0.5 });
+    expect(burette.position).toEqual({ x: -1.5, y: -0.5 });
+    // The burette sits one row directly behind the flask (same x, y - 1): SelectionCard's
+    // dispense shortcut and the scene layout both depend on this relationship.
+    expect(burette.position.x).toBe(flask.position.x);
+    expect(burette.position.y).toBe(flask.position.y - 1);
+
+    const beaker = state.objects.find((o) => o.kind === "container" && o.type === "beaker");
+    const hotplate = state.objects.find((o) => o.kind === "instrument" && o.type === "hotplate");
+    expect(beaker?.position).toEqual({ x: 0.5, y: 0.5 });
+    expect(hotplate?.position).toEqual({ x: 2.5, y: 0.5 });
+  });
+
+  it("gives sandbox one empty beaker and a hotplate", () => {
+    const state = loadScenario("sandbox", 4);
+    const containers = state.objects.filter((o) => o.kind === "container");
+    const instruments = state.objects.filter((o) => o.kind === "instrument");
+    expect(containers).toHaveLength(1);
+    expect(containers[0]?.position).toEqual({ x: -0.5, y: 0.5 });
+    expect(containers[0]?.type === "beaker" ? containers[0].volumeMl : null).toBe(0);
+    expect(instruments).toHaveLength(1);
+    expect(instruments[0]).toMatchObject({ type: "hotplate", position: { x: 1.5, y: 0.5 } });
+  });
+
+  it("lays out three unknown_id beakers across the front row with the pH meter behind the middle one", () => {
+    const state = loadScenario("unknown_id", 4);
+    const beakers = state.objects.filter((o) => o.kind === "container");
+    const meter = state.objects.find((o) => o.kind === "instrument" && o.type === "ph_meter");
+    expect(beakers.map((b) => b.position)).toEqual([
+      { x: -1.5, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+      { x: 2.5, y: 0.5 },
+    ]);
+    expect(meter?.position).toEqual({ x: 0.5, y: -0.5 });
   });
 });
 
@@ -60,5 +110,27 @@ describe("publicView", () => {
     if (!id) throw new Error("unreachable");
     const allowed = applyCommand(sandbox.state, { kind: "MEASURE", containerId: id, quantity: "contents" });
     expect(allowed.ok).toBe(true);
+  });
+
+  it("redacts a hidden container's solids to color/scale/suspended only, no species or moles", () => {
+    const state = loadScenario("titration", 13);
+    if (state.scenario.kind !== "titration") throw new Error("unreachable");
+    const { flaskId } = state.scenario;
+    const flask = state.objects.find((o) => o.id === flaskId);
+    if (!flask || flask.kind !== "container") throw new Error("unreachable");
+
+    const withSolid: LabState = {
+      ...state,
+      objects: state.objects.map((o) => (o.id === flask.id ? { ...flask, solids: [{ species: mintSpeciesId("AgCl(s)"), moles: 0.001, suspended: 1 }] } : o)),
+    };
+
+    const pub = publicView(withSolid);
+    const pubFlask = pub.objects.find((o) => o.id === flask.id);
+    if (!pubFlask || pubFlask.kind !== "container") throw new Error("unreachable");
+    expect(pubFlask.solids).toHaveLength(1);
+    expect(pubFlask.solids[0]?.kind).toBe("redacted");
+    expect(pubFlask.solids[0]).not.toHaveProperty("species");
+    expect(pubFlask.solids[0]).not.toHaveProperty("moles");
+    expect(pubFlask.solids[0]?.suspended).toBe(1);
   });
 });

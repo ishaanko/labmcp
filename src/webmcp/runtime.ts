@@ -1,7 +1,7 @@
 import type { Container, Instrument, LabError, LabState } from "@/engine";
 import { parseContainerId, publicView } from "@/engine";
 import { feedId } from "@/lib/ids";
-import { safeObservationLine, summarizeLab } from "@/lib/summary";
+import { safeObservationLine, summarizeLab, visibleObservationEvents } from "@/lib/summary";
 import { useLabStore } from "@/store/labStore";
 import type { DispatchResult, FeedEntry, LabStore } from "@/store/types";
 import { mapLabError } from "./errors";
@@ -9,13 +9,14 @@ import type { AnyToolDef, ToolErr, ToolErrorCode, ToolOk, ToolResponse } from ".
 
 /**
  * The per-event `describeEvent` lines produced by a successful dispatch, for the tool response's
- * `events`. Redacted through the current publicView, same as `dr.observation` and lastObservations,
- * so a hidden container's pH or reaction chemistry never reaches an agent through this path either.
+ * `events`. Filtered through the same `visibleObservationEvents` policy as the feed line and
+ * toasts, then redacted through the current publicView same as `dr.observation`, so a hidden
+ * container's pH or reaction chemistry never reaches an agent through this path either.
  */
 export function eventStrings(getState: () => LabStore, dr: Extract<DispatchResult, { ok: true }>): ReadonlyArray<string> {
   const pub = publicView(getState().lab);
-  return dr.events
-    .map((o) => safeObservationLine(pub, o.event))
+  return visibleObservationEvents(pub, dr.events.map((o) => o.event))
+    .map((event) => safeObservationLine(pub, event))
     .filter((line): line is string => line !== null && line.length > 0);
 }
 

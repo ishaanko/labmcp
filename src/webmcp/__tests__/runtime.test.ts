@@ -18,7 +18,7 @@ vi.mock("@/engine", async (importOriginal) => {
           ? o
           : {
               ...o,
-              solids: o.solids.map((s) => ({ ...s, color: { r: 200, g: 200, b: 200, a: 1 }, scale: "small" as const })),
+              solids: o.solids.map((s) => ({ ...s, kind: "identified" as const, color: { r: 200, g: 200, b: 200, a: 1 }, scale: "small" as const })),
               contents: { kind: "visible" as const, species: o.species, concentrationsM: {} },
               pH: null,
               color: { r: 200, g: 220, b: 240, a: 0.2 },

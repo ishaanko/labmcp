@@ -24,8 +24,8 @@ export const TemperatureCSchema = z.number().min(0).max(100).describe("Target te
 
 export const SlotSchema = z
   .object({
-    col: z.int().min(0).max(8).describe("Bench column, 0 (left) to 8 (right)."),
-    row: z.int().min(0).max(3).describe("Bench row, 0 (back) to 3 (front)."),
+    col: z.int().min(0).max(constants.GRID.cols - 1).describe(`Bench column, 0 (left) to ${constants.GRID.cols - 1} (right).`),
+    row: z.int().min(0).max(constants.GRID.rows - 1).describe(`Bench row, 0 (back) to ${constants.GRID.rows - 1} (front).`),
   })
   .strict()
   .describe("Bench grid slot. Omit to use the next free slot.");

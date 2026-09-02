@@ -202,3 +202,16 @@ body {
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* Unlayered, so it wins over both `.pressable` above and base-ui's own `data-[starting-style]`/
+   `data-[ending-style]` utility transitions without needing !important. Motion's `MotionConfig
+   reducedMotion="user"` already covers every `motion/react` animation; this covers the two
+   remaining transition sources that library never touches: plain CSS transitions and base-ui's
+   enter/exit transitions on popovers, menus, dialogs, and tooltips. */
+@media (prefers-reduced-motion: reduce) {
+  .pressable,
+  [data-starting-style],
+  [data-ending-style] {
+    transition-duration: 1ms;
+  }
+}
