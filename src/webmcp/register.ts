@@ -11,6 +11,10 @@ export const toolRegistry = new Map<string, AnyToolDef>();
 /** Set once this module installs the polyfill on Document.prototype; a StrictMode remount would otherwise read it as native. */
 let polyfillInstalled = false;
 
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
+  return typeof value === "object" && value !== null && "then" in value && typeof value.then === "function";
+}
+
 function isPolyfill(modelContext: unknown): boolean {
   return typeof modelContext === "object" && modelContext !== null && "__isWebMCPPolyfill" in modelContext && modelContext.__isWebMCPPolyfill === true;
 }
@@ -35,10 +39,13 @@ export function registerLabTools(): () => void {
   const modelContext = document.modelContext;
   for (const def of buildTools()) {
     toolRegistry.set(def.name, def);
-    // registerTool settles with an AbortError once the signal aborts (unmount, StrictMode
-    // double-mount); that is the expected unregister path, not a failure.
-    modelContext
-      .registerTool(
+    // Chrome's registerTool returns a promise that settles with an AbortError once the signal
+    // aborts (unmount, StrictMode double-mount). ChatGPT's returns nothing and ignores the
+    // signal, so the result is treated as optional and unregistration falls back to
+    // unregisterTool when that exists.
+    let result: unknown;
+    try {
+      result = modelContext.registerTool(
         {
           name: def.name,
           title: def.title,
@@ -48,20 +55,33 @@ export function registerLabTools(): () => void {
           execute: runTool(def),
         },
         { signal: ac.signal },
-      )
-      .catch((error: unknown) => {
-        // A polyfill can reject with a plain Error named AbortError rather than a DOMException;
-        // check the name on any Error. Anything else is logged with the tool name for context
-        // instead of rethrown into an unhandled rejection nobody is awaiting.
+      );
+    } catch (error: unknown) {
+      console.error(`registerLabTools: registerTool("${def.name}") threw:`, error);
+      continue;
+    }
+    if (isPromiseLike(result)) {
+      result.then(undefined, (error: unknown) => {
         if (error instanceof Error && error.name === "AbortError") return;
         console.error(`registerLabTools: registerTool("${def.name}") failed:`, error);
       });
+    }
   }
 
   useLabStore.getState().setWebmcp({ provider: native ? "native" : "polyfill", toolCount: toolRegistry.size });
 
   return () => {
     ac.abort();
+    const unregister: unknown = Reflect.get(modelContext, "unregisterTool");
+    if (typeof unregister === "function") {
+      for (const name of toolRegistry.keys()) {
+        try {
+          unregister.call(modelContext, name);
+        } catch {
+          // Best effort: the signal abort already covers Chrome, and the page is unmounting.
+        }
+      }
+    }
     toolRegistry.clear();
   };
 }
