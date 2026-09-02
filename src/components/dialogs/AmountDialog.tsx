@@ -11,6 +11,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Slider } from "@/components/ui/slider";
 import { ROLE_HEX, indicatorRole, reagentRole } from "@/components/shelf/roleColor";
 import { round2 } from "@/lib/format";
+import { FAST_FLOW } from "@/lib/numberFlowTiming";
 import { useAnchorRect } from "./useAnchorRect";
 
 const REAGENT_PRESETS_ML = [1, 5, 10, 25, 50];
@@ -157,6 +158,7 @@ function AmountDialogContent({ dialog }: { dialog: AmountPendingDialog }) {
       <div className="flex items-center gap-3">
         <Slider value={value} min={target.min} max={target.max} step={target.step} onValueChange={setValue} aria-label={`${target.name} amount`} />
         <NumberFlow
+          {...FAST_FLOW}
           value={value}
           format={{ minimumFractionDigits: target.step < 1 ? 1 : 0, maximumFractionDigits: target.step < 1 ? 1 : 0 }}
           suffix={` ${target.unit}`}

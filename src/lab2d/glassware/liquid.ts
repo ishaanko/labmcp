@@ -67,9 +67,17 @@ function rectFromGeometry(geo: VesselGeometry, fraction: number): LiquidRect {
   return { x: geo.left, y: geo.bottomY - height, width: geo.right - geo.left, height };
 }
 
+/**
+ * Drawn-fraction floor for rect vessels: a realistic 10% fill is a 7px strip, so any liquid
+ * shows at least this much of the cavity and the rest scales into what remains. The burette is
+ * exempt; its graduations must stay true.
+ */
+export const RECT_FILL_FLOOR = 0.16;
+
 /** Bottom-anchored liquid rect for beakers, flasks, tubes, and cylinders. */
 export function liquidRect(type: RectVesselType, volumeMl: number, capacityMl: number): LiquidRect {
-  return rectFromGeometry(VESSEL_GEOMETRY[type], fillFraction(volumeMl, capacityMl));
+  const fraction = fillFraction(volumeMl, capacityMl);
+  return rectFromGeometry(VESSEL_GEOMETRY[type], fraction > 0 ? RECT_FILL_FLOOR + (1 - RECT_FILL_FLOOR) * fraction : 0);
 }
 
 /**

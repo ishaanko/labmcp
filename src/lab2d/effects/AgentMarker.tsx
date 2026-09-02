@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useLabStore } from "@/store/labStore";
 import { selectLastAgentTarget, selectPublic } from "@/store/selectors";
-import { CELL_W, cellToPx, dockedInstrumentPx, type XY } from "../grid";
+import { cellToPx, dockedInstrumentPx, type XY } from "../grid";
 
 const LINGER_MS = 2400;
 
-/** An amber chip at the right edge of the bench object the last agent tool call acted on, e.g. "dispense 2.0 mL". Beside, not above: above a flask is where its burette tip hangs. */
+/**
+ * An amber chip beside the caption of the bench object the last agent tool call acted on, e.g.
+ * "dispense 2.0 mL". Below the body, not above or at the shoulder: above a flask is where its
+ * burette tip hangs, and the right shoulder is where a pH probe docks.
+ */
 export function AgentMarker() {
   const target = useLabStore(selectLastAgentTarget);
   const objects = useLabStore((s) => selectPublic(s).objects);
@@ -28,7 +32,7 @@ export function AgentMarker() {
   const host = object && object.kind === "instrument" && object.attachedTo !== null ? objects.find((o) => o.id === object.attachedTo) : undefined;
   // A docked instrument is drawn at its host's cell corner, not at its own cell.
   const anchor: XY | null = !object ? null : host ? dockedInstrumentPx(host.position) : cellToPx(object.position);
-  const chipPx: XY | null = anchor === null ? null : host ? { x: anchor.x + 36, y: anchor.y - 12 } : { x: anchor.x + CELL_W / 2 - 6, y: anchor.y - 12 };
+  const chipPx: XY | null = anchor === null ? null : host ? { x: anchor.x + 36, y: anchor.y - 12 } : { x: anchor.x + 44, y: anchor.y + 66 };
 
   return (
     <AnimatePresence>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BURETTE_GEOMETRY, VESSEL_GEOMETRY, buretteFill, clampAlpha, fillFraction, liquidRect, mixWithWhite, vibrant } from "../glassware/liquid";
+import { BURETTE_GEOMETRY, RECT_FILL_FLOOR, VESSEL_GEOMETRY, buretteFill, clampAlpha, fillFraction, liquidRect, mixWithWhite, vibrant } from "../glassware/liquid";
 
 describe("fillFraction", () => {
   it("clamps to 0..1 and treats zero capacity as empty", () => {
@@ -22,8 +22,14 @@ describe("liquidRect", () => {
     expect(full.height).toBe(geo.bottomY - geo.topY);
 
     const half = liquidRect("beaker", 100, 200);
-    expect(half.height).toBeCloseTo((geo.bottomY - geo.topY) / 2, 5);
+    expect(half.height).toBeCloseTo((geo.bottomY - geo.topY) * (RECT_FILL_FLOOR + (1 - RECT_FILL_FLOOR) / 2), 5);
     expect(half.y).toBeCloseTo(geo.bottomY - half.height, 5);
+  });
+
+  it("floors a small fill so it reads as a pool, not a strip", () => {
+    const geo = VESSEL_GEOMETRY.flask;
+    const small = liquidRect("flask", 10, 250);
+    expect(small.height).toBeGreaterThanOrEqual((geo.bottomY - geo.topY) * RECT_FILL_FLOOR);
   });
 });
 

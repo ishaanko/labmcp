@@ -11,7 +11,7 @@ const GEO = BURETTE_GEOMETRY;
 const TICK_YS = [36, 64, 92, 120, 148, 176, 200];
 const TUBE_CX = (GEO.left + GEO.right) / 2;
 
-/** Tall burette with a stopcock and a tip at the bottom center, so a drop can fall from it. */
+/** Tall burette with a stopcock and a tip at the bottom center, so a drop can fall from it. Its caption sits above the tube: below, it would print on the flask neck. */
 export function Burette(props: VesselProps) {
   const clipId = useId();
   const rect = buretteFill(props.volumeMl, props.capacityMl);
@@ -19,7 +19,7 @@ export function Burette(props: VesselProps) {
   const outlineWidth = props.selected ? OUTLINE_WIDTH_SELECTED : OUTLINE_WIDTH;
 
   return (
-    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? VIEW_W} label={props.label} hovered={props.hovered} selected={props.selected}>
+    <VesselFrame viewBoxWidth={VIEW_W} viewBoxHeight={VIEW_H} size={props.size ?? VIEW_W} label={props.label} labelAbove hovered={props.hovered} selected={props.selected}>
       <defs>
         <clipPath id={clipId}>
           <polygon points={GEO.clipPoints} />

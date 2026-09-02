@@ -10,7 +10,8 @@ import type { VesselPrecipitate } from "./types";
 
 export const OUTLINE = "rgba(244,244,248,0.92)";
 export const OUTLINE_SELECTED = "#ffffff";
-export const GLASS_FILL = "rgba(255,255,255,0.07)";
+/** Cool-tinted glass cavity, so it separates from the bench instead of matching it at 3% luminance. */
+export const GLASS_FILL = "rgba(140,180,255,0.10)";
 export const OUTLINE_WIDTH = 3;
 export const OUTLINE_WIDTH_SELECTED = 3;
 const HIGHLIGHT_FILL = "rgba(255,255,255,0.10)";
@@ -26,6 +27,8 @@ interface VesselFrameProps {
   readonly size: number;
   /** Caption under the glass; empty hides the caption (a docked instrument's card names it instead). */
   readonly label: string;
+  /** Caption above the glass instead: the burette's tip hangs into the cell below, where a caption would cross the flask neck. */
+  readonly labelAbove?: boolean;
   /** True while the pointer is over this vessel, or it is hovered by store state (drag target etc). */
   readonly hovered: boolean;
   readonly selected?: boolean;
@@ -41,11 +44,11 @@ interface VesselFrameProps {
  * tall burette's empty corners never steal a drop aimed at the flask beneath it. Enter/leave
  * still reach the figure because they bubble from the shapes.
  */
-export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, hovered, selected = false, children }: VesselFrameProps) {
+export function VesselFrame({ viewBoxWidth, viewBoxHeight, size, label, labelAbove = false, hovered, selected = false, children }: VesselFrameProps) {
   const { width, height } = svgDims(viewBoxWidth, viewBoxHeight, size);
   return (
     <motion.figure
-      className="pointer-events-none inline-flex flex-col items-center gap-2"
+      className={clsx("pointer-events-none inline-flex items-center gap-2", labelAbove ? "flex-col-reverse" : "flex-col")}
       initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: hovered ? 1.02 : 1, y: hovered ? -3 : 0 }}
       whileHover={{ y: -3, scale: 1.02 }}

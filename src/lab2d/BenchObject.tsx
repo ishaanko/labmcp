@@ -41,6 +41,8 @@ const LIQUID_ALPHA_FLOOR = 0.45;
 const WATER_RGB = { r: 90, g: 210, b: 255 } as const;
 
 const TILT_DEG = 20;
+/** Lift for a container sharing a hotplate's cell: its floor (cell center + 65) rises to the plate top (cell center + 30). */
+const HOTPLATE_LIFT = 34;
 const PULSE_TRANSITION = { duration: 0.8, ease: "easeInOut" } as const;
 const TILT_TRANSITION = { duration: 0.4, ease: "easeInOut" } as const;
 
@@ -108,6 +110,13 @@ export function BenchObject({ id }: BenchObjectProps) {
       : false,
   );
 
+  // The mirror case: this container stands on a hotplate. It lifts onto the plate rim and drops its caption; the plate's caption names the stack.
+  const onHotplate = useLabStore((s) =>
+    object !== undefined && object.kind === "container"
+      ? selectPublic(s).objects.some((o) => o.kind === "instrument" && o.type === "hotplate" && o.position.x === object.position.x && o.position.y === object.position.y)
+      : false,
+  );
+
   const docked = object && object.kind === "instrument" && attachedContainer && attachedContainer.kind === "container" ? attachedContainer : undefined;
   const restPx: XY = useMemo(() => {
     if (!object) return { x: 0, y: 0 };
@@ -133,7 +142,7 @@ export function BenchObject({ id }: BenchObjectProps) {
       data-object-id={id}
       className="pointer-events-none absolute left-0 top-0 touch-none select-none"
       style={{ zIndex: drag.dragging ? 30 : zIndexFor(object.kind, object.type) }}
-      animate={{ x: pos.x, y: pos.y, scale: drag.dragging ? 1.03 : 1 }}
+      animate={{ x: pos.x, y: pos.y - (onHotplate && !drag.dragging ? HOTPLATE_LIFT : 0), scale: drag.dragging ? 1.03 : 1 }}
       transition={drag.dragging ? { duration: 0 } : { type: "spring", visualDuration: 0.35, bounce: drag.justReleased ? 0.2 : 0 }}
       onPointerDown={drag.onPointerDown}
       onPointerMove={drag.onPointerMove}
@@ -155,7 +164,7 @@ export function BenchObject({ id }: BenchObjectProps) {
             bubbleIntensity={object.gasEffects[0]?.intensity ?? 0}
             stirring={object.stir.kind === "stirring"}
             heating={object.thermal.kind === "heating"}
-            label={object.label}
+            label={onHotplate ? "" : object.label}
             selected={selected}
             hovered={hovered}
             agentActive={agentActive}

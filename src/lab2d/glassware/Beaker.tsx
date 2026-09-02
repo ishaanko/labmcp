@@ -23,27 +23,14 @@ export function Beaker(props: VesselProps) {
         </clipPath>
       </defs>
       <SelectionRing x={GEO.left} y={GEO.topY} width={GEO.right - GEO.left} height={GEO.bottomY - GEO.topY} selected={props.selected} agentActive={props.agentActive} />
-      <rect
-        x={GEO.left}
-        y={GEO.topY}
-        width={GEO.right - GEO.left}
-        height={GEO.bottomY - GEO.topY}
-        rx={10}
+      {/* Body and pour lip as one outline: the lip is the top-right corner pulled up, not a separate shape. */}
+      <path
+        d="M18,20 L86,20 L100,10 L100,26 L100,110 Q100,120 90,120 L18,120 Q8,120 8,110 L8,30 Q8,20 18,20 Z"
         fill={GLASS_FILL}
         stroke={outline}
         strokeWidth={outlineWidth}
         strokeLinejoin="round"
         style={{ transition: "stroke 200ms, stroke-width 200ms" }}
-      />
-      {/* Pour spout: a small lip at the top-right rim. */}
-      <path
-        d="M92,22 L104,10 L104,26 Z"
-        fill={GLASS_FILL}
-        stroke={outline}
-        strokeWidth={outlineWidth}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        style={{ transition: "stroke 200ms" }}
       />
       <GlassHighlight geo={GEO} clipId={clipId} />
       <LiquidBody rect={rect} color={vibrant(props.color)} clipId={clipId} />

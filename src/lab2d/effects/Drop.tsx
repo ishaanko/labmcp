@@ -10,10 +10,10 @@ const STROKE = "rgba(230, 230, 238, 0.9)";
 const FALL_S = 0.16;
 const RIPPLE_S = 0.16;
 
-/** Where a burette's tip hangs, at the bottom of its own cell, into the flask's cell below. */
+/** Where a burette's tip hangs: 35px into the flask's cell below, at the neck mouth (the caption above the tube pushes the tube down that far). */
 function tipPoint(position: { x: number; y: number }): XY {
   const c = cellToPx(position);
-  return { x: c.x, y: c.y + CELL_H / 2 - 8 };
+  return { x: c.x, y: c.y + CELL_H / 2 + 35 };
 }
 
 function meniscusPoint(position: { x: number; y: number }, volumeMl: number, capacityMl: number): XY {

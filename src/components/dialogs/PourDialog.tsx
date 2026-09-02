@@ -8,6 +8,7 @@ import { Popover, PopoverContent } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { round2 } from "@/lib/format";
+import { FAST_FLOW } from "@/lib/numberFlowTiming";
 import { useAnchorRect } from "./useAnchorRect";
 
 /**
@@ -76,7 +77,7 @@ function PourDialogContent({ sourceId, destinationId, maxMl }: PourDialogContent
 
       <div className="flex items-center gap-3">
         <Slider value={value} min={0} max={max} step={0.5} onValueChange={setValue} aria-label="Pour amount" />
-        <NumberFlow value={value} format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }} suffix=" mL" className="tabular w-20 shrink-0 text-right text-foreground" />
+        <NumberFlow {...FAST_FLOW} value={value} format={{ minimumFractionDigits: 1, maximumFractionDigits: 1 }} suffix=" mL" className="tabular w-20 shrink-0 text-right text-foreground" />
       </div>
 
       <div className="flex justify-end gap-2 pt-1">

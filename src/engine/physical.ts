@@ -86,8 +86,17 @@ function coolSeparated(before: ReadonlyArray<LabObject>, after: ReadonlyArray<La
 }
 
 const capacityFor = (type: ContainerType): number => CAPACITY_ML[type];
-const defaultLabel = (type: EquipmentType, seq: number): string =>
-  `${type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} ${seq}`;
+const typeName = (type: EquipmentType): string => type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** "Beaker 2" for the second beaker on the bench: numbered per type, skipping labels already in use, not by the global id sequence. */
+function defaultLabel(objects: LabState["objects"], type: ContainerType): string {
+  const name = typeName(type);
+  const containers = objects.filter((o): o is Container => o.kind === "container");
+  const taken = new Set(containers.map((o) => o.label));
+  let n = containers.filter((o) => o.type === type).length + 1;
+  while (taken.has(`${name} ${n}`)) n += 1;
+  return `${name} ${n}`;
+}
 
 function mergeIndicatorDoses<T extends { readonly indicator: string; readonly drops: number }>(existing: ReadonlyArray<T>, added: ReadonlyArray<T>): ReadonlyArray<T> {
   let result = existing;
@@ -156,7 +165,7 @@ export function applyPhysical(state: LabState, command: LabCommand): PhysicalRes
           kind: "container",
           id,
           type,
-          label: command.label ?? defaultLabel(type, seq),
+          label: command.label ?? defaultLabel(state.objects, type),
           capacityMl: capacityFor(type),
           position,
           rotationDeg: 0,

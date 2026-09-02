@@ -29,11 +29,12 @@ export const EQUIPMENT_LABEL: Record<EquipmentType, string> = {
   hotplate: "Hotplate",
 };
 
-/** Tile text where the full name does not fit the 64px tile; the tooltip carries the full name. */
-export const EQUIPMENT_TILE_LABEL: Partial<Record<EquipmentType, string>> = { graduated_cylinder: "Grad. cyl", thermometer: "Thermo" };
+/** Tile text where the full name does not fit the 80px tile; the tooltip carries the full name. */
+export const EQUIPMENT_TILE_LABEL: Partial<Record<EquipmentType, string>> = { graduated_cylinder: "Grad. cylinder" };
 
-/** Glassware outline color: no chemistry role of its own, so it reads as the neutral glass line. */
-export const EQUIPMENT_COLOR = "#e6e6ee";
+/** Glassware has no chemistry role: a white glyph on a faint fill with a translucent rim, lighter than the reagent tiles (an opaque grey rim reads as disabled). */
+export const EQUIPMENT_COLOR = "#ffffff";
+export const EQUIPMENT_FACE = { background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.28)" };
 
 export interface EquipmentButtonProps {
   equipmentType: EquipmentType;
@@ -53,6 +54,7 @@ export function EquipmentButton({ equipmentType }: EquipmentButtonProps) {
             onPointerDown={onEquipmentPointerDown(equipmentType)}
             aria-label={EQUIPMENT_LABEL[equipmentType]}
             color={EQUIPMENT_COLOR}
+            {...EQUIPMENT_FACE}
             label={EQUIPMENT_TILE_LABEL[equipmentType] ?? EQUIPMENT_LABEL[equipmentType]}
             dragging={dragging}
             icon={<Icon size={28} strokeWidth={2} />}
