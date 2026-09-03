@@ -1,22 +1,11 @@
 "use client";
 
-import { Beaker, FlaskConical, TestTube, Ruler, Pipette, Gauge, Thermometer, Flame, type LucideIcon } from "lucide-react";
 import { useLabStore } from "@/store/labStore";
 import type { EquipmentType } from "@/engine";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { iconFor } from "./icons";
 import { Tile } from "./Tile";
 import { useShelfDrag } from "./useShelfDrag";
-
-export const EQUIPMENT_ICON: Record<EquipmentType, LucideIcon> = {
-  beaker: Beaker,
-  flask: FlaskConical,
-  test_tube: TestTube,
-  graduated_cylinder: Ruler,
-  burette: Pipette,
-  ph_meter: Gauge,
-  thermometer: Thermometer,
-  hotplate: Flame,
-};
 
 export const EQUIPMENT_LABEL: Record<EquipmentType, string> = {
   beaker: "Beaker",
@@ -44,7 +33,6 @@ export interface EquipmentButtonProps {
 export function EquipmentButton({ equipmentType }: EquipmentButtonProps) {
   const { onEquipmentPointerDown } = useShelfDrag();
   const dragging = useLabStore((s) => s.ui.drag?.kind === "equipment" && s.ui.drag.equipmentType === equipmentType);
-  const Icon = EQUIPMENT_ICON[equipmentType];
 
   return (
     <Tooltip>
@@ -57,7 +45,7 @@ export function EquipmentButton({ equipmentType }: EquipmentButtonProps) {
             {...EQUIPMENT_FACE}
             label={EQUIPMENT_TILE_LABEL[equipmentType] ?? EQUIPMENT_LABEL[equipmentType]}
             dragging={dragging}
-            icon={<Icon size={28} strokeWidth={2} />}
+            icon={iconFor("equipment", equipmentType)}
           />
         }
       />

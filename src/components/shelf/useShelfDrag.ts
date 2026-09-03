@@ -133,6 +133,7 @@ export function useShelfDrag(): ShelfDragHandlers {
 
       const startDrag = (x: number, y: number): void => {
         started = true;
+        document.body.classList.add("is-dragging");
         const pointer: XY = { x, y };
         if (candidate.kind === "equipment") setDrag({ kind: "equipment", equipmentType: candidate.equipmentType, pointer, cell: null });
         else if (candidate.kind === "reagent") setDrag({ kind: "reagent", reagentId: candidate.reagentId, pointer, overId: null });
@@ -184,6 +185,7 @@ export function useShelfDrag(): ShelfDragHandlers {
         if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
         if (raf) cancelAnimationFrame(raf);
         armed.current = false;
+        document.body.classList.remove("is-dragging");
       };
 
       // The popover must open after the `click` that ends this gesture has dispatched: it lands

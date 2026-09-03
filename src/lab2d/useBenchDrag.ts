@@ -129,6 +129,7 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
   /** Pins the visual at `targetPx` through one spring beat, then hands control back to the store. */
   const settle = (targetPx: XY): void => {
     if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
+    document.body.classList.remove("is-dragging");
     setDragging(false);
     setLivePx(targetPx);
     setJustReleased(true);
@@ -144,6 +145,7 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
     store.setDrag(null);
     const self = selectPublic(store).objects.find((o) => o.id === id);
     if (!self) {
+      document.body.classList.remove("is-dragging");
       setDragging(false);
       setLivePx(null);
       return;
@@ -167,6 +169,7 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
     }
 
     if (self.kind !== "container") {
+      document.body.classList.remove("is-dragging");
       setDragging(false);
       setLivePx(null);
       return;
@@ -199,6 +202,7 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
     const pointer = workspacePointFromClient(el, clientX, clientY);
     grabOffsetRef.current = { x: pointer.x - options.restPx.x, y: pointer.y - options.restPx.y };
     phaseRef.current = { kind: "dragging", pointerId };
+    document.body.classList.add("is-dragging");
     setDragging(true);
     setJustReleased(false);
     setLivePx(options.restPx);

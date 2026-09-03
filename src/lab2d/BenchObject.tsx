@@ -160,7 +160,11 @@ export function BenchObject({ id }: BenchObjectProps) {
       onPointerCancel={drag.onPointerCancel}
     >
       <motion.div
-        className="-translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing"
+        className={
+          isBurette
+            ? "-translate-x-1/2 -translate-y-1/2 cursor-pointer"
+            : "-translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing"
+        }
         animate={{ rotate: tiltDeg, scale: pulsing ? [1, 1.04, 1] : 1 }}
         transition={{ rotate: TILT_TRANSITION, scale: PULSE_TRANSITION }}
       >

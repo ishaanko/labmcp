@@ -337,4 +337,38 @@ body {
   html {
     @apply font-sans;
   }
+
+  /* Pointer cursor on anything clickable, unless it is disabled. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  [role="menuitem"],
+  [role="tab"],
+  [role="option"],
+  [data-slot="slider-thumb"],
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+}
+
+/* While a drag is in progress, the whole page shows the grabbing cursor,
+   no matter what is under the pointer. */
+body.is-dragging,
+body.is-dragging * {
+  cursor: grabbing !important;
+}
+
+/* A bench object's caption sits outside the SVG's pointer-events (see VesselFrame in
+   lab2d/glassware/common.tsx), so it falls through to whatever is behind it by default. Put it
+   back in the grab hit area, so the whole object (glass and label) reads as draggable. */
+[data-object-id] figcaption {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+/* Dock tiles (reagent, indicator, equipment) are `<button>`s, so the base rule above would show
+   a plain pointer; they are draggable, so grab reads truer. */
+[data-shelf] button:not(:disabled) {
+  cursor: grab;
 }

@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { animate } from "motion/react";
 import { clsx } from "clsx";
-import { constants, indicatorDef, isIndicatorIdShape, isReagentId, reagentDef, type EquipmentType } from "@/engine";
+import { constants, indicatorDef, isIndicatorIdShape, isReagentId, type EquipmentType } from "@/engine";
 import { useLabStore } from "@/store/labStore";
 import type { DragState, XY } from "@/store/types";
-import { EQUIPMENT_COLOR, EQUIPMENT_FACE, EQUIPMENT_ICON } from "./EquipmentButton";
+import { EQUIPMENT_COLOR, EQUIPMENT_FACE } from "./EquipmentButton";
+import { iconFor } from "./icons";
 import { ROLE_HEX, indicatorRole, reagentRole } from "./roleColor";
-import { BottleIcon, DropletIcon, DropperIcon } from "./TileIcon";
 import { TileGlyph, type TileFace } from "./Tile";
 import { takeDragOutcome } from "./useShelfDrag";
 
@@ -32,13 +32,13 @@ function colorFor(drag: GhostDrag): string {
   return isReagentId(drag.reagentId) ? ROLE_HEX[reagentRole(drag.reagentId)] : ROLE_HEX.water;
 }
 
-function iconFor(drag: GhostDrag) {
-  if (drag.kind === "equipment") {
-    const Icon = isEquipmentType(drag.equipmentType) ? EQUIPMENT_ICON[drag.equipmentType] : null;
-    return Icon ? <Icon size={28} strokeWidth={2} /> : null;
+function ghostIcon(drag: GhostDrag) {
+  if (drag.kind === "equipment") return isEquipmentType(drag.equipmentType) ? iconFor("equipment", drag.equipmentType) : null;
+  if (drag.kind === "indicator") {
+    const kind = isIndicatorIdShape(drag.indicatorId) ? indicatorDef(drag.indicatorId)?.kind : undefined;
+    return iconFor("indicator", kind ?? "phenolphthalein");
   }
-  if (drag.kind === "indicator") return <DropperIcon />;
-  return isReagentId(drag.reagentId) && reagentDef(drag.reagentId)?.kind === "water" ? <DropletIcon /> : <BottleIcon />;
+  return iconFor("reagent", isReagentId(drag.reagentId) ? drag.reagentId : "water");
 }
 
 /** Equipment announces a free cell; a reagent over a vessel needs nothing here, the vessel lifts and its caption turns white. */
@@ -128,7 +128,7 @@ export function ReagentGhost() {
       }}
     >
       <TileGlyph color={colorFor(active)} {...face} className={clsx("shadow-lg", hovering && "ring-2 ring-primary")}>
-        {iconFor(active)}
+        {ghostIcon(active)}
       </TileGlyph>
       {suffix ? (
         <span className="mt-1 rounded-full bg-card px-2 py-0.5 text-2xs whitespace-nowrap text-foreground shadow-lg">{suffix}</span>
