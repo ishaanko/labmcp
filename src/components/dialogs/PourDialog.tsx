@@ -23,7 +23,7 @@ export function PourDialog() {
 
   return (
     <Popover open={dialog !== null} onOpenChange={(open) => !open && openDialog(null)}>
-      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="right" align="start" sideOffset={16} className="w-72">
+      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="right" align="start" sideOffset={16}>
         {dialog ? (
           <PourDialogContent key={`${dialog.sourceId}:${dialog.destinationId}`} sourceId={dialog.sourceId} destinationId={dialog.destinationId} maxMl={dialog.maxMl} />
         ) : null}

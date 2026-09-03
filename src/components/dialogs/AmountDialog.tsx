@@ -116,7 +116,7 @@ export function AmountDialog() {
 
   return (
     <Popover open={dialog !== null} onOpenChange={(open) => !open && close()}>
-      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="right" align="start" sideOffset={16} className="w-72">
+      <PopoverContent anchor={rect ? { getBoundingClientRect: () => rect } : null} side="right" align="start" sideOffset={16}>
         {dialog ? <AmountDialogContent key={key} dialog={dialog} /> : null}
       </PopoverContent>
     </Popover>
@@ -172,11 +172,12 @@ function AmountDialogContent({ dialog }: { dialog: AmountPendingDialog }) {
         }}
         variant="outline"
         size="sm"
-        spacing={0}
+        spacing={1}
+        className="flex-wrap gap-1"
         aria-label={`${target.name} presets`}
       >
         {target.presets.map((preset) => (
-          <ToggleGroupItem key={preset} value={String(preset)} className="tabular-nums">
+          <ToggleGroupItem key={preset} value={String(preset)} className="flex-1 basis-[30%] tabular-nums">
             {preset} {target.unit === "drops" ? "drop" + (preset === 1 ? "" : "s") : target.unit}
           </ToggleGroupItem>
         ))}

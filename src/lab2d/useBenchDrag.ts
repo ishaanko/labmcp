@@ -5,8 +5,8 @@ import type { PublicContainer } from "@/engine";
 import { emitToast } from "@/lib/events";
 import { useLabStore } from "@/store/labStore";
 import { containerInFrontOf, selectPublic } from "@/store/selectors";
-import { objectIdsAtPoint } from "./objectDom";
-import { cellToPx, dockedInstrumentPx, nearestFreeCell, pxToCell, type GridOccupant, type XY } from "./grid";
+import { instrumentDropTarget, objectBodyPx, objectIdsAtPoint } from "./objectDom";
+import { cellToPx, dockedInstrumentPose, nearestFreeCell, pxToCell, type GridOccupant, type XY } from "./grid";
 
 const DRAG_THRESHOLD_PX = 6;
 const HOLD_DELAY_MS = 350;
@@ -14,6 +14,11 @@ const HOLD_INTERVAL_MS = 120;
 /** Long enough for the drop spring (visualDuration 0.35s) to finish before the live pin releases control. */
 const SETTLE_MS = 420;
 const BENCH_WORKSPACE_SELECTOR = "[data-bench-workspace]";
+/** How far the pointer can wander over a container before an instrument prefers it as a drop target: forgiving, so the user does not have to land exactly on the glass. */
+const DROP_ZONE_INFLATE_PX = 56;
+const DROP_ZONE_CENTER_RADIUS_PX = 90;
+/** Dragging a docked instrument this far from its docked spot detaches it, so it follows the pointer freely instead of dragging its old host along by proxy. */
+const DETACH_THRESHOLD_PX = 40;
 
 type Phase = { readonly kind: "idle" } | { readonly kind: "pending"; readonly pointerId: number; readonly start: XY } | { readonly kind: "dragging"; readonly pointerId: number };
 
@@ -35,7 +40,7 @@ function gridOccupants(): ReadonlyArray<GridOccupant> {
   return selectPublic(useLabStore.getState()).objects.map((o) => ({ id: o.id, kind: o.kind, type: o.type, position: o.position }));
 }
 
-/** The first container id in the pointer's hit stack, skipping `excludeId` and any instrument. */
+/** The first container id in the pointer's hit stack, skipping `excludeId` and any instrument. Used when dragging a container: its own body is the hit area, no forgiving zone. */
 function containerUnderPoint(clientX: number, clientY: number, excludeId: string): PublicContainer | null {
   const objects = selectPublic(useLabStore.getState()).objects;
   for (const id of objectIdsAtPoint(clientX, clientY, excludeId)) {
@@ -43,6 +48,15 @@ function containerUnderPoint(clientX: number, clientY: number, excludeId: string
     if (object && object.kind === "container") return object;
   }
   return null;
+}
+
+/** The best drop target for a dragged instrument: the nearest container whose inflated zone or center radius contains the pointer (see `instrumentDropTarget`). */
+function instrumentTargetUnderPoint(clientX: number, clientY: number, excludeId: string): PublicContainer | null {
+  const objects = selectPublic(useLabStore.getState()).objects;
+  const containerIds = objects.filter((o) => o.kind === "container" && o.id !== excludeId).map((o) => o.id);
+  const targetId = instrumentDropTarget(clientX, clientY, containerIds, DROP_ZONE_INFLATE_PX, DROP_ZONE_CENTER_RADIUS_PX);
+  const target = targetId ? objects.find((o) => o.id === targetId) : undefined;
+  return target && target.kind === "container" ? target : null;
 }
 
 export interface BenchDragRender {
@@ -61,6 +75,8 @@ export interface BenchDragOptions {
   readonly isBurette: boolean;
   /** The object's current rest pixel position (its own cell, or the dock corner if attached). */
   readonly restPx: XY;
+  /** True when an instrument is currently attached; irrelevant for containers. Drives the drag-40px-to-detach rule. */
+  readonly docked: boolean;
 }
 
 /**
@@ -75,6 +91,10 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
   const holdRef = useRef<HoldState | null>(null);
   const grabOffsetRef = useRef<XY>({ x: 0, y: 0 });
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The docked body position at the start of this drag, or null when it did not start docked. Distance from this, not the live target, is what triggers detach. */
+  const dockedStartRef = useRef<XY | null>(null);
+  /** True once this drag has already dispatched the detach; guards against dispatching it again on every subsequent move past the threshold. */
+  const detachedDuringDragRef = useRef(false);
   const [dragging, setDragging] = useState(false);
   const [livePx, setLivePx] = useState<XY | null>(null);
   const [justReleased, setJustReleased] = useState(false);
@@ -151,12 +171,13 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
       return;
     }
 
-    const target = containerUnderPoint(clientX, clientY, id);
-
     if (kind === "instrument" && self.kind === "instrument") {
-      if (target) {
+      const target = instrumentTargetUnderPoint(clientX, clientY, id);
+      const targetBodyPx = target ? objectBodyPx(target.id) : null;
+      const pose = target && targetBodyPx ? dockedInstrumentPose(target, targetBodyPx, self.type) : null;
+      if (target && pose) {
         void store.dispatch({ kind: "ATTACH_INSTRUMENT", instrumentId: self.id, containerId: target.id }, "human");
-        settle(dockedInstrumentPx(target.position));
+        settle(pose.bodyPx);
         return;
       }
       const pointer = workspacePointFromClient(el, clientX, clientY);
@@ -174,6 +195,8 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
       setLivePx(null);
       return;
     }
+
+    const target = containerUnderPoint(clientX, clientY, id);
 
     if (target) {
       if (self.volumeMl <= 0) {
@@ -201,6 +224,8 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
     }
     const pointer = workspacePointFromClient(el, clientX, clientY);
     grabOffsetRef.current = { x: pointer.x - options.restPx.x, y: pointer.y - options.restPx.y };
+    dockedStartRef.current = kind === "instrument" && options.docked ? options.restPx : null;
+    detachedDuringDragRef.current = false;
     phaseRef.current = { kind: "dragging", pointerId };
     document.body.classList.add("is-dragging");
     setDragging(true);
@@ -229,8 +254,20 @@ export function useBenchDrag(id: string, kind: "container" | "instrument", optio
     }
     if (phase.kind === "dragging" && e.pointerId === phase.pointerId) {
       const pointer = workspacePointFromClient(e.currentTarget, e.clientX, e.clientY);
-      setLivePx({ x: pointer.x - grabOffsetRef.current.x, y: pointer.y - grabOffsetRef.current.y });
-      const target = containerUnderPoint(e.clientX, e.clientY, id);
+      const livePoint = { x: pointer.x - grabOffsetRef.current.x, y: pointer.y - grabOffsetRef.current.y };
+      setLivePx(livePoint);
+
+      if (kind === "instrument" && dockedStartRef.current && !detachedDuringDragRef.current) {
+        const dist = Math.hypot(livePoint.x - dockedStartRef.current.x, livePoint.y - dockedStartRef.current.y);
+        if (dist > DETACH_THRESHOLD_PX) {
+          detachedDuringDragRef.current = true;
+          const store = useLabStore.getState();
+          const self = selectPublic(store).objects.find((o) => o.id === id);
+          if (self && self.kind === "instrument") void store.dispatch({ kind: "ATTACH_INSTRUMENT", instrumentId: self.id, containerId: null }, "human");
+        }
+      }
+
+      const target = kind === "instrument" ? instrumentTargetUnderPoint(e.clientX, e.clientY, id) : containerUnderPoint(e.clientX, e.clientY, id);
       const store = useLabStore.getState();
       if (store.ui.hoveredId !== (target?.id ?? null)) store.setHovered(target?.id ?? null);
       store.setDrag(kind === "container" ? { kind: "container", id, pointer: { x: e.clientX, y: e.clientY }, overId: target?.id ?? null } : { kind: "instrument", id, pointer: { x: e.clientX, y: e.clientY }, overId: target?.id ?? null });

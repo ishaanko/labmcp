@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useLabStore } from "@/store/labStore";
 import { selectLastAgentTarget, selectPublic } from "@/store/selectors";
-import { cellToPx, dockedInstrumentPx, type XY } from "../grid";
+import { cellToPx, dockedInstrumentPose, type XY } from "../grid";
+import { objectBodyPx } from "../objectDom";
 
 const LINGER_MS = 2400;
 
@@ -30,8 +31,14 @@ export function AgentMarker() {
   const visible = target !== null && target.ts !== expiredTs;
   const object = target && visible ? objects.find((o) => o.id === target.targetId) : undefined;
   const host = object && object.kind === "instrument" && object.attachedTo !== null ? objects.find((o) => o.id === object.attachedTo) : undefined;
-  // A docked instrument is drawn at its host's cell corner, not at its own cell.
-  const anchor: XY | null = !object ? null : host ? dockedInstrumentPx(host.position) : cellToPx(object.position);
+  // A docked instrument is drawn at its host's dock shoulder, not at its own cell.
+  const hostBodyPx = host && host.kind === "container" ? objectBodyPx(host.id) : null;
+  const anchor: XY | null =
+    object && object.kind === "instrument" && host && host.kind === "container" && hostBodyPx
+      ? (dockedInstrumentPose(host, hostBodyPx, object.type)?.bodyPx ?? null)
+      : object
+        ? cellToPx(object.position)
+        : null;
   const chipPx: XY | null = anchor === null ? null : host ? { x: anchor.x + 36, y: anchor.y - 12 } : { x: anchor.x + 44, y: anchor.y + 66 };
 
   return (

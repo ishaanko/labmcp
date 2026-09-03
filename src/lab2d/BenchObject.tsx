@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
+import { motion, type Transition } from "motion/react";
 import { assertNever, describeColor, rgbaToCss, type ContainerType, type InstrumentReading, type InstrumentType, type PublicContainer } from "@/engine";
 import { Instrument as InstrumentGlass, Vessel } from "@/lab2d/glassware/Glassware";
 import type { VesselPrecipitate } from "@/lab2d/glassware/types";
@@ -9,7 +9,8 @@ import { fmtC, fmtMl, fmtPh } from "@/lib/format";
 import { useLabStore } from "@/store/labStore";
 import { selectPublic } from "@/store/selectors";
 import { useEffectsStore } from "./effectsStore";
-import { cellToPx, dockedInstrumentPx, type XY } from "./grid";
+import { cellToPx, dockedInstrumentPose, type XY } from "./grid";
+import { objectBodyPx } from "./objectDom";
 import { useBenchDrag } from "./useBenchDrag";
 
 /** Rendered width per vessel type: each vessel's own viewBox is sized to these targets, so `size` maps 1:1 with no extra scaling. */
@@ -41,10 +42,22 @@ const LIQUID_ALPHA_FLOOR = 0.45;
 const WATER_RGB = { r: 90, g: 210, b: 255 } as const;
 
 const TILT_DEG = 20;
+/** How far a dragged instrument's ghost leans toward the container it would dock on release. */
+const ZONE_TILT_DEG = 8;
 /** Lift for a container sharing a hotplate's cell: its floor (cell center + 65) rises to the plate top (cell center + 30). */
 const HOTPLATE_LIFT = 34;
 const PULSE_TRANSITION = { duration: 0.8, ease: "easeInOut" } as const;
 const TILT_TRANSITION = { duration: 0.4, ease: "easeInOut" } as const;
+const INSTANT_TRANSITION: Transition = { duration: 0 };
+/** An instrument settling into or out of a dock: snappier and springier than a container's drop. */
+const DOCK_SNAP_TRANSITION: Transition = { type: "spring", visualDuration: 0.32, bounce: 0.12 };
+/**
+ * A container being dropped onto pops briefly (`VesselFrame`'s own hover spring, ~200ms) before
+ * settling back to its resting box; measuring its rim for a dock pose right as that attach
+ * commits can catch it mid-pop. This is how long after an attach the pose is re-measured once
+ * more, so the probe locks onto the container's true resting geometry, not a transient one.
+ */
+const DOCK_REMEASURE_MS = 300;
 
 function liquidCss(container: PublicContainer): string {
   if (container.volumeMl <= 0) return rgbaToCss(container.color);
@@ -105,6 +118,13 @@ export function BenchObject({ id }: BenchObjectProps) {
   );
   const selectedId = useLabStore((s) => s.ui.selectedId);
   const hoveredId = useLabStore((s) => s.ui.hoveredId);
+  const reducedMotion = useLabStore((s) => s.ui.reducedMotion);
+  // The container the pointer is currently over a drop zone for, while dragging this (or any) instrument; only meaningful when `object` is the one being dragged.
+  const hoveredContainer = useLabStore((s) => {
+    if (!s.ui.hoveredId) return undefined;
+    const o = selectPublic(s).objects.find((x) => x.id === s.ui.hoveredId);
+    return o && o.kind === "container" ? o : undefined;
+  });
   const tilting = useEffectsStore((s) => s.tiltIds.has(id));
   const pulsing = useEffectsStore((s) => s.pulseIds.has(id));
   const agentActive = useEffectsStore((s) => s.agentActiveIds.has(id));
@@ -128,14 +148,36 @@ export function BenchObject({ id }: BenchObjectProps) {
   );
 
   const docked = object && object.kind === "instrument" && attachedContainer && attachedContainer.kind === "container" ? attachedContainer : undefined;
+  const dockedContainerId = docked?.id;
+
+  // Re-measured whenever the store settles (`stateVersion` ticks on every commit) and once more
+  // `DOCK_REMEASURE_MS` after attaching, so a volume change, the host container moving, or its
+  // own hover pop settling back down all keep the probe pinned to its true rim, not a stale rect.
+  const stateVersion = useLabStore((s) => s.stateVersion);
+  const [remeasureTick, setRemeasureTick] = useState(0);
+  useEffect(() => {
+    if (!dockedContainerId) return undefined;
+    const timeout = window.setTimeout(() => setRemeasureTick((t) => t + 1), DOCK_REMEASURE_MS);
+    return () => window.clearTimeout(timeout);
+  }, [dockedContainerId]);
+
+  const pose = useMemo(() => {
+    if (!docked || !object || object.kind !== "instrument") return null;
+    const bodyPx = objectBodyPx(docked.id);
+    if (!bodyPx) return null;
+    return dockedInstrumentPose(docked, bodyPx, object.type);
+    // stateVersion/remeasureTick aren't read above; they're triggers to re-measure the container's DOM rect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docked, object, stateVersion, remeasureTick]);
   const restPx: XY = useMemo(() => {
     if (!object) return { x: 0, y: 0 };
-    if (docked) return dockedInstrumentPx(docked.position);
+    if (pose) return pose.bodyPx;
     return cellToPx(object.position);
-  }, [object, docked]);
+  }, [object, pose]);
 
   const isBurette = object !== undefined && object.kind === "container" && object.type === "burette";
-  const drag = useBenchDrag(id, object?.kind === "instrument" ? "instrument" : "container", { isBurette, restPx });
+  const isInstrument = object?.kind === "instrument";
+  const drag = useBenchDrag(id, isInstrument ? "instrument" : "container", { isBurette, restPx, docked: docked !== undefined });
 
   if (!object) return null;
 
@@ -144,8 +186,23 @@ export function BenchObject({ id }: BenchObjectProps) {
   const hovered = hoveredId === id;
 
   const tiltDeg = tilting && targetObject ? (targetObject.position.x >= object.position.x ? -TILT_DEG : TILT_DEG) : 0;
+  // While dragging this instrument over a valid drop zone, lean its ghost toward the container it would dock on release.
+  const zoneTiltDeg =
+    !reducedMotion && drag.dragging && object.kind === "instrument" && hoveredContainer
+      ? cellToPx(hoveredContainer.position).x >= pos.x
+        ? ZONE_TILT_DEG
+        : -ZONE_TILT_DEG
+      : 0;
   const size =
     object.kind === "container" ? VESSEL_SIZE[object.type] : docked ? INSTRUMENT_DOCKED_SIZE[object.type] : INSTRUMENT_STANDALONE_SIZE[object.type];
+
+  const positionTransition: Transition = reducedMotion
+    ? INSTANT_TRANSITION
+    : drag.dragging
+      ? INSTANT_TRANSITION
+      : object.kind === "instrument" && drag.justReleased
+        ? DOCK_SNAP_TRANSITION
+        : { type: "spring", visualDuration: 0.35, bounce: drag.justReleased ? 0.2 : 0 };
 
   return (
     <motion.div
@@ -153,7 +210,7 @@ export function BenchObject({ id }: BenchObjectProps) {
       className="pointer-events-none absolute left-0 top-0 touch-none select-none"
       style={{ zIndex: drag.dragging ? 30 : zIndexFor(object.kind, object.type) }}
       animate={{ x: pos.x, y: pos.y - (onHotplate && !drag.dragging ? HOTPLATE_LIFT : 0), scale: drag.dragging ? 1.03 : 1 }}
-      transition={drag.dragging ? { duration: 0 } : { type: "spring", visualDuration: 0.35, bounce: drag.justReleased ? 0.2 : 0 }}
+      transition={positionTransition}
       onPointerDown={drag.onPointerDown}
       onPointerMove={drag.onPointerMove}
       onPointerUp={drag.onPointerUp}
@@ -165,8 +222,8 @@ export function BenchObject({ id }: BenchObjectProps) {
             ? "-translate-x-1/2 -translate-y-1/2 cursor-pointer"
             : "-translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing"
         }
-        animate={{ rotate: tiltDeg, scale: pulsing ? [1, 1.04, 1] : 1 }}
-        transition={{ rotate: TILT_TRANSITION, scale: PULSE_TRANSITION }}
+        animate={{ rotate: zoneTiltDeg || tiltDeg, scale: pulsing ? [1, 1.04, 1] : 1 }}
+        transition={reducedMotion ? INSTANT_TRANSITION : { rotate: TILT_TRANSITION, scale: PULSE_TRANSITION }}
       >
         {object.kind === "container" ? (
           <Vessel
@@ -191,6 +248,7 @@ export function BenchObject({ id }: BenchObjectProps) {
             attached={object.attachedTo !== null}
             heatLevel={heatingOnCell ? 1 : 0}
             size={size}
+            dockDepthPx={pose?.tipDepthPx}
           />
         )}
       </motion.div>

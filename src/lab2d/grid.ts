@@ -1,4 +1,9 @@
-import { constants, type Vec2 } from "@/engine";
+import { constants, type ContainerType, type InstrumentType, type Vec2 } from "@/engine";
+import { liquidSurfaceY, VESSEL_VIEWBOX, vesselFloorY } from "./glassware/liquid";
+import { PH_METER_DOCK } from "./glassware/PHMeter";
+import { THERMOMETER_DOCK } from "./glassware/Thermometer";
+import type { InstrumentDockGeometry } from "./glassware/types";
+import type { WorkspaceRect } from "./objectDom";
 
 /**
  * The 2D bench grid: a direct pixel mapping of the engine's 9x4 half-integer cell grid
@@ -35,14 +40,77 @@ export function pxToCell(px: XY): Vec2 {
   };
 }
 
+type InstrumentDockSide = "left" | "right";
+
+/** Which shoulder each instrument type docks to, so the pH meter and thermometer never collide when both are attached to one container; the geometry `dockedInstrumentPose` needs to place it there; and the px width it renders at while docked (matches `INSTRUMENT_DOCKED_SIZE` in BenchObject.tsx). Only types with an entry here ever dock; a hotplate never does. */
+const DOCK_SPEC: Readonly<Partial<Record<InstrumentType, { readonly side: InstrumentDockSide; readonly geometry: InstrumentDockGeometry; readonly sizePx: number }>>> = {
+  ph_meter: { side: "right", geometry: PH_METER_DOCK, sizePx: 64 },
+  thermometer: { side: "left", geometry: THERMOMETER_DOCK, sizePx: 44 },
+};
+
+export interface DockTargetContainer {
+  readonly type: ContainerType;
+  readonly volumeMl: number;
+  readonly capacityMl: number;
+}
+
+export interface DockedInstrumentPose {
+  /** Workspace-px point the instrument's own bounding box is centered on: its body/shoulder mount, fixed regardless of fill. */
+  readonly bodyPx: XY;
+  /**
+   * Screen-px distance from the instrument's fixed rod/tube anchor down to where its tip belongs,
+   * given the container's live fill. Feeds each instrument's `dockDepthPx` prop, which converts it
+   * into its own viewBox units.
+   */
+  readonly tipDepthPx: number;
+}
+
+/** Clear of a burette tip hanging in from behind, and inset from the rim so the mount reads as sitting on the vessel, not floating off its edge. */
+const DOCK_MARGIN_X = 10;
+const DOCK_BODY_INSET_Y = 16;
 /**
- * Where an attached instrument docks: at the container's right shoulder (the flask/beaker body
- * is centered in its cell and about 130px tall, so the shoulder sits roughly a third of the way
- * down from the vessel's rim), clear of a burette tip hanging in from behind.
+ * How far below the liquid surface a probe tip rests, and how far above the floor an empty
+ * vessel's tip rests. A few px past the geometric minimum: a probe's own bulb has some radius, so
+ * resting it exactly on the surface would only half-submerge it.
  */
-export function dockedInstrumentPx(containerCell: Vec2): XY {
-  const c = cellToPx(containerCell);
-  return { x: c.x + CELL_W / 2 - 6, y: c.y - CELL_H / 2 + 50 };
+const TIP_LIQUID_MARGIN = 10;
+const TIP_FLOOR_MARGIN = 8;
+
+/**
+ * Where an instrument docks on a container: the body/shoulder mount is a fixed point near the
+ * rim (left for the thermometer, right for the pH meter), independent of fill, so it never jumps
+ * as the liquid level changes. The tip depth is derived from the live liquid surface (or the
+ * cavity floor when the vessel is empty), so the probe or bulb visibly sits in the liquid at any
+ * fill level, for any vessel type. Null for an instrument type that never docks (a hotplate).
+ *
+ * `containerBodyPx` is the container's own `<svg>` art measured live (`objectBodyPx` in
+ * objectDom.ts), not derived from its cell position: a container's rendered box includes its
+ * caption below the glass (present or not, and sometimes wider than a narrow vessel), which an
+ * analytic cell-to-box calculation cannot see. Measuring it directly is what keeps the probe's
+ * tip pinned to the vessel's true rim and floor at every fill level.
+ */
+export function dockedInstrumentPose(container: DockTargetContainer, containerBodyPx: WorkspaceRect, instrumentType: InstrumentType): DockedInstrumentPose | null {
+  const spec = DOCK_SPEC[instrumentType];
+  if (!spec) return null;
+
+  const declared = VESSEL_VIEWBOX[container.type];
+  const scaleY = containerBodyPx.height / declared.height;
+
+  const bodyPx: XY = {
+    x: spec.side === "right" ? containerBodyPx.left + containerBodyPx.width - DOCK_MARGIN_X : containerBodyPx.left + DOCK_MARGIN_X,
+    y: containerBodyPx.top + DOCK_BODY_INSET_Y * scaleY,
+  };
+
+  const tipLocalY =
+    container.volumeMl > 0
+      ? liquidSurfaceY(container.type, container.volumeMl, container.capacityMl) + TIP_LIQUID_MARGIN
+      : vesselFloorY(container.type) - TIP_FLOOR_MARGIN;
+  const tipScreenY = containerBodyPx.top + tipLocalY * scaleY;
+
+  const instrumentScale = spec.sizePx / spec.geometry.viewBoxWidth;
+  const anchorScreenY = bodyPx.y - (spec.geometry.viewBoxHeight / 2) * instrumentScale + spec.geometry.anchorY * instrumentScale;
+
+  return { bodyPx, tipDepthPx: tipScreenY - anchorScreenY };
 }
 
 /**

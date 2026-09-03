@@ -90,6 +90,35 @@ export function buretteFill(volumeMl: number, capacityMl: number): LiquidRect {
   return rectFromGeometry(BURETTE_GEOMETRY, fillFraction(volumeMl, capacityMl));
 }
 
+/**
+ * Declared SVG viewBox size for every container type. Each vessel component draws 1:1 inside this
+ * box (its rendered `size` prop equals `width`, height follows from the same scale), so this is
+ * also that vessel's on-screen footprint with no extra scaling to account for.
+ */
+export const VESSEL_VIEWBOX: Readonly<Record<ContainerType, { width: number; height: number }>> = {
+  beaker: { width: 108, height: 130 },
+  flask: { width: 108, height: 130 },
+  test_tube: { width: 40, height: 120 },
+  graduated_cylinder: { width: 56, height: 150 },
+  burette: { width: 44, height: 240 },
+};
+
+function geometryFor(type: ContainerType): VesselGeometry {
+  if (type === "burette") return BURETTE_GEOMETRY;
+  return VESSEL_GEOMETRY[type];
+}
+
+/** y (in the vessel's own viewBox units) of the liquid surface: the top edge of its fill rect. */
+export function liquidSurfaceY(type: ContainerType, volumeMl: number, capacityMl: number): number {
+  if (type === "burette") return buretteFill(volumeMl, capacityMl).y;
+  return liquidRect(type, volumeMl, capacityMl).y;
+}
+
+/** y (in the vessel's own viewBox units) of the cavity floor, where an empty vessel's fill bottoms out. */
+export function vesselFloorY(type: ContainerType): number {
+  return geometryFor(type).bottomY;
+}
+
 interface ParsedColor {
   readonly r: number;
   readonly g: number;

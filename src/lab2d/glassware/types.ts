@@ -42,4 +42,23 @@ export interface InstrumentProps {
   readonly heatLevel: number;
   /** Rendered width in px; height follows the instrument's own aspect ratio. Default 120. */
   readonly size?: number;
+  /**
+   * Docked only: screen-px distance from the instrument's fixed rod/tube anchor down to where
+   * its tip belongs, given the host container's live fill. The component converts this into its
+   * own viewBox units using its own scale (`size` / its declared viewBox width). Undefined while
+   * standalone, where the component draws its default decorative rod length instead.
+   */
+  readonly dockDepthPx?: number;
+}
+
+/**
+ * The fixed part of a docked instrument's own layout that `dockedInstrumentPose` (grid.ts) needs
+ * to place it: its declared viewBox size, and the local y of the point its rod/tube hangs from
+ * (the meter's cord anchor, the thermometer's tube top). Each instrument that docks exports one
+ * of these alongside its component.
+ */
+export interface InstrumentDockGeometry {
+  readonly viewBoxWidth: number;
+  readonly viewBoxHeight: number;
+  readonly anchorY: number;
 }
