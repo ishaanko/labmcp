@@ -1,10 +1,11 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
-import { Undo2, RotateCcw, TerminalSquare, Sparkles } from "lucide-react";
+import { useState, useSyncExternalStore } from "react";
+import { Undo2, RotateCcw, TerminalSquare, Sparkles, CircleHelp } from "lucide-react";
 import { clsx } from "clsx";
 import { useLabStore } from "@/store/labStore";
 import { Button } from "@/components/ui/button";
+import { FaqDialog } from "@/components/dialogs/FaqDialog";
 import { ScenarioMenu } from "./ScenarioMenu";
 import { ObjectiveChip } from "./ObjectiveChip";
 import { WebMcpPill } from "./WebMcpPill";
@@ -38,6 +39,7 @@ export function TopBar() {
   const agentPanelOpen = useLabStore((s) => s.ui.agentPanelOpen);
   const toggleAgentPanel = useLabStore((s) => s.toggleAgentPanel);
   const consoleEnabled = useConsoleParamPresent();
+  const [faqOpen, setFaqOpen] = useState(false);
 
   return (
     <div className="pointer-events-auto flex h-11 w-full shrink-0 items-center gap-2 border-b border-border bg-card px-3">
@@ -48,7 +50,12 @@ export function TopBar() {
       <span className="text-muted-foreground">/</span>
       <ScenarioMenu />
       <ObjectiveChip />
+      <Button variant="ghost" size="sm" onClick={() => setFaqOpen(true)} aria-label="Open FAQ">
+        <CircleHelp size={14} />
+        FAQ
+      </Button>
       <div className="flex-1" />
+      <FaqDialog open={faqOpen} onOpenChange={setFaqOpen} />
       {consoleEnabled ? (
         <Button variant="ghost" size="sm" onClick={toggleDevConsole} aria-label="Toggle dev console">
           <TerminalSquare size={14} />
