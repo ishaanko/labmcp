@@ -118,7 +118,7 @@ export function AgentPanel({ open, onOpenChange }: AgentPanelProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false} disablePointerDismissal>
       <SheetContent side="right" overlay={false} className="gap-0 p-0 data-[side=right]:w-[380px] data-[side=right]:sm:max-w-[380px]">
-        <SheetHeader className="flex-row items-center gap-2 border-b border-hairline py-3 pr-10 pl-3">
+        <SheetHeader className="flex-row items-center gap-2 border-b border-hairline pt-4 pr-10 pb-3 pl-3">
           <Sparkles size={14} className="text-amber" />
           <SheetTitle>Lab partner</SheetTitle>
           <span className={clsx("ml-auto h-1.5 w-1.5 rounded-full", DOT_COLOR[state.phase])} aria-hidden />
