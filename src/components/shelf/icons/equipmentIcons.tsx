@@ -46,7 +46,7 @@ export function GraduatedCylinderIcon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
       <path d="M8.7 3h6.6v15.5a1 1 0 0 1-1 1h-4.6a1 1 0 0 1-1-1V3Z" fill="currentColor" fillOpacity={0.28} />
-      <path d="M7.3 19.5h9.4v.9a1 1 0 0 1-1 1H8.3a1 1 0 0 1-1-1Z" fill="currentColor" fillOpacity={0.45} stroke="none" />
+      <path d="M7.5 20.5h9" />
       <path d="M9 8h1.6M9 11.5h1.6M9 15h1.6" strokeWidth={1} />
     </Svg>
   );
@@ -56,14 +56,14 @@ export function GraduatedCylinderIcon({ size, className }: IconProps) {
 export function BuretteIcon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
-      <path d="M4 21h6" />
-      <path d="M6.5 21V4.5" />
-      <path d="M6.5 10.5h4.5" />
-      <path d="M11 3h3" />
-      <path d="M11.5 3v12.5a1.5 1.5 0 0 0 3 0V3Z" fill="currentColor" fillOpacity={0.28} />
-      <path d="M14.7 13.8h1.3" strokeWidth={1} />
-      <path d="M13 17.3v1.7" strokeWidth={1.4} />
-      <circle cx={13} cy={19.6} r={0.55} fill="currentColor" stroke="none" />
+      <path d="M6 21h6" strokeWidth={1.5} />
+      <path d="M8.5 21V4.5" strokeWidth={1.5} />
+      <path d="M8.5 10.5h4.5" strokeWidth={1.5} />
+      <path d="M13 3h3" />
+      <path d="M13.5 3v12.5a1.5 1.5 0 0 0 3 0V3Z" fill="currentColor" fillOpacity={0.28} />
+      <path d="M16.7 13.8h1.3" strokeWidth={1} />
+      <path d="M15 17.3v1.7" strokeWidth={1.4} />
+      <circle cx={15} cy={19.6} r={0.55} fill="currentColor" stroke="none" />
     </Svg>
   );
 }
@@ -87,9 +87,9 @@ export function ThermometerIcon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
       <path d="M10.4 3.6a1.6 1.6 0 0 1 3.2 0v10.6a3.2 3.2 0 1 1-3.2 0Z" fill="currentColor" fillOpacity={0.28} />
-      <path d="M11.2 13v4.4" strokeWidth={2.4} />
-      <circle cx={12} cy={17.6} r={1.7} fill="currentColor" stroke="none" />
-      <path d="M14 7h1.4M14 10h1.4" />
+      <path d="M12 9v7" strokeWidth={2.2} />
+      <circle cx={12} cy={17} r={1.8} fill="currentColor" stroke="none" />
+      <path d="M15.8 7h1.2M15.8 10h1.2" strokeWidth={1.4} />
     </Svg>
   );
 }
@@ -98,10 +98,10 @@ export function ThermometerIcon({ size, className }: IconProps) {
 export function HotplateIcon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
-      <path d="M3 15.5h18v4a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 19.5Z" fill="currentColor" fillOpacity={0.28} />
-      <ellipse cx={12} cy={12.3} rx={6.4} ry={2.6} strokeWidth={1} />
-      <ellipse cx={12} cy={12.3} rx={3.4} ry={1.4} strokeWidth={1} />
-      <circle cx={5.6} cy={17.5} r={0.9} fill="currentColor" stroke="none" />
+      <path d="M3 13h18v4a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17Z" fill="currentColor" fillOpacity={0.28} />
+      <ellipse cx={12} cy={9.8} rx={6.4} ry={2.6} strokeWidth={1.5} />
+      <ellipse cx={12} cy={9.8} rx={3.2} ry={1.3} strokeWidth={1.5} />
+      <circle cx={5.6} cy={15.2} r={0.9} fill="currentColor" stroke="none" />
     </Svg>
   );
 }

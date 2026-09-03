@@ -74,11 +74,12 @@ export function AmmoniaIcon({ size, className }: IconProps) {
 export function NaclIcon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
-      <path d="M7.5 6h9v12.5a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2V6Z" fill="currentColor" fillOpacity={0.28} />
-      <path d="M7.5 6a4.5 2.2 0 0 1 9 0Z" fill="currentColor" fillOpacity={0.5} stroke="none" />
-      <circle cx={9.6} cy={4.9} r={0.5} fill="currentColor" stroke="none" />
-      <circle cx={12} cy={4.5} r={0.5} fill="currentColor" stroke="none" />
-      <circle cx={14.4} cy={4.9} r={0.5} fill="currentColor" stroke="none" />
+      <path d="M7.5 7.5h9v11a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2Z" fill="currentColor" fillOpacity={0.28} />
+      <path d="M7.5 7.5a4.5 3.6 0 0 1 9 0Z" fill="currentColor" fillOpacity={0.55} />
+      <path d="M7.5 10h9" strokeWidth={1.2} />
+      <circle cx={10.2} cy={5.6} r={0.65} fill="#000" fillOpacity={0.6} stroke="none" />
+      <circle cx={12} cy={5} r={0.65} fill="#000" fillOpacity={0.6} stroke="none" />
+      <circle cx={13.8} cy={5.6} r={0.65} fill="#000" fillOpacity={0.6} stroke="none" />
     </Svg>
   );
 }
@@ -89,8 +90,9 @@ export function Agno3Icon({ size, className }: IconProps) {
     <Svg size={size} className={className}>
       <BottleOutline dark />
       <path
-        d="M14 10.2 14.35 11.65 15.8 12 14.35 12.35 14 13.8 13.65 12.35 12.2 12 13.65 11.65Z"
-        fill="currentColor"
+        d="M14 9.4 14.5 11.5 16.6 12 14.5 12.5 14 14.6 13.5 12.5 11.4 12 13.5 11.5Z"
+        fill="#fff"
+        fillOpacity={0.9}
         stroke="none"
       />
     </Svg>
@@ -103,11 +105,11 @@ export function Cacl2Icon({ size, className }: IconProps) {
     <Svg size={size} className={className}>
       <BottleOutline />
       <g fill="currentColor" stroke="none">
-        <rect x={-1.3} y={-0.18} width={2.6} height={0.36} transform="translate(12 10.5)" />
-        <rect x={-1.3} y={-0.18} width={2.6} height={0.36} transform="translate(12 10.5) rotate(60)" />
-        <rect x={-1.3} y={-0.18} width={2.6} height={0.36} transform="translate(12 10.5) rotate(120)" />
-        <path d="M9.6 16.4 10.4 17.2 9.6 18 8.8 17.2Z" />
-        <path d="M14.6 16.9 15.3 17.6 14.6 18.3 13.9 17.6Z" />
+        <rect x={-1.9} y={-0.4} width={3.8} height={0.8} transform="translate(12 10.6)" />
+        <rect x={-1.9} y={-0.4} width={3.8} height={0.8} transform="translate(12 10.6) rotate(60)" />
+        <rect x={-1.9} y={-0.4} width={3.8} height={0.8} transform="translate(12 10.6) rotate(120)" />
+        <path d="M9.4 16 10.5 17.2 9.4 18.4 8.3 17.2Z" />
+        <path d="M14.6 16.4 15.6 17.5 14.6 18.6 13.6 17.5Z" />
       </g>
     </Svg>
   );
@@ -127,7 +129,7 @@ export function Na2so4Icon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
       <BottleOutline />
-      <path d="M12 11.5 14.2 14 12 17.5 9.8 14Z" fill="currentColor" stroke="none" />
+      <path d="M12 8.8 14.1 11.3 12 13.8 9.9 11.3Z" fill="currentColor" stroke="none" />
     </Svg>
   );
 }
@@ -150,10 +152,10 @@ export function Na2co3Icon({ size, className }: IconProps) {
 export function Nahco3Icon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
-      <path d="M5.3 8.2 6.8 5h10.4l1.5 3.2H5.3Z" fill="currentColor" fillOpacity={0.45} stroke="none" />
+      <path d="M5.3 8.2 6.8 5h10.4l1.5 3.2Z" fill="currentColor" fillOpacity={0.45} strokeWidth={1.5} />
       <path d="M6 8.2h12v11a1.3 1.3 0 0 1-1.3 1.3H7.3A1.3 1.3 0 0 1 6 19.2Z" fill="currentColor" fillOpacity={0.28} />
-      <path d="M16 9.5 19.3 6" />
-      <ellipse cx={19.6} cy={5.6} rx={1.4} ry={1} transform="rotate(45 19.6 5.6)" fill="currentColor" stroke="none" />
+      <path d="M8.5 14.5h6" strokeWidth={1.4} />
+      <ellipse cx={15.8} cy={14.5} rx={1.7} ry={1.15} fill="currentColor" stroke="none" />
     </Svg>
   );
 }

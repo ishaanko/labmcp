@@ -42,8 +42,9 @@ export function UniversalIcon({ size, className }: IconProps) {
 export function LitmusIcon({ size, className }: IconProps) {
   return (
     <Svg size={size} className={className}>
-      <rect x={7} y={3.5} width={4} height={16.5} rx={1.2} fill="#ff6b6b" fillOpacity={0.85} stroke="none" />
-      <rect x={13} y={6.5} width={4} height={13.5} rx={1.2} fill="#4cc9f0" fillOpacity={0.85} stroke="none" />
+      <rect x={7} y={3.5} width={4} height={16.5} rx={1.2} fill="#ff6b6b" fillOpacity={0.85} strokeWidth={1.5} />
+      <rect x={13} y={6.5} width={4} height={13.5} rx={1.2} fill="#4cc9f0" fillOpacity={0.85} strokeWidth={1.5} />
+      <path d="M5.5 15h13" strokeWidth={1.2} />
     </Svg>
   );
 }

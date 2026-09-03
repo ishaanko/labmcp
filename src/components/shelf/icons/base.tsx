@@ -49,7 +49,7 @@ export function BottleOutline({ bodyD = BOTTLE_BODY, dark = false }: { readonly 
   return (
     <>
       <path d="M10 3h4" />
-      <path d={bodyD} fill="currentColor" fillOpacity={dark ? 0.85 : 0.28} />
+      <path d={bodyD} fill="currentColor" fillOpacity={dark ? 0.6 : 0.28} />
       <path d="M6.5 15h11" />
     </>
   );
