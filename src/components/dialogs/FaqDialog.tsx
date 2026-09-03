@@ -42,9 +42,8 @@ export function FaqDialog({ open, onOpenChange }: FaqDialogProps) {
             <section className="flex flex-col gap-1.5">
               <h3 className="font-heading text-xs font-semibold tracking-wide text-muted-foreground uppercase">How to use it</h3>
               <p className="text-foreground">
-                Drag reagents, instruments, and indicators onto the bench with the mouse, same as a real bench. To bring in the agent, press{" "}
-                <kbd className="rounded border border-border bg-muted px-1 py-0.5 text-xs">A</kbd> or click <span className="font-medium">Agent</span> in the
-                top bar, then type a request. The agent calls the same tools a person's clicks call, so every action shows up as a feed entry on the bench.
+                Drag reagents, instruments, and indicators onto the bench with the mouse, same as a real bench. The agent calls the same tools a person's
+                clicks call, so every action shows up as a feed entry on the bench.
               </p>
               <p className="text-foreground">
                 LabMCP also registers its tools on <code className="rounded bg-muted px-1 py-0.5 text-xs">document.modelContext</code>, so the ChatGPT desktop
