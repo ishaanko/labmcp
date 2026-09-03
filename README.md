@@ -1,4 +1,4 @@
-# ChemLab
+# LabMCP
 
 A virtual chemistry lab that a human and an AI agent share. The human drags, pours, and heats glassware on a flat 2D bench. The agent uses WebMCP tools such as `dispense`, `measure_ph`, and `transfer`. Both act on one lab state, and every action animates in the same view.
 

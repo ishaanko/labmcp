@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useLabStore } from "@/store/labStore";
 
-const STORAGE_KEY = "chemlab-theme";
+const STORAGE_KEY = "labmcp-theme";
 
 /**
  * Keeps `document.documentElement`'s `.dark` class in sync with `ui.theme` and persists an

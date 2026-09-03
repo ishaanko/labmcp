@@ -42,7 +42,7 @@ export function TopBar() {
   return (
     <div className="pointer-events-auto flex h-11 w-full shrink-0 items-center gap-2 border-b border-border bg-card px-3">
       <span className="flex items-center gap-1 text-md font-bold tracking-tight text-foreground">
-        ChemLab
+        LabMCP
         <span className="h-1.5 w-1.5 rounded-full bg-violet" aria-hidden />
       </span>
       <span className="text-muted-foreground">/</span>

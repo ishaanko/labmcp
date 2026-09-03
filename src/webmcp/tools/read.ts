@@ -90,7 +90,7 @@ const listEquipment: ToolDef<Record<string, never>> = {
   name: "list_equipment",
   title: "List equipment",
   description:
-    "Lists every equipment type ChemLab supports (with capacity and purpose) and every object currently on the " +
+    "Lists every equipment type LabMCP supports (with capacity and purpose) and every object currently on the " +
     "bench (id, type, and, for instruments, what it's attached to). Use add_container to place more.",
   input: EmptyInput,
   readOnly: true,

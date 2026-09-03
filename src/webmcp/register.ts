@@ -20,7 +20,7 @@ function isPolyfill(modelContext: unknown): boolean {
 }
 
 /**
- * Registers the ChemLab tool catalog with `document.modelContext`, polyfilling it first when the
+ * Registers the LabMCP tool catalog with `document.modelContext`, polyfilling it first when the
  * browser has no native support. Returns an unregister function; call it on unmount (StrictMode's
  * double-mount just aborts the first registration and re-registers cleanly).
  */
